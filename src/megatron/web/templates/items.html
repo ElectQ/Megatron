@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-bold">📝 数据浏览</h2>
+</div>
+
+<form method="get" action="/ui/items" class="flex flex-wrap gap-2 mb-4">
+    <input type="text" name="author" value="{{ filters.author or '' }}" placeholder="@作者" class="input input-bordered input-sm w-40">
+    <input type="text" name="keyword" value="{{ filters.keyword or '' }}" placeholder="关键词搜索" class="input input-bordered input-sm w-48">
+    <input type="date" name="collect_date" value="{{ filters.collect_date or '' }}" class="input input-bordered input-sm w-40">
+    <button type="submit" class="btn btn-primary btn-sm">🔍 查询</button>
+    <a href="/ui/items" class="btn btn-ghost btn-sm">清除</a>
+</form>
+
+<div class="card bg-base-100 shadow">
+    <div class="card-body">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="card-title">采集条目</h3>
+            <span class="text-sm text-base-content/60">共 {{ page.total }} 条 · 第 {{ page.page }}/{{ total_pages }} 页</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>采集日</th>
+                        <th>作者</th>
+                        <th>内容</th>
+                        <th>标签</th>
+                        <th>互动</th>
+                        <th>发布时间</th>
+                        <th>原文</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for it in page['items'] %}
+                <tr class="hover">
+                    <td class="text-xs text-base-content/50">{{ (page.page - 1) * page.page_size + loop.index }}</td>
+                    <td>
+                        {% if it.collect_date %}
+                        <span class="badge badge-sm badge-info font-mono">{{ it.collect_date }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="font-mono text-xs">@{{ it.author }}</td>
+                    <td class="max-w-md truncate">{{ it.content[:100] }}{% if it.content|length > 100 %}...{% endif %}</td>
+                    <td>
+                        {% for tag in it.tags[:3] %}
+                        <span class="badge badge-xs badge-ghost">{{ tag }}</span>
+                        {% endfor %}
+                        {% if it.tags|length > 3 %}<span class="text-xs text-base-content/40">+{{ it.tags|length - 3 }}</span>{% endif %}
+                    </td>
+                    <td class="text-xs whitespace-nowrap">
+                        ❤{{ it.metrics.like_count }} 🔁{{ it.metrics.retweet_count }} 💬{{ it.metrics.reply_count }}
+                    </td>
+                    <td class="text-xs">{{ it.published_at[:10] }}</td>
+                    <td>
+                        {% if it.url %}<a href="{{ it.url }}" target="_blank" class="link link-xs">↗</a>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page['items'] %}
+        <div class="flex justify-center items-center gap-2 mt-4">
+            {% if page.page > 1 %}
+            <a href="?{{ prev_page }}" class="btn btn-sm btn-ghost">« 上一页</a>
+            {% endif %}
+            <span class="text-sm">{{ page.page }} / {{ total_pages }}</span>
+            {% if page.page < total_pages %}
+            <a href="?{{ next_page }}" class="btn btn-sm btn-ghost">下一页 »</a>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-base-content/60 py-8 text-center">暂无数据。运行 <code>megatron pull</code> 或等待 Soundwave 推送。</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

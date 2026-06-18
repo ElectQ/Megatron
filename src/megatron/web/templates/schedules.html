@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-bold">⏰ 定时任务</h2>
+    <button class="btn btn-primary btn-sm" onclick="reloadSchedules()">🔄 重新加载</button>
+</div>
+
+<div class="card bg-base-100 shadow mb-8">
+    <div class="card-body">
+        <h3 class="card-title">活跃调度 ({{ schedules|length }})</h3>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead><tr><th>任务 ID</th><th>名称</th><th>Cron 表达式</th><th>下次执行</th></tr></thead>
+                <tbody>
+                {% for s in schedules %}
+                <tr>
+                    <td class="font-mono text-xs">{{ s.id }}</td>
+                    <td>{{ s.name }}</td>
+                    <td class="font-mono text-xs">{{ s.trigger }}</td>
+                    <td class="text-xs">{{ s.next_run[:19]|replace('T',' ') if s.next_run else '-' }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not schedules %}<p class="text-base-content/60 py-4 text-center">暂无定时任务。在分析模块中设置 cron 表达式后会自动注册。</p>{% endif %}
+    </div>
+</div>
+
+<div class="card bg-base-100 shadow">
+    <div class="card-body">
+        <h3 class="card-title">模块调度状态</h3>
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead><tr><th>模块</th><th>启用</th><th>Cron</th><th>说明</th></tr></thead>
+                <tbody>
+                {% for m in modules %}
+                <tr>
+                    <td class="font-mono">{{ m.name }}</td>
+                    <td>{% if m.enabled %}<span class="badge badge-success badge-sm">启用</span>{% else %}<span class="badge badge-ghost badge-sm">禁用</span>{% endif %}</td>
+                    <td class="font-mono text-xs">{{ m.schedule_cron or '<空>' }}</td>
+                    <td class="text-xs">
+                        {% if not m.enabled %}模块未启用
+                        {% elif not m.schedule_cron %}未设置 cron
+                        {% else %}已调度 ✅{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not modules %}<p class="text-base-content/60 py-4 text-center">暂无模块。</p>{% endif %}
+        <div class="alert alert-info mt-4">
+            <div class="text-xs">
+                <strong>Cron 格式提示：</strong><code>分 时 日 月 周</code>（UTC 时间）。<br>
+                示例：<code>30 6 * * *</code> = 每天 UTC 6:30（北京 14:30）｜<code>0 0 * * 1</code> = 每周一 UTC 0:00<br>
+                每天北京时间 8:00 推送：<code>0 0 * * *</code>（UTC 0:00 = 北京 8:00）
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const token = '{{ request.cookies.get("admin_token") or "" }}';
+const headers = {'Authorization': 'Bearer ' + token};
+
+async function reloadSchedules() {
+    const r = await fetch('/api/admin/schedules/reload', {method: 'POST', headers});
+    const d = await r.json();
+    alert('✅ 已重新加载，调度 ' + d.scheduled_modules + ' 个模块');
+    location.reload();
+}
+</script>
+{% endblock %}

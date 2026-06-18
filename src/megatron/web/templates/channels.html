@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-bold">📣 推送渠道</h2>
+</div>
+
+<div class="card bg-base-100 shadow mb-8">
+    <div class="card-body">
+        <h3 class="card-title">添加渠道</h3>
+        <form id="add-channel" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input name="name" placeholder="渠道名称 (如 my-telegram)" class="input input-bordered" required>
+            <select name="kind" id="ch-kind" class="select select-bordered" required onchange="updateConfigFields()">
+                {% for k in opts.kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+            </select>
+            <div id="config-fields" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+            <button type="submit" class="btn btn-primary md:col-span-2">添加</button>
+        </form>
+        <div id="add-result" class="mt-2"></div>
+    </div>
+</div>
+
+<div class="card bg-base-100 shadow">
+    <div class="card-body">
+        <h3 class="card-title">已配置 ({{ channels|length }})</h3>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead><tr><th>ID</th><th>名称</th><th>类型</th><th>配置</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody>
+                {% for ch in channels %}
+                <tr>
+                    <td>{{ ch.id }}</td>
+                    <td class="font-mono">{{ ch.name }}</td>
+                    <td><span class="badge badge-primary badge-sm">{{ ch.kind }}</span></td>
+                    <td class="font-mono text-xs">
+                        {% for k, v in ch.config_masked.items() %}{{ k }}={{ v }} {% endfor %}
+                    </td>
+                    <td>{% if ch.enabled %}<span class="badge badge-success badge-sm">启用</span>{% else %}<span class="badge badge-ghost badge-sm">禁用</span>{% endif %}</td>
+                    <td class="flex gap-1">
+                        <button class="btn btn-xs btn-ghost" onclick="testChannel({{ ch.id }})">测试</button>
+                        <button class="btn btn-xs btn-ghost text-error" onclick="delChannel({{ ch.id }})">删除</button>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not channels %}<p class="text-base-content/60 py-4 text-center">暂无渠道。添加一个推送目标。</p>{% endif %}
+    </div>
+</div>
+
+<script>
+const token = '{{ request.cookies.get("admin_token") or "" }}';
+const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
+
+const SCHEMAS = {
+    telegram: [{key:'bot_token', label:'Bot Token', type:'password'}, {key:'chat_id', label:'Chat ID'}],
+    feishu: [{key:'webhook_url', label:'Webhook URL', type:'password'}],
+    wecom: [{key:'webhook_url', label:'Webhook URL', type:'password'}],
+    dingtalk: [{key:'webhook_url', label:'Webhook URL', type:'password'}, {key:'secret', label:'Secret (可选)', type:'password'}],
+};
+
+function updateConfigFields() {
+    const kind = document.getElementById('ch-kind').value;
+    const container = document.getElementById('config-fields');
+    const fields = SCHEMAS[kind] || [];
+    container.innerHTML = fields.map(f =>
+        `<input name="cfg_${f.key}" placeholder="${f.label}" type="${f.type||'text'}" class="input input-bordered">`
+    ).join('');
+}
+updateConfigFields();
+
+document.getElementById('add-channel').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const kind = fd.get('kind');
+    const config = {};
+    (SCHEMAS[kind]||[]).forEach(f => { const v = fd.get('cfg_'+f.key); if (v) config[f.key] = v; });
+    const body = {name: fd.get('name'), kind: kind, config: config, enabled: true};
+    const r = await fetch('/api/admin/channels', {method: 'POST', headers, body: JSON.stringify(body)});
+    if (r.ok) { location.reload(); } else { document.getElementById('add-result').innerHTML = '<div class="alert alert-error py-2"><span class="text-sm">'+ (await r.text()) +'</span></div>'; }
+});
+
+async function testChannel(id) {
+    const r = await fetch(`/api/admin/channels/${id}/test`, {method: 'POST', headers});
+    const d = await r.json();
+    alert(d.ok ? '✅ 发送成功 (HTTP '+d.status_code+')' : '❌ 失败: ' + (d.error||'HTTP '+d.status_code));
+}
+async function delChannel(id) {
+    if (!confirm('确认删除?')) return;
+    await fetch(`/api/admin/channels/${id}`, {method: 'DELETE', headers});
+    location.reload();
+}
+</script>
+{% endblock %}

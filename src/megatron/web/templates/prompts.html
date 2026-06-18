@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-bold">💬 提示词模板</h2>
+</div>
+
+<div class="card bg-base-100 shadow mb-8">
+    <div class="card-body">
+        <h3 class="card-title">新建模板</h3>
+        <form id="add-prompt" class="flex flex-col gap-3">
+            <div class="flex gap-3">
+                <input name="name" placeholder="模板名称" class="input input-bordered flex-1" required>
+            </div>
+            <textarea name="template" rows="10" placeholder="Jinja2 模板, 可用变量: items, item_count, top_items, now, ctx" class="textarea textarea-bordered font-mono text-sm" required></textarea>
+            <div class="flex gap-2">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="previewPrompt()">👁 预览</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+        <div id="preview" class="mt-2"></div>
+        <div id="add-result" class="mt-2"></div>
+    </div>
+</div>
+
+<div class="card bg-base-100 shadow">
+    <div class="card-body">
+        <h3 class="card-title">已有模板 ({{ prompts|length }})</h3>
+        {% for p in prompts %}
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox">
+            <div class="collapse-title font-mono">{{ p.name }} <span class="badge badge-sm">v{{ p.version }}</span></div>
+            <div class="collapse-content">
+                <pre class="bg-base-300 p-4 rounded text-xs overflow-x-auto whitespace-pre-wrap">{{ p.template }}</pre>
+            </div>
+        </div>
+        {% endfor %}
+        {% if not prompts %}<p class="text-base-content/60 py-4 text-center">暂无模板。</p>{% endif %}
+    </div>
+</div>
+
+<script>
+const token = '{{ request.cookies.get("admin_token") or "" }}';
+const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
+
+document.getElementById('add-prompt').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {name: fd.get('name'), template: fd.get('template'), output_schema: {}, is_active: true};
+    const r = await fetch('/api/admin/prompts', {method: 'POST', headers, body: JSON.stringify(body)});
+    if (r.ok) { location.reload(); } else { document.getElementById('add-result').innerHTML = '<div class="alert alert-error py-2"><span class="text-sm">'+ (await r.text()) +'</span></div>'; }
+});
+
+async function previewPrompt() {
+    const tmpl = document.querySelector('textarea[name=template]').value;
+    const r = await fetch('/api/admin/prompts/preview', {method: 'POST', headers, body: JSON.stringify({template: tmpl})});
+    const d = await r.json();
+    document.getElementById('preview').innerHTML = '<details open class="mt-2"><summary class="cursor-pointer text-sm">预览结果</summary><pre class="bg-base-300 p-3 rounded text-xs mt-2 overflow-x-auto whitespace-pre-wrap">'+ d.rendered.replace(/</g,'&lt;') +'</pre></details>';
+}
+</script>
+{% endblock %}

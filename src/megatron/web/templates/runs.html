@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-bold">🏃 运行历史</h2>
+</div>
+
+<form method="get" action="/ui/runs" class="flex flex-wrap gap-2 mb-4">
+    <input type="date" name="date" value="{{ filters.date or '' }}" class="input input-bordered input-sm w-40">
+    <button type="submit" class="btn btn-primary btn-sm">🔍 筛选</button>
+    {% if filters.date %}<a href="/ui/runs" class="btn btn-ghost btn-sm">清除</a>{% endif %}
+</form>
+
+<div class="space-y-3">
+{% for r in runs %}
+<div class="collapse collapse-arrow bg-base-100 shadow">
+    <input type="checkbox">
+    <div class="collapse-title flex items-center gap-3 flex-wrap">
+        <span class="font-mono">#{{ r.id }}</span>
+        <span class="text-sm font-medium">{{ r.module_name or '任务#' ~ r.module_id }}</span>
+        {% if r.status == 'completed' %}<span class="badge badge-success badge-sm">完成</span>
+        {% elif r.status == 'failed' %}<span class="badge badge-error badge-sm">失败</span>
+        {% else %}<span class="badge badge-warning badge-sm">{{ r.status }}</span>{% endif %}
+        <span class="text-xs text-base-content/60">输入 {{ r.input_count }} · {{ r.prompt_tokens + r.completion_tokens }} tokens · ${{ "%.4f"|format(r.cost_usd) }} · {{ r.duration_sec }}s</span>
+        {% if r.tool_calls %}<span class="badge badge-info badge-sm">{{ r.tool_calls|length }} 次工具调用</span>{% endif %}
+        <span class="text-xs text-base-content/40 ml-auto">{{ r.started_at[:19]|replace('T',' ') }}</span>
+    </div>
+    <div class="collapse-content">
+        {% if r.error %}
+        <div class="alert alert-error mb-2"><span class="font-mono text-xs">{{ r.error }}</span></div>
+        {% endif %}
+
+        {% if r.result.report_markdown %}
+        <div class="mb-3">
+            <div class="text-xs text-base-content/60 mb-1">简报(Markdown,推送时直送)</div>
+            <div class="bg-base-200 p-4 rounded prose prose-sm max-w-none" id="md-{{ r.id }}"></div>
+        </div>
+        {% elif r.result.briefing %}
+        <div class="bg-base-200 p-3 rounded mb-3">
+            <div class="text-sm font-bold mb-2">{{ r.result.briefing }}</div>
+        </div>
+        {% endif %}
+
+        {% if r.result['items'] %}
+        <div class="text-xs text-base-content/60 mb-1">结构化条目({{ r.result['items']|length }} 条,按档位排序)</div>
+        <div class="overflow-x-auto">
+            <table class="table table-xs">
+                <thead><tr><th>档位</th><th>新/重</th><th>分类</th><th>标题</th><th>CVE</th><th>解读</th><th>成果</th><th>作者</th><th>链接</th></tr></thead>
+                <tbody>
+                {% for it in r.result['items']|sort(attribute='tier') %}
+                <tr>
+                    <td>
+                        {% set tier = it.tier or 'quick' %}
+                        {% if tier == 'must' %}🔴<span class="text-xs">必看</span>
+                        {% elif tier == 'recommended' %}🟡<span class="text-xs">推荐</span>
+                        {% else %}⚪<span class="text-xs">速览</span>{% endif %}
+                    </td>
+                    <td>
+                        {% set fr = it.freshness or 'new' %}
+                        {% if fr == 'new' %}🆕<span class="text-xs">新</span>
+                        {% else %}♻️<span class="text-xs">重发</span>{% endif %}
+                    </td>
+                    <td>
+                        {% set cat = it.category or '?' %}
+                        {% if cat == 'vuln' %}🟥{% elif cat == 'tool' %}🟦{% elif cat == 'research' %}🟨{% elif cat == 'threat' %}🟥{% elif cat == 'incident' %}🟧{% elif cat == 'advisory' %}🟩{% else %}⚪{% endif %}
+                        <span class="font-mono text-xs">{{ cat }}</span>
+                    </td>
+                    <td class="font-medium">{{ it.title }}</td>
+                    <td>{% if it.cve %}<span class="badge badge-xs badge-error">{{ it.cve }}</span>{% endif %}</td>
+                    <td class="max-w-md">{{ it.summary }}</td>
+                    <td>
+                        {% set art = it.artifact or 'none' %}
+                        {% if art == 'repo' %}📦{% elif art == 'article' %}📄{% elif art == 'poc' %}💥{% elif art == 'video' %}🎬{% else %}-{% endif %}
+                        <span class="text-xs text-base-content/60">{{ art }}</span>
+                    </td>
+                    <td class="font-mono text-xs">{{ it.author or '-' }}</td>
+                    <td>
+                        {% if it.source_url %}<a href="{{ it.source_url }}" target="_blank" class="link link-xs">原文</a>{% endif %}
+                        {% if it.links and it.links|length > 1 %}<span class="text-xs text-base-content/60">+{{ it.links|length - 1 }}</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if r.tool_calls %}
+        <details class="mt-2">
+            <summary class="text-xs cursor-pointer text-base-content/60">工具调用记录({{ r.tool_calls|length }} 次)</summary>
+            <div class="text-xs bg-base-300 p-2 rounded mt-1 space-y-1">
+            {% for tc in r.tool_calls %}
+                <div>{% if tc.ok %}✅{% else %}❌{% endif %} <span class="font-mono">{{ tc.tool }}</span>: <span class="text-base-content/70">{{ tc.args|tojson }}</span></div>
+            {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+{% if not runs %}<p class="text-base-content/60 py-8 text-center">暂无运行记录。</p>{% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+document.querySelectorAll('[id^="md-"]').forEach(el => {
+    const raw = el.parentElement.querySelector('pre') ? el.parentElement.querySelector('pre').textContent : '';
+    if (raw) el.innerHTML = marked.parse(raw);
+});
+</script>
+{% endblock %}
