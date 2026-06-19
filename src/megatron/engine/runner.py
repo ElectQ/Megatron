@@ -127,7 +127,7 @@ class ModuleRunner:
             await self.session.commit()
 
             # Refresh data from source before selecting
-            latest_date = await self._refresh_data(module)
+            latest_date = await self._refresh_data(module, run)
             if latest_date and module.filter_config.get("time_mode") in (None, "today", "date"):
                 module.filter_config["time_mode"] = "date"
                 module.filter_config["target_date"] = latest_date
@@ -201,7 +201,7 @@ class ModuleRunner:
             logger.error("runner.failed", module_id=module.id, run_id=run.id, error=str(e))
             raise
 
-    async def _refresh_data(self, module) -> str | None:
+    async def _refresh_data(self, module, run) -> str | None:
         """Fetch fresh data from source, return latest date fetched (or None)."""
         from ..core.models import ItemRecord
         from ..plugins.sources.base import source_registry
@@ -260,7 +260,10 @@ class ModuleRunner:
             )
             return latest_date
         except Exception as e:
-            logger.error("runner.refresh.failed", source=module.source, error=str(e))
+            msg = str(e)[:500]
+            run.error = f"[refresh] {module.source} 采集失败: {msg}"
+            await self.session.commit()
+            logger.error("runner.refresh.failed", source=module.source, error=msg)
             return None
 
     async def _select_items(self, module) -> list[ItemRecord]:
