@@ -1,58 +1,35 @@
 # Megatron Dockerfile
-# Multi-stage build for smaller image size
 
-# Stage 1: Build dependencies
-FROM python:3.10-slim as builder
-
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
-COPY pyproject.toml uv.lock* ./
-RUN pip install --no-cache-dir uv && \
-    uv pip install --system -e "."
-
-# Stage 2: Runtime image
 FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install runtime dependencies
 RUN apt-get update && apt-get install -y \
-    libpq5 \
+    gcc libpq-dev curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Install Python deps directly (simpler than multi-stage for this project size)
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir uv \
+    && uv pip install --system "fastapi>=0.115.0" "uvicorn[standard]>=0.30.0" \
+        "sqlalchemy[asyncio]>=2.0.0" "aiosqlite>=0.20.0" "alembic>=1.13.0" \
+        "pydantic>=2.0.0" "pydantic-settings>=2.0.0" "apscheduler>=3.10.0" \
+        "litellm>=1.40.0" "httpx>=0.27.0" "jinja2>=3.1.0" \
+        "itsdangerous>=2.2.0" "bcrypt>=4.0.0" "cryptography>=42.0.0" \
+        "structlog>=24.1.0" "python-multipart>=0.0.9" "mcp>=1.0.0" \
+        "asyncpg>=0.29.0"
 
-# Copy application code
+# Copy application
 COPY src/ ./src/
 COPY mcp_servers/ ./mcp_servers/
 COPY migrations/ ./migrations/
 COPY alembic.ini ./
-COPY config/ ./config/
 
-# Create data directory
-RUN mkdir -p /app/data
-
-# Environment variables
 ENV PYTHONPATH=/app/src
-ENV DATABASE_URL=sqlite:///app/megatron.db
-ENV SECRET_KEY=change-me-in-production
-ENV ADMIN_TOKEN=admin
 
-# Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -sf http://localhost:8000/health || exit 1
 
-# Run migrations and start server
-CMD ["sh", "-c", "alembic upgrade head && uvicorn megatron.web.app:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && python -m uvicorn megatron.web.app:app --host 0.0.0.0 --port 8000"]

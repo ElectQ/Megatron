@@ -1,51 +1,26 @@
 services:
-  # PostgreSQL 数据库
-  db:
-    image: postgres:16-alpine
-    container_name: megatron-db
-    environment:
-      POSTGRES_DB: megatron
-      POSTGRES_USER: megatron
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-megatron}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U megatron -d megatron"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # Megatron Web 服务
   web:
     build: .
-    container_name: megatron-web
+    container_name: megatron
     environment:
-      DATABASE_URL: postgresql+asyncpg://megatron:${DB_PASSWORD:-megatron}@db:5432/megatron
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Ch@ngeMe#2024!Secure}
+      # 数据库 (默认 SQLite，简单可靠)
+      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./megatron.db}
+      # 安全密钥 (不设置则自动生成)
+      MEGATRON_SESSION_SECRET: ${MEGATRON_SESSION_SECRET:-}
+      MEGATRON_ADMIN_TOKEN: ${MEGATRON_ADMIN_TOKEN:-}
+      MEGATRON_ADMIN_PASSWORD: ${MEGATRON_ADMIN_PASSWORD:-}
+      # DeepSeek
+      MEGATRON_DEEPSEEK_API_KEY: ${MEGATRON_DEEPSEEK_API_KEY:-}
+      # 钉钉 Webhook
+      MEGATRON_DINGTALK_URL: ${MEGATRON_DINGTALK_URL:-}
+      MEGATRON_DINGTALK_SECRET: ${MEGATRON_DINGTALK_SECRET:-}
     ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
+      - "${PORT:-8000}:8000"
     volumes:
-      - ./data:/app/data
+      - megatron_data:/app/data
+      - megatron_db:/app  # persist SQLite DB
     restart: unless-stopped
 
-  # Soundwave MCP Server (可选，取消注释以启用)
-  # mcp-soundwave:
-  #   build:
-  #     context: ./mcp_servers/soundwave
-  #     dockerfile: Dockerfile
-  #   container_name: megatron-mcp-soundwave
-  #   environment:
-  #     GITHUB_REPO: ElectQ/Soundwave
-  #     GITHUB_BRANCH: master
-  #   depends_on:
-  #     - web
-
 volumes:
-  postgres_data:
+  megatron_data:
+  megatron_db:

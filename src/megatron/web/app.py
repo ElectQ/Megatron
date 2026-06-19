@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from ..config import settings
 from ..core.db import dispose_db, init_db
 from ..core.logging import get_logger, setup_logging
+from .. import __version__
 from ..core.security import RedirectLoginException, validate_runtime_settings
 from ..ingest import api as ingest_api
 from ..scheduler import shutdown_scheduler, start_scheduler
@@ -40,6 +41,8 @@ async def lifespan(app: FastAPI):
     from ..plugins import webhooks as _webhooks  # noqa: F401  trigger registration
 
     await init_db()
+    from ..core.bootstrap import bootstrap
+    await bootstrap(None)
     start_scheduler()
     logger.info("app.started", env=settings.env)
     yield
@@ -51,7 +54,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Megatron",
     description="Prompt-driven LLM analysis hub",
-    version="0.2.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -95,5 +98,5 @@ async def health():
         "status": "ok",
         "service": "megatron",
         "sources": ["twitter"],
-        "version": "0.2.0",
+        "version": __version__,
     }
