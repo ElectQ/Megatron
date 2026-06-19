@@ -215,7 +215,10 @@ class ModuleRunner:
 
         try:
             source = source_cls(repo="ElectQ/Soundwave", branch="master")
-            items = await source.fetch()
+            try:
+                items = await source.fetch()
+            finally:
+                await source.close()
             if not items:
                 logger.info("runner.refresh.no_items", source=module.source)
                 return None

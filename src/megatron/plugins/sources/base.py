@@ -80,6 +80,13 @@ class MCPSource(BaseSource):
 
         return self._client
 
+    async def close(self) -> None:
+        """Close MCP client and release subprocess resources."""
+        if hasattr(self, "_exit_stack"):
+            await self._exit_stack.aclose()
+            self._exit_stack = None
+        self._client = None
+
     async def fetch(self, since: datetime | None = None) -> list[Item]:
         """Fetch items from MCP server."""
         client = await self._get_client()
