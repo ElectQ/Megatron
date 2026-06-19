@@ -29,9 +29,9 @@ class MCPSource(BaseSource):
     All future data sources should be accessed through this adapter.
     """
 
-    name = "mcp"
+    name = "soundwave"
 
-    def __init__(self, server_url: str, transport: str = "stdio", **config: Any):
+    def __init__(self, server_url: str = "", transport: str = "stdio", **config: Any):
         super().__init__(**config)
         self.server_url = server_url
         self.transport = transport
@@ -224,6 +224,7 @@ def register_source(name: str):
 
 
 # Register built-in sources
+source_registry.register("soundwave")(MCPSource)
 source_registry.register("mcp")(MCPSource)
 
 
