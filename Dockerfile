@@ -26,7 +26,7 @@ COPY mcp_servers/ ./mcp_servers/
 COPY migrations/ ./migrations/
 COPY alembic.ini ./
 
-ENV PYTHONPATH=/app/src
+ENV PYTHONPATH=/app:/app/src
 
 EXPOSE 8000
 
