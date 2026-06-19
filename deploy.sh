@@ -35,8 +35,14 @@ _setup() {
     log "Docker OK"
 
     # Compose
-    COMPOSE="docker compose"
-    docker compose version &>/dev/null || COMPOSE="docker-compose"
+    if docker compose version &>/dev/null 2>&1; then
+        COMPOSE="docker compose"
+    elif command -v docker-compose &>/dev/null; then
+        COMPOSE="docker-compose"
+    else
+        err "Docker Compose not found. Install: https://docs.docker.com/compose/install/"
+    fi
+    log "Compose: $COMPOSE"
 }
 
 _env() {
