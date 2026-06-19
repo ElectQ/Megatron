@@ -297,6 +297,8 @@ async function runModule(id, name) {
     if (r.ok && d.status === 'completed') {
         const tokens = d.prompt_tokens + d.completion_tokens;
         alert('Completed\nInput: ' + d.input_count + ' items · ' + tokens + ' tokens · $' + d.cost_usd.toFixed(4) + ' · ' + d.duration_sec + 's');
+    } else if (r.ok && d.status === 'queued') {
+        alert('Task queued and running in background.\nCheck Runs History for results.');
     } else {
         alert('Failed: ' + (d.detail || d.error || 'unknown error'));
     }
