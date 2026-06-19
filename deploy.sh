@@ -10,30 +10,40 @@ log()  { echo -e "${GREEN}[✓]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
 err()  { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 
-echo "============================================"
-echo "  Megatron v0.1.0 Deployment"
-echo "============================================"
-echo ""
+usage() {
+    echo "Megatron v0.1.0"
+    echo ""
+    echo "Usage: bash deploy.sh [command]"
+    echo ""
+    echo "Commands:"
+    echo "  deploy   Full deploy (check env, .env, build, start) [default]"
+    echo "  update   Git pull + rebuild + restart"
+    echo "  clean    Stop containers and remove all data (DB, secrets, volumes)"
+    echo "  logs     Show live logs"
+    echo "  status   Show container status"
+}
 
-# 1. Docker
-if ! command -v docker &>/dev/null; then err "Docker not found. curl -fsSL https://get.docker.com | sh"; fi
-if ! docker info &>/dev/null; then err "Docker daemon not running."; fi
-log "Docker OK"
+CMD="${1:-deploy}"
+shift 2>/dev/null || true
 
-# 2. Docker Compose
-COMPOSE="docker compose"
-docker compose version &>/dev/null || COMPOSE="docker-compose"
-log "Compose OK"
+# ── Shared setup ──────────────────────────────
 
-# 3. Disk
-log "Disk: $(df -h . | tail -1 | awk '{print $4}') available"
+_setup() {
+    # Docker
+    if ! command -v docker &>/dev/null; then err "Docker not found. curl -fsSL https://get.docker.com | sh"; fi
+    if ! docker info &>/dev/null; then err "Docker daemon not running."; fi
+    log "Docker OK"
 
-# 4. .env
-if [ ! -f .env ]; then
-    SESSION_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))" 2>/dev/null || openssl rand -base64 48)
-    ADMIN_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(12))" 2>/dev/null || openssl rand -base64 12)
-    
-    cat > .env << EOF
+    # Compose
+    COMPOSE="docker compose"
+    docker compose version &>/dev/null || COMPOSE="docker-compose"
+}
+
+_env() {
+    if [ ! -f .env ]; then
+        SESSION_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))" 2>/dev/null || openssl rand -base64 48)
+        ADMIN_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(12))" 2>/dev/null || openssl rand -base64 12)
+        cat > .env << EOF
 DATABASE_URL=sqlite+aiosqlite:///./megatron.db
 MEGATRON_SESSION_SECRET=${SESSION_SECRET}
 MEGATRON_ADMIN_PASSWORD=${ADMIN_PASS}
@@ -42,29 +52,82 @@ MEGATRON_DINGTALK_URL=
 MEGATRON_DINGTALK_SECRET=
 PORT=8000
 EOF
-    log "Admin password: ${ADMIN_PASS} (save this!)"
-    warn "Fill in MEGATRON_DEEPSEEK_API_KEY and DINGTALK_* in .env"
-else
-    log ".env exists, skipping generation."
-    warn "To reconfigure, delete .env and re-run deploy.sh"
-fi
+        log "Admin password: ${ADMIN_PASS} (save this!)"
+        warn "Fill in MEGATRON_DEEPSEEK_API_KEY and DINGTALK_* in .env"
+    else
+        log ".env exists"
+    fi
+}
 
-# 5. Build & Run
-log "Building..."
-$COMPOSE build --quiet 2>&1 | tail -1
+PORT() { grep -oP 'PORT=\K\d+' .env 2>/dev/null || echo 8000; }
 
-log "Starting..."
-$COMPOSE up -d
+_wait() {
+    local port=$(PORT)
+    for i in $(seq 1 30); do
+        curl -sf http://localhost:${port}/health &>/dev/null && break
+        sleep 1
+    done
+    if curl -sf http://localhost:${port}/health &>/dev/null; then
+        log "Running at http://localhost:${port}"
+    else
+        warn "Check logs: $COMPOSE logs web"
+    fi
+}
 
-for i in $(seq 1 30); do
-    curl -sf http://localhost:${PORT:-8000}/health &>/dev/null && break
-    sleep 1
-done
+# ── Commands ───────────────────────────────────
 
-if curl -sf http://localhost:${PORT:-8000}/health &>/dev/null; then
-    log "Running at http://localhost:${PORT:-8000}"
-    echo "  Login: http://localhost:${PORT:-8000}/ui/login  (admin / password above)"
-    echo "  Test:  http://localhost:${PORT:-8000}/ui/tasks  → 点击 Run 手动执行"
-else
-    warn "Check logs: $COMPOSE logs web"
-fi
+case "$CMD" in
+deploy)
+    _setup
+    echo "  Disk: $(df -h . | tail -1 | awk '{print $4}') available"
+    _env
+    log "Building..."
+    $COMPOSE build --quiet 2>&1 | tail -1
+    log "Starting..."
+    $COMPOSE up -d
+    _wait
+    ;;
+
+update)
+    _setup
+    log "Pulling latest code..."
+    git pull
+    log "Rebuilding..."
+    $COMPOSE build --quiet --no-cache 2>&1 | tail -1
+    log "Restarting..."
+    $COMPOSE up -d --force-recreate
+    _wait
+    ;;
+
+clean)
+    _setup
+    warn "This will remove ALL data (database, secrets, volumes)."
+    read -p "Are you sure? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log "Cancelled."
+        exit 0
+    fi
+    log "Stopping containers..."
+    $COMPOSE down -v
+    rm -f megatron.db megatron.db-journal 2>/dev/null || true
+    rm -rf data/ 2>/dev/null || true
+    rm -f .env 2>/dev/null || true
+    log "Cleaned. Run 'bash deploy.sh' to start fresh."
+    ;;
+
+logs)
+    _setup
+    $COMPOSE logs -f --tail 100
+    ;;
+
+status)
+    _setup
+    $COMPOSE ps
+    ;;
+
+*)
+    usage
+    exit 1
+    ;;
+esac

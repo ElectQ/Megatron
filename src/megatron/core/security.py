@@ -11,7 +11,7 @@ from fastapi import Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import settings
+from ..config import get_admin_token, get_session_secret, settings
 
 
 ENC_PREFIX = "enc:v1:"
@@ -146,12 +146,12 @@ def validate_runtime_settings() -> None:
     if settings.env.lower() not in {"prod", "production"}:
         return
     weak = []
-    if settings.admin_token == "dev-admin-token-change-me" or settings.admin_token.startswith(
+    if get_admin_token() == "dev-admin-token-change-me" or get_admin_token().startswith(
         "change-me"
     ):
         weak.append("MEGATRON_ADMIN_TOKEN")
-    if settings.session_secret == "dev-session-secret-change-me-for-prod" or (
-        settings.session_secret.startswith("change-me")
+    if get_session_secret() == "dev-session-secret-change-me-for-prod" or (
+        get_session_secret().startswith("change-me")
     ):
         weak.append("MEGATRON_SESSION_SECRET")
     if not settings.master_key or settings.master_key.startswith("change-me"):
@@ -217,7 +217,7 @@ class SessionAuth:
         auth = request.headers.get("authorization", "")
         if auth.startswith("Bearer "):
             token = auth.removeprefix("Bearer ").strip()
-            if safe_eq(token, settings.admin_token):
+            if safe_eq(token, get_admin_token()):
                 return {"username": "token-api", "display_name": "API"}
 
         # UI routes: redirect to login page (browser-friendly)

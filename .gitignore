@@ -20,6 +20,9 @@ env/
 .env.local
 .env.*.local
 
+# Data
+data/
+
 # Database
 *.db
 *.db-journal

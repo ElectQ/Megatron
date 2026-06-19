@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from ..config import settings
+from ..config import get_admin_token, settings
 from ..core.security import admin_auth
 
 router = APIRouter(prefix="/ui", tags=["ui"])
@@ -19,7 +19,7 @@ templates = Jinja2Templates(
 async def _api_get(request: Request, path: str) -> Any:
     """Call internal API with the admin token (fallback for API auth)."""
     base_url = str(request.base_url).rstrip("/")
-    token = settings.admin_token
+    token = get_admin_token()
     async with httpx.AsyncClient() as c:
         r = await c.get(
             f"{base_url}{path}",
@@ -30,7 +30,7 @@ async def _api_get(request: Request, path: str) -> Any:
 
 async def _api_post(request: Request, path: str, json_body: dict) -> Any:
     base_url = str(request.base_url).rstrip("/")
-    token = settings.admin_token
+    token = get_admin_token()
     async with httpx.AsyncClient() as c:
         r = await c.post(
             f"{base_url}{path}",
