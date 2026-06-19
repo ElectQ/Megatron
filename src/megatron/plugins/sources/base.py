@@ -43,56 +43,42 @@ class MCPSource(BaseSource):
         """Lazy initialize MCP client."""
         if self._client is None:
             try:
-                from mcp import Client
-                from mcp.client.stdio import stdio_client
+                from mcp import ClientSession, StdioServerParameters
+                from mcp import stdio_client
 
                 if self.transport == "stdio":
-                    # Start MCP server as subprocess
                     import sys
-                    import os
 
-                    server_path = os.path.join(
-                        os.path.dirname(__file__), "..", "..", "..", "..", "mcp_servers", "soundwave"
-                    )
-                    server_path = os.path.abspath(server_path)
-
-                    server_params = {
-                        "command": sys.executable,
-                        "args": [
+                    server_params = StdioServerParameters(
+                        command=sys.executable,
+                        args=[
                             "-m", "mcp_servers.soundwave",
                             "--repo", self._repo,
                             "--branch", self._branch,
                             "--transport", "stdio",
                         ],
-                        "env": None,
-                    }
+                    )
 
                     read_stream, write_stream = await stdio_client(server_params)
-                    self._client = Client(read_stream, write_stream)
+                    self._client = ClientSession(read_stream, write_stream)
                     await self._client.initialize()
                 else:
                     # SSE mode - connect to remote server
-                    self._client = Client(self.server_url)
+                    self._client = ClientSession(self.server_url)
                     await self._client.connect()
             except ImportError:
-                # Fallback if mcp package is not available
                 self._client = None
                 raise RuntimeError("mcp package not installed. Run: uv add mcp>=1.0.0")
 
         return self._client
 
     async def fetch(self, since: datetime | None = None) -> list[Item]:
-        """Fetch items from MCP server.
-
-        Uses MCP tools to get data and normalizes to Item format.
-        """
+        """Fetch items from MCP server."""
         client = await self._get_client()
-
         if client is None:
             return []
 
         try:
-            # Get available dates
             dates_result = await client.call_tool("list_available_dates", {})
             dates_data = self._parse_tool_result(dates_result)
             available_dates = dates_data.get("dates", [])
@@ -100,7 +86,6 @@ class MCPSource(BaseSource):
             if not available_dates:
                 return []
 
-            # Filter dates if since is provided
             if since:
                 since_str = since.strftime("%Y-%m-%d")
                 available_dates = [d for d in available_dates if d >= since_str]
@@ -108,21 +93,18 @@ class MCPSource(BaseSource):
             if not available_dates:
                 return []
 
-            # Get tweets for the latest date (or all dates since)
             items = []
-            for date in available_dates[:5]:  # Limit to 5 most recent dates
+            for date in available_dates[:5]:
                 result = await client.call_tool("list_tweets", {"date": date})
                 data = self._parse_tool_result(result)
 
                 if "lists" in data:
-                    # Multiple lists
                     for list_id, list_data in data["lists"].items():
                         for tweet in list_data.get("tweets", []):
                             item = self._tweet_to_item(tweet, list_id)
                             if item:
                                 items.append(item)
                 elif "tweets" in data:
-                    # Single list
                     for tweet in data["tweets"]:
                         item = self._tweet_to_item(tweet, data.get("list_id", "unknown"))
                         if item:
@@ -131,7 +113,6 @@ class MCPSource(BaseSource):
             return items
 
         except Exception as e:
-            # Log error and return empty list
             import logging
             logging.getLogger(__name__).error(f"MCP fetch failed: {e}")
             return []
@@ -139,19 +120,15 @@ class MCPSource(BaseSource):
     async def discover_capabilities(self) -> dict:
         """Discover what tools the MCP server provides."""
         client = await self._get_client()
-
         if client is None:
             return {}
 
         try:
-            tools = await client.list_tools()
+            result = await client.list_tools()
             return {
                 "tools": [
-                    {
-                        "name": tool.name,
-                        "description": tool.description,
-                    }
-                    for tool in tools
+                    {"name": t.name, "description": t.description}
+                    for t in result.tools
                 ]
             }
         except Exception as e:
@@ -161,8 +138,8 @@ class MCPSource(BaseSource):
 
     def _parse_tool_result(self, result) -> dict:
         """Parse MCP tool result to dict."""
-        if isinstance(result, list) and len(result) > 0:
-            content = result[0]
+        if hasattr(result, "content") and result.content:
+            content = result.content[0]
             if hasattr(content, "text"):
                 import json
                 return json.loads(content.text)

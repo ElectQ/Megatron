@@ -161,7 +161,7 @@ def create_soundwave_server(repo: str = "ElectQ/Soundwave", branch: str = "maste
 async def run_stdio_server(repo: str = "ElectQ/Soundwave", branch: str = "main") -> None:
     """Run the MCP server using stdio transport."""
     server = create_soundwave_server(repo=repo, branch=branch)
-    async with stdio_server(server) as (read_stream, write_stream):
+    async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
 
 
