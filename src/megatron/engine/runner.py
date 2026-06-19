@@ -126,6 +126,12 @@ class ModuleRunner:
             run.provider_snapshot = await self._provider_snapshot(module)
             await self.session.commit()
 
+            # Refresh data from source before selecting
+            latest_date = await self._refresh_data(module)
+            if latest_date and module.filter_config.get("time_mode") in (None, "today", "date"):
+                module.filter_config["time_mode"] = "date"
+                module.filter_config["target_date"] = latest_date
+
             items = await self._select_items(module)
             run.input_count = len(items)
             run.input_item_ids = [it.id for it in items]
@@ -194,6 +200,68 @@ class ModuleRunner:
             await self.session.commit()
             logger.error("runner.failed", module_id=module.id, run_id=run.id, error=str(e))
             raise
+
+    async def _refresh_data(self, module) -> str | None:
+        """Fetch fresh data from source, return latest date fetched (or None)."""
+        from ..core.models import ItemRecord
+        from ..plugins.sources.base import source_registry
+        from sqlalchemy import select as sa_select
+        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+        source_cls = source_registry.get(module.source)
+        if not source_cls:
+            logger.warning("runner.refresh.no_source", source=module.source)
+            return None
+
+        try:
+            source = source_cls(repo="ElectQ/Soundwave", branch="master")
+            items = await source.fetch()
+            if not items:
+                logger.info("runner.refresh.no_items", source=module.source)
+                return None
+
+            rows = []
+            latest_date = items[0].collect_date
+            for item in items:
+                if item.collect_date > latest_date:
+                    latest_date = item.collect_date
+                rows.append(
+                    {
+                        "item_id": item.id,
+                        "source": item.source,
+                        "source_ref": item.source_ref,
+                        "content": item.content,
+                        "url": item.url,
+                        "author": item.author,
+                        "author_name": item.author_name,
+                        "published_at": item.published_at,
+                        "collected_at": item.collected_at,
+                        "collect_date": item.collect_date,
+                        "is_retweet": item.is_retweet,
+                        "is_quote": item.is_quote,
+                        "tags": item.tags,
+                        "links": item.links,
+                        "media": item.media,
+                        "metrics": item.metrics,
+                        "raw": item.raw,
+                    }
+                )
+
+            stmt = sqlite_insert(ItemRecord).values(rows).on_conflict_do_nothing(
+                index_elements=["source", "item_id"]
+            )
+            await self.session.execute(stmt)
+            await self.session.commit()
+            logger.info(
+                "runner.refresh.done",
+                source=module.source,
+                fetched=len(rows),
+                latest_date=latest_date,
+            )
+            return latest_date
+        except Exception as e:
+            logger.error("runner.refresh.failed", source=module.source, error=str(e))
+            return None
 
     async def _select_items(self, module) -> list[ItemRecord]:
         """Select items based on filter_config.time_mode.
