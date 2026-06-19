@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from contextlib import AsyncExitStack
 from datetime import datetime
 from typing import Any
 
@@ -49,6 +50,8 @@ class MCPSource(BaseSource):
                 if self.transport == "stdio":
                     import sys
 
+                    self._exit_stack = AsyncExitStack()
+
                     server_params = StdioServerParameters(
                         command=sys.executable,
                         args=[
@@ -59,11 +62,16 @@ class MCPSource(BaseSource):
                         ],
                     )
 
-                    read_stream, write_stream = await stdio_client(server_params)
-                    self._client = ClientSession(read_stream, write_stream)
-                    await self._client.initialize()
+                    streams = await self._exit_stack.enter_async_context(
+                        stdio_client(server_params)
+                    )
+                    read_stream, write_stream = streams
+                    session = await self._exit_stack.enter_async_context(
+                        ClientSession(read_stream, write_stream)
+                    )
+                    await session.initialize()
+                    self._client = session
                 else:
-                    # SSE mode - connect to remote server
                     self._client = ClientSession(self.server_url)
                     await self._client.connect()
             except ImportError:

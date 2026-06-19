@@ -56,8 +56,8 @@
         </div>
         {% endif %}
 
-        {% if r.result['items'] %}
-        <div class="text-xs text-[#737373] mb-2">Structured items ({{ r.result['items']|length }})</div>
+        {% if r.result is mapping and r.result.get('items') %}
+        <div class="text-xs text-[#737373] mb-2">Structured items ({{ r.result.get('items')|length }})</div>
         <div class="overflow-x-auto">
             <table class="table table-xs">
                 <thead>
@@ -74,7 +74,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                {% for it in r.result['items']|sort(attribute='tier') %}
+                {% for it in r.result.get('items', [])|sort(attribute='tier') %}
                 <tr>
                     <td>
                         {% set tier = it.tier or 'quick' %}
