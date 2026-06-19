@@ -48,6 +48,40 @@ def init():
     click.echo("Database initialized.")
 
 
+def _alembic_config():
+    from pathlib import Path
+
+    from alembic.config import Config
+
+    from .config import settings
+
+    root = Path(__file__).resolve().parents[2]
+    cfg = Config(str(root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(root / "migrations"))
+    cfg.set_main_option("sqlalchemy.url", settings.database_url)
+    return cfg
+
+
+@cli.command()
+@click.argument("revision", default="head")
+def migrate(revision: str):
+    """Run database migrations up to REVISION."""
+    from alembic import command
+
+    command.upgrade(_alembic_config(), revision)
+    click.echo(f"Database migrated to {revision}.")
+
+
+@cli.command("stamp-db")
+@click.argument("revision", default="head")
+def stamp_db(revision: str):
+    """Mark an existing database as migrated without running DDL."""
+    from alembic import command
+
+    command.stamp(_alembic_config(), revision)
+    click.echo(f"Database stamped at {revision}.")
+
+
 @cli.command()
 @click.option("--username", prompt=True, help="Login username")
 @click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True, help="Password")

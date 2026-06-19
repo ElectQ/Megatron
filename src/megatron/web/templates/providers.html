@@ -1,49 +1,60 @@
 {% extends "base.html" %}
+{% block title %}LLM Providers · Megatron{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h2 class="text-2xl font-bold">🤖 LLM 提供商</h2>
+<div class="mb-8">
+    <h2 class="text-2xl font-semibold tracking-tight">LLM Providers</h2>
+    <p class="text-sm text-[#737373] mt-1">Model and API configurations accessed by analysis tasks.</p>
 </div>
 
-<div class="card bg-base-100 shadow mb-8">
+<div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">添加 Provider</h3>
+        <h3 class="card-title">Add provider</h3>
         <form id="add-provider" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input name="name" placeholder="名称 (如 deepseek)" class="input input-bordered" required>
-            <input name="model" placeholder="model (如 deepseek/deepseek-chat)" class="input input-bordered" required>
-            <input name="api_base" placeholder="api_base (可选)" class="input input-bordered">
-            <input name="api_key" type="password" placeholder="API Key" class="input input-bordered" required>
+            <input name="name" placeholder="Name (e.g. deepseek)" class="input input-bordered" required>
+            <input name="model" placeholder="Model (e.g. deepseek/deepseek-chat)" class="input input-bordered" required>
+            <input name="api_base" placeholder="API base (optional)" class="input input-bordered">
+            <input name="api_key" type="password" placeholder="API key" class="input input-bordered" required>
             <input name="temperature" type="number" step="0.1" value="0.7" class="input input-bordered">
             <input name="max_tokens" type="number" value="4096" class="input input-bordered">
-            <button type="submit" class="btn btn-primary md:col-span-2">添加</button>
+            <button type="submit" class="btn btn-primary md:col-span-2">Add</button>
         </form>
         <div id="add-result" class="mt-2"></div>
     </div>
 </div>
 
-<div class="card bg-base-100 shadow">
+<div class="card">
     <div class="card-body">
-        <h3 class="card-title">已配置 ({{ providers|length }})</h3>
+        <h3 class="card-title">Configured providers ({{ providers|length }})</h3>
         <div class="overflow-x-auto">
             <table class="table">
-                <thead><tr><th>ID</th><th>名称</th><th>模型</th><th>Key</th><th>状态</th><th>操作</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Model</th>
+                        <th>Key</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
                 <tbody id="providers-list">
                 {% for p in providers %}
                 <tr>
-                    <td>{{ p.id }}</td>
-                    <td class="font-mono">{{ p.name }}</td>
+                    <td class="text-xs">{{ p.id }}</td>
+                    <td class="font-mono text-sm">{{ p.name }}</td>
                     <td class="font-mono text-xs">{{ p.model }}</td>
                     <td class="font-mono text-xs">{{ p.api_key_masked }}</td>
-                    <td>{% if p.enabled %}<span class="badge badge-success badge-sm">启用</span>{% else %}<span class="badge badge-ghost badge-sm">禁用</span>{% endif %}</td>
+                    <td>{% if p.enabled %}<span class="badge badge-success badge-sm">enabled</span>{% else %}<span class="badge badge-ghost badge-sm">disabled</span>{% endif %}</td>
                     <td class="flex gap-1">
-                        <button class="btn btn-xs btn-ghost" onclick="testProvider({{ p.id }})">测试</button>
-                        <button class="btn btn-xs btn-ghost text-error" onclick="delProvider({{ p.id }})">删除</button>
+                        <button class="btn btn-xs btn-ghost" onclick="testProvider({{ p.id }})">Test</button>
+                        <button class="btn btn-xs btn-ghost text-[#ef4444]" onclick="delProvider({{ p.id }})">Delete</button>
                     </td>
                 </tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
-        {% if not providers %}<p class="text-base-content/60 py-4 text-center">暂无 Provider。添加第一个吧。</p>{% endif %}
+        {% if not providers %}<div class="empty-state">No providers configured.</div>{% endif %}
     </div>
 </div>
 
@@ -64,10 +75,10 @@ document.getElementById('add-provider').addEventListener('submit', async (e) => 
 async function testProvider(id) {
     const r = await fetch(`/api/admin/providers/${id}/test`, {method: 'POST', headers});
     const d = await r.json();
-    alert(d.ok ? '✅ 连接成功: ' + d.reply : '❌ 失败: ' + d.error);
+    alert(d.ok ? 'Connected: ' + d.reply : 'Failed: ' + d.error);
 }
 async function delProvider(id) {
-    if (!confirm('确认删除?')) return;
+    if (!confirm('Delete this provider?')) return;
     await fetch(`/api/admin/providers/${id}`, {method: 'DELETE', headers});
     location.reload();
 }

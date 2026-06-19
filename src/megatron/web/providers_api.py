@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.db import get_session
-from ..core.security import admin_auth, mask
+from ..core.security import admin_auth, decrypt_secret, encrypt_secret, mask
 from ..llm.provider import LLMProvider
 
 router = APIRouter(prefix="/api/admin/providers", tags=["providers"])
@@ -34,12 +34,13 @@ class ProviderOut(BaseModel):
 
 
 def _to_out(p) -> ProviderOut:
+    api_key = decrypt_secret(p.api_key) if p.api_key else ""
     return ProviderOut(
         id=p.id,
         name=p.name,
         model=p.model,
         api_base=p.api_base,
-        api_key_masked=mask(p.api_key) if p.api_key else "",
+        api_key_masked=mask(api_key) if api_key else "",
         temperature=p.temperature,
         max_tokens=p.max_tokens,
         enabled=p.enabled,
@@ -67,7 +68,7 @@ async def create_provider(body: ProviderIn, session: AsyncSession = Depends(get_
         name=body.name,
         model=body.model,
         api_base=body.api_base,
-        api_key=body.api_key,
+        api_key=encrypt_secret(body.api_key),
         temperature=body.temperature,
         max_tokens=body.max_tokens,
         enabled=body.enabled,
@@ -80,11 +81,16 @@ async def create_provider(body: ProviderIn, session: AsyncSession = Depends(get_
 
 @router.delete("/{pid}", dependencies=[Depends(admin_auth)])
 async def delete_provider(pid: int, session: AsyncSession = Depends(get_session)):
-    from ..core.engine_models import LLMProvider as M
+    from ..core.engine_models import AnalysisModule, LLMProvider as M
 
     p = await session.get(M, pid)
     if not p:
         raise HTTPException(404, "Provider not found")
+    used_by = (
+        await session.execute(select(AnalysisModule.name).where(AnalysisModule.provider_id == pid))
+    ).scalars().first()
+    if used_by:
+        raise HTTPException(409, f"Provider is used by module '{used_by}'")
     await session.delete(p)
     await session.commit()
     return {"deleted": pid}
@@ -101,7 +107,7 @@ async def test_provider(pid: int, session: AsyncSession = Depends(get_session)):
         llm = LLMProvider(
             {
                 "model": p.model,
-                "api_key": p.api_key,
+                "api_key": decrypt_secret(p.api_key),
                 "api_base": p.api_base,
                 "temperature": 0.0,
                 "max_tokens": 16,

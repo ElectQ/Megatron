@@ -1,50 +1,61 @@
 {% extends "base.html" %}
+{% block title %}Webhooks · Megatron{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h2 class="text-2xl font-bold">📣 推送渠道</h2>
+<div class="mb-8">
+    <h2 class="text-2xl font-semibold tracking-tight">Webhooks</h2>
+    <p class="text-sm text-[#737373] mt-1">Delivery channels for analysis results.</p>
 </div>
 
-<div class="card bg-base-100 shadow mb-8">
+<div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">添加渠道</h3>
+        <h3 class="card-title">Add channel</h3>
         <form id="add-channel" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input name="name" placeholder="渠道名称 (如 my-telegram)" class="input input-bordered" required>
+            <input name="name" placeholder="Channel name (e.g. my-telegram)" class="input input-bordered" required>
             <select name="kind" id="ch-kind" class="select select-bordered" required onchange="updateConfigFields()">
                 {% for k in opts.kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
             </select>
             <div id="config-fields" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-            <button type="submit" class="btn btn-primary md:col-span-2">添加</button>
+            <button type="submit" class="btn btn-primary md:col-span-2">Add</button>
         </form>
         <div id="add-result" class="mt-2"></div>
     </div>
 </div>
 
-<div class="card bg-base-100 shadow">
+<div class="card">
     <div class="card-body">
-        <h3 class="card-title">已配置 ({{ channels|length }})</h3>
+        <h3 class="card-title">Configured channels ({{ channels|length }})</h3>
         <div class="overflow-x-auto">
             <table class="table">
-                <thead><tr><th>ID</th><th>名称</th><th>类型</th><th>配置</th><th>状态</th><th>操作</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Kind</th>
+                        <th>Config</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
                 <tbody>
                 {% for ch in channels %}
                 <tr>
-                    <td>{{ ch.id }}</td>
-                    <td class="font-mono">{{ ch.name }}</td>
-                    <td><span class="badge badge-primary badge-sm">{{ ch.kind }}</span></td>
+                    <td class="text-xs">{{ ch.id }}</td>
+                    <td class="font-mono text-sm">{{ ch.name }}</td>
+                    <td><span class="badge badge-ghost badge-sm">{{ ch.kind }}</span></td>
                     <td class="font-mono text-xs">
                         {% for k, v in ch.config_masked.items() %}{{ k }}={{ v }} {% endfor %}
                     </td>
-                    <td>{% if ch.enabled %}<span class="badge badge-success badge-sm">启用</span>{% else %}<span class="badge badge-ghost badge-sm">禁用</span>{% endif %}</td>
+                    <td>{% if ch.enabled %}<span class="badge badge-success badge-sm">enabled</span>{% else %}<span class="badge badge-ghost badge-sm">disabled</span>{% endif %}</td>
                     <td class="flex gap-1">
-                        <button class="btn btn-xs btn-ghost" onclick="testChannel({{ ch.id }})">测试</button>
-                        <button class="btn btn-xs btn-ghost text-error" onclick="delChannel({{ ch.id }})">删除</button>
+                        <button class="btn btn-xs btn-ghost" onclick="testChannel({{ ch.id }})">Test</button>
+                        <button class="btn btn-xs btn-ghost text-[#ef4444]" onclick="delChannel({{ ch.id }})">Delete</button>
                     </td>
                 </tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
-        {% if not channels %}<p class="text-base-content/60 py-4 text-center">暂无渠道。添加一个推送目标。</p>{% endif %}
+        {% if not channels %}<div class="empty-state">No channels configured.</div>{% endif %}
     </div>
 </div>
 
@@ -56,7 +67,7 @@ const SCHEMAS = {
     telegram: [{key:'bot_token', label:'Bot Token', type:'password'}, {key:'chat_id', label:'Chat ID'}],
     feishu: [{key:'webhook_url', label:'Webhook URL', type:'password'}],
     wecom: [{key:'webhook_url', label:'Webhook URL', type:'password'}],
-    dingtalk: [{key:'webhook_url', label:'Webhook URL', type:'password'}, {key:'secret', label:'Secret (可选)', type:'password'}],
+    dingtalk: [{key:'webhook_url', label:'Webhook URL', type:'password'}, {key:'secret', label:'Secret (optional)', type:'password'}],
 };
 
 function updateConfigFields() {
@@ -83,10 +94,10 @@ document.getElementById('add-channel').addEventListener('submit', async (e) => {
 async function testChannel(id) {
     const r = await fetch(`/api/admin/channels/${id}/test`, {method: 'POST', headers});
     const d = await r.json();
-    alert(d.ok ? '✅ 发送成功 (HTTP '+d.status_code+')' : '❌ 失败: ' + (d.error||'HTTP '+d.status_code));
+    alert(d.ok ? 'Sent (HTTP '+d.status_code+')' : 'Failed: ' + (d.error||'HTTP '+d.status_code));
 }
 async function delChannel(id) {
-    if (!confirm('确认删除?')) return;
+    if (!confirm('Delete this channel?')) return;
     await fetch(`/api/admin/channels/${id}`, {method: 'DELETE', headers});
     location.reload();
 }

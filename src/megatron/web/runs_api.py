@@ -25,6 +25,10 @@ class RunOut(BaseModel):
     cost_usd: float
     duration_sec: float
     tool_calls: list
+    module_snapshot: dict
+    prompt_snapshot: dict
+    provider_snapshot: dict
+    rendered_prompt_hash: str
     triggered_by: str
     started_at: datetime
     finished_at: datetime | None
@@ -86,6 +90,10 @@ def _to_out(r, module_name: str = "") -> RunOut:
         cost_usd=r.total_cost_usd,
         duration_sec=r.duration_sec,
         tool_calls=r.tool_calls or [],
+        module_snapshot=r.module_snapshot or {},
+        prompt_snapshot=r.prompt_snapshot or {},
+        provider_snapshot=r.provider_snapshot or {},
+        rendered_prompt_hash=r.rendered_prompt_hash or "",
         triggered_by=r.triggered_by,
         started_at=r.started_at,
         finished_at=r.finished_at,

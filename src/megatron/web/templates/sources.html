@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Integrations · Megatron{% endblock %}
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-semibold tracking-tight">Integrations</h2>
+    <p class="text-sm text-[#737373] mt-1">All data sources connect via MCP protocol. Add an MCP server to start ingesting data.</p>
+</div>
+
+<!-- Add MCP Server -->
+<div class="card mb-8">
+    <div class="card-body">
+        <h3 class="card-title">Add MCP Server</h3>
+        <form id="add-mcp-server" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input name="name" placeholder="Server name (e.g. soundwave-twitter)" class="input input-bordered" required>
+            <input name="server_url" placeholder="MCP Server URL (e.g. https://api.soundwave.dev/mcp)" class="input input-bordered" required>
+            <select name="transport" class="select select-bordered">
+                <option value="sse">SSE (Server-Sent Events)</option>
+                <option value="stdio">stdio (Local/Container)</option>
+            </select>
+            <input name="resource_filter" placeholder="Resource filter (optional, e.g. tweets/*)" class="input input-bordered">
+            <button type="submit" class="btn btn-primary md:col-span-2">Connect MCP Server</button>
+        </form>
+        <div id="add-result" class="mt-2"></div>
+    </div>
+</div>
+
+<!-- MCP Servers List -->
+<div class="card mb-8">
+    <div class="card-body">
+        <h3 class="card-title">Connected MCP Servers ({{ mcp_servers|length }})</h3>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>URL</th>
+                        <th>Transport</th>
+                        <th>Status</th>
+                        <th>Capabilities</th>
+                        <th>Last Connected</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for server in mcp_servers %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ server.name }}</td>
+                        <td class="text-xs text-[#737373]">{{ server.server_url }}</td>
+                        <td><span class="badge badge-ghost badge-sm">{{ server.transport }}</span></td>
+                        <td>
+                            {% if server.status == 'connected' %}
+                                <span class="badge badge-success badge-sm">connected</span>
+                            {% elif server.status == 'error' %}
+                                <span class="badge badge-error badge-sm">error</span>
+                            {% else %}
+                                <span class="badge badge-ghost badge-sm">disconnected</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-xs text-[#737373]">
+                            {% if server.capabilities %}
+                                {{ server.capabilities|length }} resources
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="text-xs text-[#737373]">
+                            {% if server.last_connected_at %}
+                                {{ server.last_connected_at[:19]|replace('T',' ') }}
+                            {% else %}
+                                Never
+                            {% endif %}
+                        </td>
+                        <td class="flex gap-1">
+                            <button class="btn btn-xs btn-ghost" onclick="testServer({{ server.id }})" title="Test connection">Test</button>
+                            <button class="btn btn-xs btn-ghost" onclick="discoverCapabilities({{ server.id }})" title="Discover capabilities">Discover</button>
+                            <button class="btn btn-xs btn-ghost text-[#ef4444]" onclick="deleteServer({{ server.id }})" title="Delete">Delete</button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not mcp_servers %}
+        <div class="empty-state">
+            No MCP servers connected. Add one above to start ingesting data.<br>
+            <span class="text-xs text-[#737373] mt-2">All data sources must expose an MCP interface.</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Source Configs -->
+<div class="card">
+    <div class="card-body">
+        <h3 class="card-title">Active Source Configurations</h3>
+        <p class="text-sm text-[#737373] mb-4">
+            Source configs map MCP servers to data ingestion pipelines. Each config defines how to fetch and normalize data.
+        </p>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Source Type</th>
+                        <th>MCP Server</th>
+                        <th>Status</th>
+                        <th>Last Sync</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for config in source_configs %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ config.name }}</td>
+                        <td><span class="badge badge-ghost badge-sm">{{ config.source_type }}</span></td>
+                        <td class="text-xs text-[#737373]">
+                            {% if config.config and config.config.get('mcp_server_name') %}
+                                {{ config.config.mcp_server_name }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if config.enabled %}
+                                <span class="badge badge-success badge-sm">active</span>
+                            {% else %}
+                                <span class="badge badge-ghost badge-sm">disabled</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-xs text-[#737373]">
+                            {% if config.last_sync_at %}
+                                {{ config.last_sync_at[:19]|replace('T',' ') }}
+                            {% else %}
+                                Never
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not source_configs %}
+        <div class="empty-state">No source configurations yet. They will be created automatically when MCP servers are connected.</div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+const token = '{{ request.cookies.get("admin_token") or "" }}';
+const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
+
+// Add MCP Server
+document.getElementById('add-mcp-server').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {
+        name: fd.get('name'),
+        server_url: fd.get('server_url'),
+        transport: fd.get('transport'),
+        resource_filter: fd.get('resource_filter') || null
+    };
+    
+    const r = await fetch('/api/admin/mcp-servers', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+    });
+    
+    if (r.ok) {
+        location.reload();
+    } else {
+        const err = await r.text();
+        document.getElementById('add-result').innerHTML = 
+            '<div class="alert alert-error py-2"><span class="text-sm">' + err + '</span></div>';
+    }
+});
+
+// Test MCP Server connection
+async function testServer(id) {
+    const r = await fetch(`/api/admin/mcp-servers/${id}/test`, {
+        method: 'POST',
+        headers
+    });
+    const d = await r.json();
+    alert(d.ok ? 'Connection successful' : 'Failed: ' + (d.error || 'Unknown error'));
+}
+
+// Discover capabilities
+async function discoverCapabilities(id) {
+    const r = await fetch(`/api/admin/mcp-servers/${id}/discover`, {
+        method: 'POST',
+        headers
+    });
+    const d = await r.json();
+    if (d.ok) {
+        alert('Capabilities discovered: ' + (d.capabilities || []).join(', '));
+        location.reload();
+    } else {
+        alert('Discovery failed: ' + (d.error || 'Unknown error'));
+    }
+}
+
+// Delete MCP Server
+async function deleteServer(id) {
+    if (!confirm('Delete this MCP server? All associated source configs will be removed.')) return;
+    await fetch(`/api/admin/mcp-servers/${id}`, {method: 'DELETE', headers});
+    location.reload();
+}
+</script>
+{% endblock %}

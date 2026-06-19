@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     env: str = "development"
     admin_token: str = "dev-admin-token-change-me"
     session_secret: str = "dev-session-secret-change-me-for-prod"
+    master_key: str = ""
+    admin_password: str = "Ch@ngeMe#2024!Secure"  # Default admin password for initial setup
 
     database_url: str = "sqlite+aiosqlite:///./megatron.db"
     base_url: str = "http://localhost:8000"

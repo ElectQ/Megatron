@@ -1,125 +1,151 @@
 {% extends "base.html" %}
+{% block title %}Overview · Megatron{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h2 class="text-2xl font-bold">📊 仪表盘</h2>
+<div class="mb-8">
+    <h2 class="text-2xl font-semibold tracking-tight">Overview</h2>
+    <p class="text-sm text-[#737373] mt-1">Today's execution and cost metrics. Resets at UTC 00:00.</p>
 </div>
 
-<!-- 今日执行概览 -->
-<div class="card bg-base-100 shadow mb-6">
-    <div class="card-body">
-        <h3 class="card-title">📈 今日执行概览 <span class="text-xs text-base-content/60 font-normal">(UTC 0:00 重置)</span></h3>
-        <div class="grid grid-cols-2 md:grid-cols-6 gap-4" id="today-stats">
-            <div class="stat bg-base-200 rounded-box">
-                <div class="stat-title">执行次数</div>
-                <div class="stat-value text-primary"><span id="t-total">-</span></div>
-                <div class="stat-desc">成功 <span id="t-success">-</span> / 失败 <span id="t-failed">-</span></div>
-            </div>
-            <div class="stat bg-base-200 rounded-box">
-                <div class="stat-title">成功率</div>
-                <div class="stat-value text-success"><span id="t-rate">-</span>%</div>
-            </div>
-            <div class="stat bg-base-200 rounded-box">
-                <div class="stat-title">Token 消耗</div>
-                <div class="stat-value text-secondary"><span id="t-tokens">-</span></div>
-            </div>
-            <div class="stat bg-base-200 rounded-box">
-                <div class="stat-title">LLM 费用</div>
-                <div class="stat-value text-accent">$<span id="t-cost">-</span></div>
-            </div>
-            <div class="stat bg-base-200 rounded-box">
-                <div class="stat-title">新增数据</div>
-                <div class="stat-value text-info"><span id="t-items">-</span></div>
-                <div class="stat-desc">今日采集</div>
-            </div>
-            <div class="stat bg-base-200 rounded-box">
-                <div class="stat-title">总耗时</div>
-                <div class="stat-value"><span id="t-duration">-</span>s</div>
-            </div>
-        </div>
-        <div class="text-xs text-base-content/60 mt-2">
-            累计: <span id="a-total">-</span> 次运行 · <span id="a-tokens">-</span> tokens · $<span id="a-cost">-</span> · <span id="a-items">-</span> 条数据
-        </div>
+<!-- Today's metrics -->
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+    <div class="metric-card">
+        <div class="metric-label">Runs</div>
+        <div class="metric-value"><span id="t-total">-</span></div>
+        <div class="metric-desc"><span id="t-success">-</span> success / <span id="t-failed">-</span> failed</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Success rate</div>
+        <div class="metric-value text-[#22c55e]"><span id="t-rate">-</span>%</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Tokens</div>
+        <div class="metric-value text-[#f48120]"><span id="t-tokens">-</span></div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Cost</div>
+        <div class="metric-value">$<span id="t-cost">-</span></div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">New items</div>
+        <div class="metric-value text-[#3b82f6]"><span id="t-items">-</span></div>
+        <div class="metric-desc">collected today</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Duration</div>
+        <div class="metric-value"><span id="t-duration">-</span>s</div>
     </div>
 </div>
 
-<!-- 7 天趋势图 -->
-<div class="card bg-base-100 shadow mb-6">
+<!-- Cumulative summary -->
+<div class="mb-8 text-sm text-[#737373]">
+    All time:
+    <span id="a-total" class="text-[#a3a3a3]">-</span> runs ·
+    <span id="a-tokens" class="text-[#a3a3a3]">-</span> tokens ·
+    $<span id="a-cost" class="text-[#a3a3a3]">-</span> ·
+    <span id="a-items" class="text-[#a3a3a3]">-</span> items
+</div>
+
+<!-- 7-day trend -->
+<div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">📊 7 天趋势</h3>
+        <h3 class="card-title">7-day trend</h3>
         <div style="height: 300px;">
             <canvas id="trendChart"></canvas>
         </div>
     </div>
 </div>
 
-<!-- 资源统计 -->
-<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <div class="stat bg-base-100 rounded-box shadow">
-        <div class="stat-title">LLM 提供商</div>
-        <div class="stat-value text-primary">{{ providers|length }}</div>
+<!-- Resource counts -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <div class="metric-card">
+        <div class="metric-label">LLM providers</div>
+        <div class="metric-value text-[#f48120]">{{ providers|length }}</div>
     </div>
-    <div class="stat bg-base-100 rounded-box shadow">
-        <div class="stat-title">分析任务</div>
-        <div class="stat-value text-secondary">{{ modules|length }}</div>
+    <div class="metric-card">
+        <div class="metric-label">Tasks</div>
+        <div class="metric-value text-[#a3a3a3]">{{ modules|length }}</div>
     </div>
-    <div class="stat bg-base-100 rounded-box shadow">
-        <div class="stat-title">已采集数据</div>
-        <div class="stat-value text-accent">{{ item_count }}</div>
+    <div class="metric-card">
+        <div class="metric-label">Collected items</div>
+        <div class="metric-value text-[#3b82f6]">{{ item_count }}</div>
     </div>
-    <div class="stat bg-base-100 rounded-box shadow">
-        <div class="stat-title">推送渠道</div>
-        <div class="stat-value text-info">{{ channels|length }}</div>
+    <div class="metric-card">
+        <div class="metric-label">Webhook channels</div>
+        <div class="metric-value text-[#22c55e]">{{ channels|length }}</div>
     </div>
 </div>
 
-<!-- 按任务统计 -->
-<div class="card bg-base-100 shadow mb-6">
+<!-- Per-task stats -->
+<div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">📋 按任务统计 <span class="text-xs text-base-content/60 font-normal">(每个任务的累计消耗)</span></h3>
+        <h3 class="card-title">Per-task breakdown</h3>
         <div class="overflow-x-auto">
-            <table class="table table-sm">
-                <thead><tr><th>任务</th><th>运行次数</th><th>成功率</th><th>累计 Tokens</th><th>累计费用</th><th>累计耗时</th><th>平均耗时</th><th>平均 Tokens</th><th>最近运行</th></tr></thead>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Task</th>
+                        <th>Runs</th>
+                        <th>Success</th>
+                        <th>Tokens</th>
+                        <th>Cost</th>
+                        <th>Duration</th>
+                        <th>Avg duration</th>
+                        <th>Avg tokens</th>
+                        <th>Last run</th>
+                    </tr>
+                </thead>
                 <tbody id="per-module-rows">
-                    <tr><td colspan="9" class="text-center text-base-content/50 py-4">加载中...</td></tr>
+                    <tr><td colspan="9" class="text-center text-[#737373] py-6">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
-<!-- 最近运行 -->
-<div class="card bg-base-100 shadow">
+<!-- Recent runs -->
+<div class="card">
     <div class="card-body">
-        <div class="flex items-center justify-between">
-            <h3 class="card-title">最近运行</h3>
-            <a href="/ui/runs" class="btn btn-ghost btn-xs">查看全部 →</a>
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="card-title">Recent runs</h3>
+            <a href="/ui/tasks" class="btn btn-ghost btn-xs">View all</a>
         </div>
         {% if runs %}
         <div class="overflow-x-auto">
-            <table class="table table-sm">
-                <thead><tr><th>ID</th><th>任务</th><th>状态</th><th>输入</th><th>Tokens</th><th>费用</th><th>耗时</th><th>时间</th></tr></thead>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Task</th>
+                        <th>Status</th>
+                        <th>Input</th>
+                        <th>Tokens</th>
+                        <th>Cost</th>
+                        <th>Duration</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
                 <tbody>
                 {% for r in runs %}
                     <tr>
-                        <td><a href="/ui/runs" class="link">#{{ r.id }}</a></td>
-                        <td>任务#{{ r.module_id }}</td>
+                        <td class="font-mono text-xs"><a href="/ui/tasks" class="link">#{{ r.id }}</a></td>
+                        <td class="font-mono text-xs">#{{ r.module_id }}</td>
                         <td>
-                            {% if r.status == 'completed' %}<span class="badge badge-success badge-sm">完成</span>
-                            {% elif r.status == 'failed' %}<span class="badge badge-error badge-sm">失败</span>
+                            {% if r.status == 'completed' %}<span class="badge badge-success badge-sm">completed</span>
+                            {% elif r.status == 'failed' %}<span class="badge badge-error badge-sm">failed</span>
                             {% else %}<span class="badge badge-warning badge-sm">{{ r.status }}</span>{% endif %}
                         </td>
                         <td>{{ r.input_count }}</td>
                         <td>{{ r.prompt_tokens + r.completion_tokens }}</td>
                         <td>${{ "%.4f"|format(r.cost_usd) }}</td>
                         <td>{{ r.duration_sec }}s</td>
-                        <td class="text-xs">{{ r.started_at[:19]|replace('T',' ') }}</td>
+                        <td class="text-xs text-[#a3a3a3]">{{ r.started_at[:19]|replace('T',' ') }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
         {% else %}
-        <p class="text-base-content/60 py-8 text-center">暂无运行记录。到「🔧 分析任务」页创建任务并点"立即执行"。</p>
+        <div class="empty-state">No runs yet. Create a task and run it from the Tasks page.</div>
         {% endif %}
     </div>
 </div>
@@ -127,7 +153,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 fetch('/api/admin/stats/overview')
-    .then(r => r.json())
     .then(r => r.json())
     .then(d => {
         const t = d.today, a = d.all_time;
@@ -160,27 +185,27 @@ fetch('/api/admin/stats/trend?days=7')
                 datasets: [
                     {
                         type: 'bar',
-                        label: '运行次数',
+                        label: 'Runs',
                         data: data.map(d => d.runs),
-                        backgroundColor: 'rgba(99, 102, 241, 0.6)',
-                        borderColor: 'rgba(99, 102, 241, 1)',
+                        backgroundColor: 'rgba(244, 129, 32, 0.7)',
+                        borderColor: 'rgba(244, 129, 32, 1)',
                         yAxisID: 'y1',
                     },
                     {
                         type: 'line',
                         label: 'Tokens',
                         data: data.map(d => d.tokens),
-                        borderColor: 'rgba(245, 158, 11, 0.9)',
-                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        borderColor: 'rgba(163, 163, 163, 0.9)',
+                        backgroundColor: 'rgba(163, 163, 163, 0.1)',
                         yAxisID: 'y2',
                         tension: 0.3,
                     },
                     {
                         type: 'line',
-                        label: '费用 $',
+                        label: 'Cost (m$)',
                         data: data.map(d => d.cost_usd * 1000),
-                        borderColor: 'rgba(16, 185, 129, 0.9)',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderColor: 'rgba(34, 197, 94, 0.9)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
                         yAxisID: 'y2',
                         tension: 0.3,
                     }
@@ -190,32 +215,32 @@ fetch('/api/admin/stats/trend?days=7')
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'top', labels: { color: '#94a3b8', font: { size: 11 } } },
+                    legend: { position: 'top', labels: { color: '#a3a3a3', font: { size: 11 } } },
                     tooltip: {
                         callbacks: {
                             label: function(ctx) {
-                                if (ctx.dataset.label === '费用 $') return '费用: $' + (ctx.raw / 1000).toFixed(4);
+                                if (ctx.dataset.label === 'Cost (m$)') return 'Cost: $' + (ctx.raw / 1000).toFixed(4);
                                 return ctx.dataset.label + ': ' + ctx.raw.toLocaleString();
                             }
                         }
                     }
                 },
                 scales: {
-                    x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148, 163, 184, 0.1)' } },
+                    x: { ticks: { color: '#a3a3a3' }, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
                     y1: {
                         type: 'linear',
                         position: 'left',
                         beginAtZero: true,
-                        title: { display: true, text: '运行次数', color: '#94a3b8' },
-                        ticks: { color: '#94a3b8', precision: 0 },
-                        grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                        title: { display: true, text: 'Runs', color: '#a3a3a3' },
+                        ticks: { color: '#a3a3a3', precision: 0 },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
                     },
                     y2: {
                         type: 'linear',
                         position: 'right',
                         beginAtZero: true,
-                        title: { display: true, text: 'Tokens / 费用(m$)', color: '#94a3b8' },
-                        ticks: { color: '#94a3b8' },
+                        title: { display: true, text: 'Tokens / Cost (m$)', color: '#a3a3a3' },
+                        ticks: { color: '#a3a3a3' },
                         grid: { drawOnChartArea: false },
                     }
                 }
@@ -231,13 +256,13 @@ fetch('/api/admin/stats/per-module')
     .then(rows => {
         const tbody = document.getElementById('per-module-rows');
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-base-content/50 py-4">暂无运行记录</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-[#737373] py-6">No run records</td></tr>';
             return;
         }
         tbody.innerHTML = rows.map(r => {
             const lastRun = r.last_run ? r.last_run.slice(0,19).replace('T',' ') : '-';
             return `<tr>
-                <td><a href="/ui/runs?module_id=${r.module_id}" class="link font-mono">${r.module_name}</a></td>
+                <td><a href="/ui/tasks?module_id=${r.module_id}" class="link font-mono">${r.module_name}</a></td>
                 <td>${r.runs}</td>
                 <td>${r.success_rate}%</td>
                 <td>${r.tokens.toLocaleString()}</td>
@@ -245,12 +270,12 @@ fetch('/api/admin/stats/per-module')
                 <td>${r.duration_sec.toFixed(1)}s</td>
                 <td>${r.avg_duration_sec.toFixed(1)}s</td>
                 <td>${r.avg_tokens.toLocaleString()}</td>
-                <td class="text-xs">${lastRun}</td>
+                <td class="text-xs text-[#a3a3a3]">${lastRun}</td>
             </tr>`;
         }).join('');
     })
     .catch(() => {
-        document.getElementById('per-module-rows').innerHTML = '<tr><td colspan="9" class="text-center text-error py-4">加载失败</td></tr>';
+        document.getElementById('per-module-rows').innerHTML = '<tr><td colspan="9" class="text-center text-[#ef4444] py-6">Failed to load</td></tr>';
     });
 </script>
 {% endblock %}

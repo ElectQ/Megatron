@@ -6,7 +6,7 @@ import tempfile
 # Set a temp DB BEFORE megatron imports its config/engine.
 _tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _tmp.close()
-os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_tmp.name}"
+os.environ["MEGATRON_DATABASE_URL"] = f"sqlite+aiosqlite:///{_tmp.name}"
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
@@ -33,6 +33,7 @@ async def _reset_db():
         for table in (
             "delivery_logs",
             "analysis_runs",
+            "module_channels",
             "analysis_modules",
             "webhook_channels",
             "prompt_templates",

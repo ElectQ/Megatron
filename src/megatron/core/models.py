@@ -89,4 +89,47 @@ class PullState(Base):
     )
 
 
-__all__ = ["Base", "ItemRecord", "IngestLog", "PullState"]
+class SourceConfig(Base):
+    """Persistent configuration for data sources (native plugins or MCP servers).
+
+    Replaces .env-based configuration and enables UI-managed source setup.
+    """
+
+    __tablename__ = "source_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    source_type: Mapped[str] = mapped_column(String(32), index=True)
+    # "native" | "mcp"
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+    # For MCP: {server_url, transport, capabilities, resource_filter}
+    # For native: {plugin_name, plugin_config...}
+    enabled: Mapped[bool] = mapped_column(default=True)
+    last_sync_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class MCPServer(Base):
+    """MCP server connection registry.
+
+    Stores connection details for MCP servers that provide data sources.
+    """
+
+    __tablename__ = "mcp_servers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    server_url: Mapped[str] = mapped_column(String(512))
+    # SSE endpoint URL or command for stdio
+    transport: Mapped[str] = mapped_column(String(16), default="sse")
+    # "sse" | "stdio"
+    capabilities: Mapped[list] = mapped_column(JSON, default=list)
+    # List of available resources/tools from MCP server
+    status: Mapped[str] = mapped_column(String(16), default="disconnected")
+    # "connected" | "disconnected" | "error"
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    last_connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+__all__ = ["Base", "ItemRecord", "IngestLog", "PullState", "SourceConfig", "MCPServer"]

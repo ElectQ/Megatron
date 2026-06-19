@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -8,12 +9,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.logging import get_logger
 from ..core.models import ItemRecord
+from ..core.security import decrypt_secret
 from ..core.types import Item
 from ..llm.provider import LLMProvider, parse_json_response
 from ..plugins.filters.base import filter_registry, run_filters
 from .template import render_prompt
 
 logger = get_logger(__name__)
+
+
+ACTIVE_RUN_STATUSES = ("queued", "running")
+
+
+class ActiveRunExists(ValueError):
+    """Raised when a module already has a queued/running run."""
+
+    def __init__(self, module_id: int, run_id: int, status: str):
+        self.module_id = module_id
+        self.run_id = run_id
+        self.status = status
+        super().__init__(f"Module {module_id} already has active run #{run_id} ({status})")
 
 
 class ModuleRunner:
@@ -27,7 +42,7 @@ class ModuleRunner:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def run_module(self, module_id: int, triggered_by: str = "manual") -> dict:
+    async def create_run(self, module_id: int, triggered_by: str = "manual") -> dict:
         from ..core.engine_models import AnalysisModule, AnalysisRun
 
         module = await self.session.get(AnalysisModule, module_id)
@@ -36,17 +51,81 @@ class ModuleRunner:
         if not module.enabled:
             raise ValueError(f"Module '{module.name}' is disabled")
 
+        active = await self._active_run(module.id)
+        if active:
+            raise ActiveRunExists(module.id, active.id, active.status)
+
         run = AnalysisRun(
             module_id=module.id,
-            status="running",
+            status="queued",
             triggered_by=triggered_by,
         )
         self.session.add(run)
         await self.session.commit()
         await self.session.refresh(run)
+        logger.info("runner.queued", module=module.name, run_id=run.id, triggered_by=triggered_by)
+        return _run_summary(run)
 
+    async def _active_run(self, module_id: int):
+        from ..core.engine_models import AnalysisRun
+
+        return (
+            await self.session.execute(
+                select(AnalysisRun)
+                .where(
+                    AnalysisRun.module_id == module_id,
+                    AnalysisRun.status.in_(ACTIVE_RUN_STATUSES),
+                )
+                .order_by(AnalysisRun.id.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+    async def run_module(self, module_id: int, triggered_by: str = "manual") -> dict:
+        """Create a run and execute it immediately.
+
+        Kept for direct engine callers/tests. HTTP/admin entrypoints should
+        prefer create_run() + run_run() so requests do not block on LLM work.
+        """
+        queued = await self.create_run(module_id, triggered_by=triggered_by)
+        return await self.run_run(queued["run_id"])
+
+    async def run_run(self, run_id: int) -> dict:
+        from ..core.engine_models import AnalysisModule, AnalysisRun
+
+        run = await self.session.get(AnalysisRun, run_id)
+        if not run:
+            raise ValueError(f"Run {run_id} not found")
+        if run.status not in {"queued", "pending"}:
+            raise ValueError(f"Run {run_id} is not queued (status={run.status})")
+
+        module = await self.session.get(AnalysisModule, run.module_id)
+        if not module:
+            run.status = "failed"
+            run.error = f"Module {run.module_id} not found"
+            run.finished_at = datetime.now(timezone.utc)
+            await self.session.commit()
+            raise ValueError(run.error)
+        if not module.enabled:
+            run.status = "failed"
+            run.error = f"Module '{module.name}' is disabled"
+            run.finished_at = datetime.now(timezone.utc)
+            await self.session.commit()
+            raise ValueError(run.error)
+
+        run.status = "running"
+        run.started_at = datetime.now(timezone.utc)
+        await self.session.commit()
+        return await self._execute_run(module, run)
+
+    async def _execute_run(self, module, run) -> dict:
         started = time.time()
         try:
+            run.module_snapshot = await self._module_snapshot(module)
+            run.prompt_snapshot = await self._prompt_snapshot(module)
+            run.provider_snapshot = await self._provider_snapshot(module)
+            await self.session.commit()
+
             items = await self._select_items(module)
             run.input_count = len(items)
             run.input_item_ids = [it.id for it in items]
@@ -68,9 +147,14 @@ class ModuleRunner:
                 after=len(filtered),
             )
 
-            prompt_str = await self._render_prompt(module, filtered)
+            prompt_str, prompt_snapshot = await self._render_prompt(module, filtered)
 
-            llm = await self._build_llm(module)
+            llm, provider_snapshot = await self._build_llm(module)
+            run.prompt_snapshot = prompt_snapshot
+            run.provider_snapshot = provider_snapshot
+            run.rendered_prompt_hash = hashlib.sha256(prompt_str.encode()).hexdigest()
+            await self.session.commit()
+
             content, tokens_in, tokens_out, cost, tool_log = await self._invoke(
                 module, llm, prompt_str
             )
@@ -108,7 +192,7 @@ class ModuleRunner:
             run.finished_at = datetime.now(timezone.utc)
             run.duration_sec = round(time.time() - started, 3)
             await self.session.commit()
-            logger.error("runner.failed", module_id=module_id, error=str(e))
+            logger.error("runner.failed", module_id=module.id, run_id=run.id, error=str(e))
             raise
 
     async def _select_items(self, module) -> list[ItemRecord]:
@@ -180,16 +264,39 @@ class ModuleRunner:
 
         return [r for r in records if r.item_id in kept_ids]
 
-    async def _render_prompt(self, module, records: list[ItemRecord]) -> str:
+    async def _render_prompt(self, module, records: list[ItemRecord]) -> tuple[str, dict]:
         from ..core.engine_models import PromptTemplate
 
         tmpl = await self.session.get(PromptTemplate, module.prompt_template_id)
         if not tmpl:
             raise ValueError(f"PromptTemplate {module.prompt_template_id} not found")
         items = [_record_to_item(r) for r in records]
-        return render_prompt(tmpl.template, items)
+        snapshot = {
+            "id": tmpl.id,
+            "name": tmpl.name,
+            "version": tmpl.version,
+            "template": tmpl.template,
+            "output_schema": tmpl.output_schema or {},
+            "is_active": tmpl.is_active,
+        }
+        return render_prompt(tmpl.template, items), snapshot
 
-    async def _build_llm(self, module) -> LLMProvider:
+    async def _prompt_snapshot(self, module) -> dict:
+        from ..core.engine_models import PromptTemplate
+
+        tmpl = await self.session.get(PromptTemplate, module.prompt_template_id)
+        if not tmpl:
+            raise ValueError(f"PromptTemplate {module.prompt_template_id} not found")
+        return {
+            "id": tmpl.id,
+            "name": tmpl.name,
+            "version": tmpl.version,
+            "template": tmpl.template,
+            "output_schema": tmpl.output_schema or {},
+            "is_active": tmpl.is_active,
+        }
+
+    async def _build_llm(self, module) -> tuple[LLMProvider, dict]:
         from ..core.engine_models import LLMProvider as ProviderModel
 
         provider = await self.session.get(ProviderModel, module.provider_id)
@@ -197,15 +304,72 @@ class ModuleRunner:
             raise ValueError(f"Provider {module.provider_id} not found")
         if not provider.enabled:
             raise ValueError(f"Provider '{provider.name}' is disabled")
-        return LLMProvider(
-            {
-                "model": provider.model,
-                "api_key": provider.api_key,
-                "api_base": provider.api_base,
-                "temperature": provider.temperature,
-                "max_tokens": provider.max_tokens,
-            }
-        )
+        config = {
+            "model": provider.model,
+            "api_key": decrypt_secret(provider.api_key),
+            "api_base": provider.api_base,
+            "temperature": provider.temperature,
+            "max_tokens": provider.max_tokens,
+        }
+        snapshot = {
+            "id": provider.id,
+            "name": provider.name,
+            "model": provider.model,
+            "api_base": provider.api_base,
+            "temperature": provider.temperature,
+            "max_tokens": provider.max_tokens,
+            "enabled": provider.enabled,
+        }
+        return LLMProvider(config), snapshot
+
+    async def _provider_snapshot(self, module) -> dict:
+        from ..core.engine_models import LLMProvider as ProviderModel
+
+        provider = await self.session.get(ProviderModel, module.provider_id)
+        if not provider:
+            raise ValueError(f"Provider {module.provider_id} not found")
+        if not provider.enabled:
+            raise ValueError(f"Provider '{provider.name}' is disabled")
+        return {
+            "id": provider.id,
+            "name": provider.name,
+            "model": provider.model,
+            "api_base": provider.api_base,
+            "temperature": provider.temperature,
+            "max_tokens": provider.max_tokens,
+            "enabled": provider.enabled,
+        }
+
+    async def _module_snapshot(self, module) -> dict:
+        return {
+            "id": module.id,
+            "name": module.name,
+            "description": module.description,
+            "source": module.source,
+            "source_ref": module.source_ref,
+            "filter_config": module.filter_config or {},
+            "prompt_template_id": module.prompt_template_id,
+            "provider_id": module.provider_id,
+            "agent_backend": module.agent_backend,
+            "tools_config": module.tools_config or [],
+            "webhook_channel_ids": await self._module_channel_ids(module),
+            "schedule_cron": module.schedule_cron,
+            "enabled": module.enabled,
+        }
+
+    async def _module_channel_ids(self, module) -> list[int]:
+        from ..core.engine_models import ModuleChannel
+
+        rows = (
+            await self.session.execute(
+                select(ModuleChannel.channel_id)
+                .where(ModuleChannel.module_id == module.id)
+                .order_by(ModuleChannel.position, ModuleChannel.channel_id)
+            )
+        ).scalars().all()
+        if rows:
+            return [int(r) for r in rows]
+        return [int(r) for r in (module.webhook_channel_ids or [])]
 
     async def _invoke(self, module, llm: LLMProvider, prompt_str: str):
         """Dispatch to the configured agent backend.
@@ -251,8 +415,6 @@ class ModuleRunner:
         from .delivery import DeliveryService
         from ..plugins.webhooks.base import AnalysisResult
 
-        if not (module.webhook_channel_ids or []):
-            return []
         ar = AnalysisResult(
             briefing=result.get("briefing", ""),
             items=result.get("items", []),
@@ -357,9 +519,13 @@ def _run_summary(run) -> dict:
         "cost_usd": run.total_cost_usd,
         "duration_sec": run.duration_sec,
         "tool_calls": run.tool_calls or [],
+        "module_snapshot": run.module_snapshot or {},
+        "prompt_snapshot": run.prompt_snapshot or {},
+        "provider_snapshot": run.provider_snapshot or {},
+        "rendered_prompt_hash": run.rendered_prompt_hash or "",
         "result": run.result,
         "error": run.error,
     }
 
 
-__all__ = ["ModuleRunner"]
+__all__ = ["ACTIVE_RUN_STATUSES", "ActiveRunExists", "ModuleRunner"]

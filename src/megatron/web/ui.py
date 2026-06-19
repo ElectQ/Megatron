@@ -105,8 +105,8 @@ async def dashboard(request: Request):
     )
 
 
-@router.get("/items", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
-async def items_page(
+@router.get("/data/collected", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def data_collected_page(
     request: Request,
     author: str = "",
     keyword: str = "",
@@ -129,7 +129,6 @@ async def items_page(
     total = data.get("total", 0) if isinstance(data, dict) else 0
     total_pages = max(1, (total + page_size - 1) // page_size)
 
-    # 分页链接参数
     def _page_qs(p):
         p_params = dict(params)
         p_params["limit"] = None
@@ -140,7 +139,7 @@ async def items_page(
     return _render(
         request,
         "items.html",
-        "items",
+        "data_collected",
         page=data
         if isinstance(data, dict)
         else {"items": [], "total": 0, "page": 1, "page_size": 50, "total_returned": 0},
@@ -151,8 +150,13 @@ async def items_page(
     )
 
 
-@router.get("/modules", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
-async def modules_page(request: Request, edit: int | None = None):
+@router.get("/items", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def items_redirect():
+    return RedirectResponse("/ui/data/collected", status_code=302)
+
+
+@router.get("/tasks", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def tasks_page(request: Request, edit: int | None = None):
     modules = await _api_get(request, "/api/admin/modules")
     providers = await _api_get(request, "/api/admin/providers")
     prompts = await _api_get(request, "/api/admin/prompts")
@@ -162,7 +166,7 @@ async def modules_page(request: Request, edit: int | None = None):
     return _render(
         request,
         "modules.html",
-        "modules",
+        "tasks",
         modules=modules,
         providers=providers,
         prompts=prompts,
@@ -170,6 +174,11 @@ async def modules_page(request: Request, edit: int | None = None):
         opts=opts,
         edit_module=edit_module,
     )
+
+
+@router.get("/modules", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def modules_redirect():
+    return RedirectResponse("/ui/tasks", status_code=302)
 
 
 @router.get("/prompts", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
@@ -195,7 +204,7 @@ async def channels_page(request: Request):
 async def schedules_page(request: Request):
     schedules = await _api_get(request, "/api/admin/schedules")
     modules = await _api_get(request, "/api/admin/modules")
-    return _render(request, "schedules.html", "schedules", schedules=schedules, modules=modules)
+    return _render(request, "schedules.html", "tasks", schedules=schedules, modules=modules)
 
 
 @router.get("/runs", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
@@ -216,9 +225,46 @@ async def runs_page(
     return _render(
         request,
         "runs.html",
-        "runs",
+        "tasks",
         runs=runs,
         filters={"date": date},
+    )
+
+
+@router.get("/data/sources", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def data_sources_page(request: Request):
+    mcp_servers = await _api_get(request, "/api/admin/mcp-servers")
+    source_configs = await _api_get(request, "/api/admin/source-configs")
+    return _render(
+        request,
+        "sources.html",
+        "data_sources",
+        mcp_servers=mcp_servers,
+        source_configs=source_configs,
+    )
+
+
+@router.get("/data/analyzed", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def data_analyzed_page(
+    request: Request,
+    module_id: int | None = None,
+    date: str = "",
+):
+    import urllib.parse
+
+    params = {"limit": 30}
+    if module_id:
+        params["module_id"] = module_id
+    if date:
+        params["date"] = date
+    qs = urllib.parse.urlencode(params)
+    runs = await _api_get(request, f"/api/admin/runs?{qs}")
+    return _render(
+        request,
+        "analyzed.html",
+        "data_analyzed",
+        runs=runs,
+        filters={"date": date, "module_id": module_id},
     )
 
 

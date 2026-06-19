@@ -1,40 +1,45 @@
 {% extends "base.html" %}
+{% block title %}Prompts · Megatron{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h2 class="text-2xl font-bold">💬 提示词模板</h2>
+<div class="mb-8">
+    <h2 class="text-2xl font-semibold tracking-tight">Prompts</h2>
+    <p class="text-sm text-[#737373] mt-1">Jinja2 templates used by analysis tasks.</p>
 </div>
 
-<div class="card bg-base-100 shadow mb-8">
+<div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">新建模板</h3>
+        <h3 class="card-title">New template</h3>
         <form id="add-prompt" class="flex flex-col gap-3">
-            <div class="flex gap-3">
-                <input name="name" placeholder="模板名称" class="input input-bordered flex-1" required>
-            </div>
-            <textarea name="template" rows="10" placeholder="Jinja2 模板, 可用变量: items, item_count, top_items, now, ctx" class="textarea textarea-bordered font-mono text-sm" required></textarea>
+            <input name="name" placeholder="Template name (technical identifier)" class="input input-bordered" required>
+            <input name="display_name" placeholder="Display name (e.g. 推特安全信息流简报)" class="input input-bordered">
+            <textarea name="template" rows="10" placeholder="Jinja2 template. Available variables: items, item_count, top_items, now, ctx" class="textarea textarea-bordered font-mono text-sm" required></textarea>
             <div class="flex gap-2">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="previewPrompt()">👁 预览</button>
-                <button type="submit" class="btn btn-primary">保存</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="previewPrompt()">Preview</button>
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
             </div>
         </form>
-        <div id="preview" class="mt-2"></div>
-        <div id="add-result" class="mt-2"></div>
+        <div id="preview" class="mt-3"></div>
+        <div id="add-result" class="mt-3"></div>
     </div>
 </div>
 
-<div class="card bg-base-100 shadow">
+<div class="card">
     <div class="card-body">
-        <h3 class="card-title">已有模板 ({{ prompts|length }})</h3>
+        <h3 class="card-title">Existing templates ({{ prompts|length }})</h3>
         {% for p in prompts %}
-        <div class="collapse collapse-arrow bg-base-200 mb-2">
+        <div class="collapse collapse-arrow bg-[#0d0d0d] border border-white/[0.08] rounded mb-2">
             <input type="checkbox">
-            <div class="collapse-title font-mono">{{ p.name }} <span class="badge badge-sm">v{{ p.version }}</span></div>
+            <div class="collapse-title text-sm">
+                <span class="font-medium">{{ p.display_name or p.name }}</span>
+                <span class="font-mono text-xs text-[#737373] ml-2">{{ p.name }}</span>
+                <span class="badge badge-sm badge-ghost ml-2">v{{ p.version }}</span>
+            </div>
             <div class="collapse-content">
-                <pre class="bg-base-300 p-4 rounded text-xs overflow-x-auto whitespace-pre-wrap">{{ p.template }}</pre>
+                <pre class="bg-[#171717] border border-white/[0.08] rounded p-4 text-xs overflow-x-auto whitespace-pre-wrap">{{ p.template }}</pre>
             </div>
         </div>
         {% endfor %}
-        {% if not prompts %}<p class="text-base-content/60 py-4 text-center">暂无模板。</p>{% endif %}
+        {% if not prompts %}<div class="empty-state">No templates yet.</div>{% endif %}
     </div>
 </div>
 
@@ -54,7 +59,7 @@ async function previewPrompt() {
     const tmpl = document.querySelector('textarea[name=template]').value;
     const r = await fetch('/api/admin/prompts/preview', {method: 'POST', headers, body: JSON.stringify({template: tmpl})});
     const d = await r.json();
-    document.getElementById('preview').innerHTML = '<details open class="mt-2"><summary class="cursor-pointer text-sm">预览结果</summary><pre class="bg-base-300 p-3 rounded text-xs mt-2 overflow-x-auto whitespace-pre-wrap">'+ d.rendered.replace(/</g,'&lt;') +'</pre></details>';
+    document.getElementById('preview').innerHTML = '<details open class="mt-2"><summary class="cursor-pointer text-sm text-[#a3a3a3]">Preview</summary><pre class="bg-[#0d0d0d] border border-white/[0.08] rounded p-3 mt-2 text-xs overflow-x-auto whitespace-pre-wrap">'+ d.rendered.replace(/</g,'&lt;') +'</pre></details>';
 }
 </script>
 {% endblock %}

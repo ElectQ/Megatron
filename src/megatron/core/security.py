@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import hmac
 import secrets
+from typing import Any
 
 import bcrypt
 from fastapi import Header, HTTPException, Request, status
@@ -9,6 +12,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
+
+
+ENC_PREFIX = "enc:v1:"
+SENSITIVE_CONFIG_KEYS = (
+    "api_key",
+    "bot_token",
+    "webhook_url",
+    "secret",
+    "key",
+    "access_token",
+    "token",
+)
 
 
 def safe_eq(a: str, b: str) -> bool:
@@ -39,6 +54,110 @@ def mask(value: str, keep: int = 4) -> str:
     if not value or len(value) <= keep:
         return "*" * len(value) if value else ""
     return "*" * (len(value) - keep) + value[-keep:]
+
+
+def is_sensitive_key(key: str) -> bool:
+    """Return whether a config key likely contains a secret."""
+    low = key.lower()
+    return any(s in low for s in SENSITIVE_CONFIG_KEYS)
+
+
+def _fernet():
+    """Build a Fernet instance from MEGATRON_MASTER_KEY.
+
+    Existing plaintext DB rows remain readable. Encryption is activated only
+    when a master key is configured, so local/dev installs do not break during
+    upgrade.
+    """
+    if not settings.master_key:
+        return None
+    try:
+        from cryptography.fernet import Fernet
+    except ImportError as e:
+        raise RuntimeError(
+            "Secret encryption requires the 'cryptography' package. "
+            "Install project dependencies after adding MEGATRON_MASTER_KEY."
+        ) from e
+
+    raw = settings.master_key.strip()
+    try:
+        return Fernet(raw.encode())
+    except Exception:
+        digest = hashlib.sha256(raw.encode()).digest()
+        return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def encrypt_secret(value: str) -> str:
+    """Encrypt a single secret value when MEGATRON_MASTER_KEY is configured."""
+    if not value or value.startswith(ENC_PREFIX):
+        return value
+    f = _fernet()
+    if not f:
+        return value
+    return ENC_PREFIX + f.encrypt(value.encode()).decode()
+
+
+def decrypt_secret(value: str) -> str:
+    """Decrypt an encrypted secret; return legacy plaintext unchanged."""
+    if not value:
+        return ""
+    if not value.startswith(ENC_PREFIX):
+        return value
+    f = _fernet()
+    if not f:
+        raise RuntimeError("Encrypted secret found, but MEGATRON_MASTER_KEY is not configured")
+    token = value.removeprefix(ENC_PREFIX).encode()
+    return f.decrypt(token).decode()
+
+
+def encrypt_config(config: dict[str, Any]) -> dict[str, Any]:
+    """Encrypt sensitive top-level string fields in a plugin config."""
+    out: dict[str, Any] = {}
+    for k, v in (config or {}).items():
+        if is_sensitive_key(k) and isinstance(v, str):
+            out[k] = encrypt_secret(v)
+        else:
+            out[k] = v
+    return out
+
+
+def decrypt_config(config: dict[str, Any]) -> dict[str, Any]:
+    """Decrypt sensitive top-level string fields in a plugin config."""
+    out: dict[str, Any] = {}
+    for k, v in (config or {}).items():
+        if is_sensitive_key(k) and isinstance(v, str):
+            out[k] = decrypt_secret(v)
+        else:
+            out[k] = v
+    return out
+
+
+def mask_config(config: dict[str, Any]) -> dict[str, Any]:
+    """Return a display-safe copy of config with sensitive values masked."""
+    visible = decrypt_config(config or {})
+    for k, v in list(visible.items()):
+        if is_sensitive_key(k) and isinstance(v, str) and v:
+            visible[k] = mask(v)
+    return visible
+
+
+def validate_runtime_settings() -> None:
+    """Fail fast on unsafe production defaults."""
+    if settings.env.lower() not in {"prod", "production"}:
+        return
+    weak = []
+    if settings.admin_token == "dev-admin-token-change-me" or settings.admin_token.startswith(
+        "change-me"
+    ):
+        weak.append("MEGATRON_ADMIN_TOKEN")
+    if settings.session_secret == "dev-session-secret-change-me-for-prod" or (
+        settings.session_secret.startswith("change-me")
+    ):
+        weak.append("MEGATRON_SESSION_SECRET")
+    if not settings.master_key or settings.master_key.startswith("change-me"):
+        weak.append("MEGATRON_MASTER_KEY")
+    if weak:
+        raise RuntimeError("Unsafe production configuration: " + ", ".join(weak))
 
 
 class IngestAuth:
@@ -126,6 +245,13 @@ __all__ = [
     "hash_password",
     "verify_password",
     "mask",
+    "is_sensitive_key",
+    "encrypt_secret",
+    "decrypt_secret",
+    "encrypt_config",
+    "decrypt_config",
+    "mask_config",
+    "validate_runtime_settings",
     "authenticate_user",
     "IngestAuth",
     "SessionAuth",

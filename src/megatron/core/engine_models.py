@@ -31,6 +31,7 @@ class PromptTemplate(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), index=True)
+    display_name: Mapped[str] = mapped_column(String(128), default="")
     version: Mapped[int] = mapped_column(Integer, default=1)
     template: Mapped[str] = mapped_column(Text)
     output_schema: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -60,6 +61,21 @@ class AnalysisModule(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class ModuleChannel(Base):
+    __tablename__ = "module_channels"
+
+    module_id: Mapped[int] = mapped_column(
+        ForeignKey("analysis_modules.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    channel_id: Mapped[int] = mapped_column(
+        ForeignKey("webhook_channels.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class AnalysisRun(Base):
     __tablename__ = "analysis_runs"
 
@@ -69,6 +85,11 @@ class AnalysisRun(Base):
 
     input_count: Mapped[int] = mapped_column(Integer, default=0)
     input_item_ids: Mapped[list] = mapped_column(JSON, default=list)
+
+    module_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    prompt_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    provider_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    rendered_prompt_hash: Mapped[str] = mapped_column(String(64), default="")
 
     result: Mapped[dict] = mapped_column(JSON, default=dict)
     error: Mapped[str] = mapped_column(Text, default="")
@@ -122,6 +143,7 @@ __all__ = [
     "LLMProvider",
     "PromptTemplate",
     "AnalysisModule",
+    "ModuleChannel",
     "AnalysisRun",
     "User",
     "WebhookChannel",

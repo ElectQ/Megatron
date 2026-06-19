@@ -3,8 +3,9 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.engine_models import DeliveryLog, WebhookChannel
+from ..core.engine_models import DeliveryLog, ModuleChannel, WebhookChannel
 from ..core.logging import get_logger
+from ..core.security import decrypt_config
 from ..plugins.webhooks.base import AnalysisResult, channel_registry
 
 logger = get_logger(__name__)
@@ -28,7 +29,7 @@ class DeliveryService:
         run,
         result: AnalysisResult,
     ) -> list[dict]:
-        channel_ids = list(module.webhook_channel_ids or [])
+        channel_ids = await self._channel_ids(module)
         if not channel_ids:
             logger.info("delivery.skip", reason="no channels on module", module=module.name)
             return []
@@ -61,10 +62,22 @@ class DeliveryService:
         )
         return outcomes
 
+    async def _channel_ids(self, module) -> list[int]:
+        rows = (
+            await self.session.execute(
+                select(ModuleChannel.channel_id)
+                .where(ModuleChannel.module_id == module.id)
+                .order_by(ModuleChannel.position, ModuleChannel.channel_id)
+            )
+        ).scalars().all()
+        if rows:
+            return [int(r) for r in rows]
+        return [int(r) for r in (module.webhook_channel_ids or [])]
+
     async def _send_one(self, ch: WebhookChannel, result: AnalysisResult, run_id: int) -> dict:
         if ch.kind not in channel_registry:
             return {"ok": False, "error": f"Unknown channel kind '{ch.kind}'"}
-        channel = channel_registry.create(ch.kind, **(ch.config or {}))
+        channel = channel_registry.create(ch.kind, **decrypt_config(ch.config or {}))
         return await channel.send(result)
 
 

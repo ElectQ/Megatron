@@ -3,30 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Megatron · Login</title>
+    <title>Megatron · Sign in</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/static/theme.css" rel="stylesheet">
 </head>
-<body class="min-h-screen flex items-center justify-center bg-base-200">
-    <div class="card w-96 bg-base-100 shadow-xl">
+<body class="min-h-screen flex items-center justify-center bg-[#0d0d0d]">
+    <div class="card w-96">
         <div class="card-body">
-            <h2 class="card-title justify-center mb-4 text-2xl">⚡ Megatron</h2>
-            <p class="text-center text-xs text-base-content/60 mb-4">LLM Analysis Hub</p>
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-semibold tracking-tight">Megatron</h2>
+                <p class="text-xs text-[#737373] mt-1">LLM Analysis Hub</p>
+            </div>
             {% if request.query_params.get('error') %}
-            <div class="alert alert-error py-2">
+            <div class="alert alert-error py-2 mb-4">
                 <span class="text-sm">Invalid username or password</span>
             </div>
             {% endif %}
             <form method="post" action="/ui/login">
                 <label class="form-control mb-3">
-                    <span class="label-text mb-1">Username</span>
+                    <span class="label-text mb-1 text-[#a3a3a3] text-sm">Username</span>
                     <input type="text" name="username" class="input input-bordered w-full" required autofocus>
                 </label>
-                <label class="form-control mb-4">
-                    <span class="label-text mb-1">Password</span>
+                <label class="form-control mb-5">
+                    <span class="label-text mb-1 text-[#a3a3a3] text-sm">Password</span>
                     <input type="password" name="password" class="input input-bordered w-full" required>
                 </label>
-                <button type="submit" class="btn btn-primary w-full">Sign In</button>
+                <button type="submit" class="btn btn-primary w-full">Sign in</button>
             </form>
         </div>
     </div>

@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Run History · Megatron{% endblock %}
+{% block title %}Analyzed Data · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">Run History</h2>
-    <p class="text-sm text-[#737373] mt-1">Past analysis executions and their outputs.</p>
+    <h2 class="text-2xl font-semibold tracking-tight">Analyzed Data</h2>
+    <p class="text-sm text-[#737373] mt-1">Structured outputs and briefings produced by analysis tasks.</p>
 </div>
 
-<form method="get" action="/ui/runs" class="flex flex-wrap gap-2 mb-6">
+<form method="get" action="/ui/data/analyzed" class="flex flex-wrap gap-2 mb-6">
     <input type="date" name="date" value="{{ filters.date or '' }}" class="input input-bordered input-sm w-40">
     <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-    {% if filters.date %}<a href="/ui/runs" class="btn btn-ghost btn-sm">Clear</a>{% endif %}
+    {% if filters.date %}<a href="/ui/data/analyzed" class="btn btn-ghost btn-sm">Clear</a>{% endif %}
 </form>
 
 <div class="space-y-4">
@@ -110,7 +110,7 @@
     </div>
 </div>
 {% endfor %}
-{% if not runs %}<div class="empty-state">No run history.</div>{% endif %}
+{% if not runs %}<div class="empty-state">No analyzed outputs yet.</div>{% endif %}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

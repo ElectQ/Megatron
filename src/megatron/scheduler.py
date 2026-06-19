@@ -56,18 +56,27 @@ def _setup_pull_job(scheduler: AsyncIOScheduler) -> None:
 
 async def _run_module_job(module_id: int, module_name: str) -> None:
     """Background task executed by APScheduler for a scheduled module."""
-    from .engine.runner import ModuleRunner
+    from .engine.runner import ActiveRunExists, ModuleRunner
 
     try:
         async with async_session_factory() as session:
             runner = ModuleRunner(session)
-            summary = await runner.run_module(module_id, triggered_by="schedule")
+            queued = await runner.create_run(module_id, triggered_by="schedule")
+            summary = await runner.run_run(queued["run_id"])
         logger.info(
             "scheduler.module.done",
             module=module_name,
             module_id=module_id,
             run_id=summary.get("run_id"),
             status=summary.get("status"),
+        )
+    except ActiveRunExists as e:
+        logger.warning(
+            "scheduler.module.skipped_active_run",
+            module=module_name,
+            module_id=module_id,
+            active_run_id=e.run_id,
+            active_status=e.status,
         )
     except Exception as e:
         logger.error(

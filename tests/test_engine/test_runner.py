@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
@@ -106,7 +107,49 @@ async def test_full_pipeline_with_mock_llm(sample_items):
         assert summary["cost_usd"] == 0.002
         assert "briefing" in summary["result"]
         assert summary["result"]["items"][0]["cve"] == "CVE-2024-9999"
+        assert summary["module_snapshot"]["name"] == "e2e-module"
+        assert summary["prompt_snapshot"]["name"] == "e2e-tmpl"
+        assert summary["provider_snapshot"]["model"] == "deepseek/deepseek-chat"
+        assert "api_key" not in summary["provider_snapshot"]
+        assert summary["rendered_prompt_hash"] == hashlib.sha256(
+            "Analyze 1 items.".encode()
+        ).hexdigest()
 
         run = await session.get(AnalysisRun, summary["run_id"])
         assert run.status == "completed"
         assert run.input_count == 2
+        assert run.module_snapshot["filter_config"]["max_items"] == 10
+        assert run.prompt_snapshot["template"] == "Analyze {{ item_count }} items."
+        assert run.provider_snapshot["temperature"] == 0.3
+        assert run.rendered_prompt_hash == summary["rendered_prompt_hash"]
+
+
+@pytest.mark.asyncio
+async def test_create_run_rejects_active_run():
+    from megatron.core.engine_models import AnalysisModule, LLMProvider, PromptTemplate
+    from megatron.engine.runner import ActiveRunExists
+
+    async with async_session_factory() as session:
+        tmpl = PromptTemplate(name="lock-tmpl", version=1, template="test", output_schema={})
+        prov = LLMProvider(name="lock-prov", model="m", api_key="", enabled=True)
+        session.add_all([tmpl, prov])
+        await session.flush()
+        module = AnalysisModule(
+            name="lock-module",
+            source="twitter",
+            filter_config={"time_mode": "rolling"},
+            prompt_template_id=tmpl.id,
+            provider_id=prov.id,
+            enabled=True,
+        )
+        session.add(module)
+        await session.commit()
+
+        runner = ModuleRunner(session)
+        first = await runner.create_run(module.id)
+        assert first["status"] == "queued"
+
+        with pytest.raises(ActiveRunExists) as exc:
+            await runner.create_run(module.id)
+
+        assert exc.value.run_id == first["run_id"]

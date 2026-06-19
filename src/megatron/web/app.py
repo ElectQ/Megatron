@@ -4,17 +4,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from ..config import settings
 from ..core.db import dispose_db, init_db
 from ..core.logging import get_logger, setup_logging
-from ..core.security import RedirectLoginException
+from ..core.security import RedirectLoginException, validate_runtime_settings
 from ..ingest import api as ingest_api
 from ..scheduler import shutdown_scheduler, start_scheduler
 from . import (
     channels_api,
     data_api,
+    mcp_api,
     modules_api,
     prompts_api,
     providers_api,
@@ -30,6 +32,7 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging(level="INFO")
+    validate_runtime_settings()
     from ..engine import agent_loop as _agent  # noqa: F401  trigger registration
     from ..plugins import filters as _filters  # noqa: F401  trigger registration
     from ..plugins import sources as _sources  # noqa: F401  trigger registration
@@ -61,8 +64,11 @@ app.add_middleware(
     https_only=False,
 )
 
+app.mount("/static", StaticFiles(directory="src/megatron/web/static"), name="static")
+
 app.include_router(ingest_api.router)
 app.include_router(data_api.router)
+app.include_router(mcp_api.router)
 app.include_router(providers_api.router)
 app.include_router(prompts_api.router)
 app.include_router(modules_api.router)

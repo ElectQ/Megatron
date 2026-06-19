@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.db import get_session
+from ..core.security import admin_auth
 from ..ingest.service import IngestService
 
 router = APIRouter(prefix="/api/items", tags=["items"])
@@ -71,7 +72,7 @@ def _to_out(rec) -> ItemOut:
     )
 
 
-@router.get("", response_model=ItemsPage)
+@router.get("", response_model=ItemsPage, dependencies=[Depends(admin_auth)])
 async def list_items(
     source: str | None = None,
     collect_date: str | None = None,
@@ -125,7 +126,7 @@ async def list_items(
     )
 
 
-@router.get("/{item_id}", response_model=ItemDetail)
+@router.get("/{item_id}", response_model=ItemDetail, dependencies=[Depends(admin_auth)])
 async def get_item(item_id: int, session: AsyncSession = Depends(get_session)):
     service = IngestService(session)
     rec = await service.get_item(item_id)

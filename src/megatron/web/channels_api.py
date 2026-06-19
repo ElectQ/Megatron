@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.db import get_session
-from ..core.security import admin_auth, mask
+from ..core.security import admin_auth, decrypt_config, encrypt_config, mask_config
 from ..plugins.webhooks.base import channel_registry
 
 router = APIRouter(prefix="/api/admin/channels", tags=["channels"])
@@ -27,23 +27,12 @@ class ChannelOut(BaseModel):
     enabled: bool
 
 
-_SENSITIVE = ("bot_token", "webhook_url", "secret", "key", "access_token")
-
-
-def _mask_config(config: dict) -> dict:
-    masked = dict(config)
-    for k, v in list(masked.items()):
-        if any(s in k.lower() for s in _SENSITIVE) and isinstance(v, str) and v:
-            masked[k] = mask(v)
-    return masked
-
-
 def _to_out(ch) -> ChannelOut:
     return ChannelOut(
         id=ch.id,
         name=ch.name,
         kind=ch.kind,
-        config_masked=_mask_config(ch.config or {}),
+        config_masked=mask_config(ch.config or {}),
         enabled=ch.enabled,
     )
 
@@ -68,7 +57,7 @@ async def create_channel(body: ChannelIn, session: AsyncSession = Depends(get_se
     ch = WebhookChannel(
         name=body.name,
         kind=body.kind,
-        config=body.config,
+        config=encrypt_config(body.config),
         enabled=body.enabled,
     )
     session.add(ch)
@@ -79,11 +68,29 @@ async def create_channel(body: ChannelIn, session: AsyncSession = Depends(get_se
 
 @router.delete("/{cid}", dependencies=[Depends(admin_auth)])
 async def delete_channel(cid: int, session: AsyncSession = Depends(get_session)):
-    from ..core.engine_models import WebhookChannel
+    from ..core.engine_models import AnalysisModule, ModuleChannel, WebhookChannel
 
     ch = await session.get(WebhookChannel, cid)
     if not ch:
         raise HTTPException(404, "Channel not found")
+    linked_module_id = (
+        await session.execute(select(ModuleChannel.module_id).where(ModuleChannel.channel_id == cid))
+    ).scalars().first()
+    if linked_module_id:
+        raise HTTPException(409, f"Channel is used by module #{linked_module_id}")
+
+    legacy_modules = (
+        await session.execute(select(AnalysisModule.id, AnalysisModule.webhook_channel_ids))
+    ).all()
+    for module_id, channel_ids in legacy_modules:
+        normalized = []
+        for value in channel_ids or []:
+            try:
+                normalized.append(int(value))
+            except (TypeError, ValueError):
+                continue
+        if cid in normalized:
+            raise HTTPException(409, f"Channel is used by module #{module_id}")
     await session.delete(ch)
     await session.commit()
     return {"deleted": cid}
@@ -98,7 +105,7 @@ async def test_channel(cid: int, session: AsyncSession = Depends(get_session)):
         raise HTTPException(404, "Channel not found")
     if ch.kind not in channel_registry:
         return {"ok": False, "error": f"Unknown kind '{ch.kind}'"}
-    channel = channel_registry.create(ch.kind, **(ch.config or {}))
+    channel = channel_registry.create(ch.kind, **decrypt_config(ch.config or {}))
     return await channel.test()
 
 

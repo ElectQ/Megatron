@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/admin/prompts", tags=["prompts"])
 
 class PromptIn(BaseModel):
     name: str
+    display_name: str = ""
     template: str
     output_schema: dict = {}
     is_active: bool = True
@@ -22,6 +23,7 @@ class PromptIn(BaseModel):
 class PromptOut(BaseModel):
     id: int
     name: str
+    display_name: str
     version: int
     template: str
     output_schema: dict
@@ -37,6 +39,7 @@ async def list_prompts(session: AsyncSession = Depends(get_session)):
         PromptOut(
             id=p.id,
             name=p.name,
+            display_name=p.display_name or p.name,
             version=p.version,
             template=p.template,
             output_schema=p.output_schema or {},
@@ -56,6 +59,7 @@ async def create_prompt(body: PromptIn, session: AsyncSession = Depends(get_sess
 
     p = PromptTemplate(
         name=body.name,
+        display_name=body.display_name or body.name,
         version=next_version,
         template=body.template,
         output_schema=body.output_schema,
@@ -67,6 +71,7 @@ async def create_prompt(body: PromptIn, session: AsyncSession = Depends(get_sess
     return PromptOut(
         id=p.id,
         name=p.name,
+        display_name=p.display_name or p.name,
         version=p.version,
         template=p.template,
         output_schema=p.output_schema or {},

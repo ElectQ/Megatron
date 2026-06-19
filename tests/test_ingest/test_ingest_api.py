@@ -102,19 +102,23 @@ async def test_ingest_rejects_bad_token(client, soundwave_payload):
 
 @pytest.mark.asyncio
 async def test_list_and_get_items(client, soundwave_payload, monkeypatch):
-    from megatron.config import ingest_settings
+    from megatron.config import ingest_settings, settings
 
     token = ingest_settings.ingest_token
-    headers = {"Authorization": f"Bearer {token}"}
-    await client.post("/api/ingest/twitter", json=soundwave_payload, headers=headers)
+    ingest_headers = {"Authorization": f"Bearer {token}"}
+    admin_headers = {"Authorization": f"Bearer {settings.admin_token}"}
+    await client.post("/api/ingest/twitter", json=soundwave_payload, headers=ingest_headers)
 
-    r = await client.get("/api/items?limit=10")
+    unauth = await client.get("/api/items?limit=10")
+    assert unauth.status_code == 401
+
+    r = await client.get("/api/items?limit=10", headers=admin_headers)
     assert r.status_code == 200
     page = r.json()
     assert page["total_returned"] == 2
 
     first_id = page["items"][0]["id"]
-    r2 = await client.get(f"/api/items/{first_id}")
+    r2 = await client.get(f"/api/items/{first_id}", headers=admin_headers)
     assert r2.status_code == 200
     detail = r2.json()
     assert detail["item_id"] in ("2066900145321472382", "2066900145321472399")

@@ -39,16 +39,28 @@ class DingTalkChannel(BaseChannel):
         return url
 
     def render(self, result: AnalysisResult) -> dict:
-        title = f"⚡ {result.module_name or 'Megatron'} 安全简报"
-        if result.report_markdown:
+        title, body = self._extract_title_body(result)
+        if body:
             return {
                 "msgtype": "markdown",
                 "markdown": {
                     "title": title,
-                    "text": f"# {title}\n\n{result.report_markdown[:MAX_CHARS_PER_MSG]}",
+                    "text": f"# {title}\n\n{body}",
                 },
             }
         return self._legacy_render(result, title)
+
+    def _extract_title_body(self, result: AnalysisResult) -> tuple[str, str]:
+        """Extract the LLM-generated title line from report_markdown."""
+        md = result.report_markdown or ""
+        if not md:
+            return ("⚡ 安全简报", "")
+        lines = md.split("\n", 1)
+        first_line = lines[0].strip()
+        # Use the first heading-style line from the LLM as the DingTalk title
+        if first_line.startswith("⚡") or first_line.startswith("#"):
+            return (first_line, lines[1].strip() if len(lines) > 1 else "")
+        return ("⚡ 安全简报", md)
 
     def _legacy_render(self, result: AnalysisResult, title: str) -> dict:
         sections = []
@@ -89,7 +101,7 @@ class DingTalkChannel(BaseChannel):
                 return await self._send_one(self.render(result))
 
             # Multi-message
-            title_base = f"⚡ {result.module_name or 'Megatron'} 安全简报"
+            title_base, _ = self._extract_title_body(result)
             last_ok = True
             last_status = 0
             last_error = ""
