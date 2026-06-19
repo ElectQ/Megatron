@@ -192,13 +192,15 @@ class ModuleRunner:
             )
             return _run_summary(run)
 
-        except Exception as e:
+        except BaseException as e:
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
             run.status = "failed"
-            run.error = str(e)
+            run.error = f"{type(e).__name__}: {str(e)[:500]}"
             run.finished_at = datetime.now(timezone.utc)
             run.duration_sec = round(time.time() - started, 3)
             await self.session.commit()
-            logger.error("runner.failed", module_id=module.id, run_id=run.id, error=str(e))
+            logger.error("runner.failed", module_id=module.id, run_id=run.id, error=run.error)
             raise
 
     async def _refresh_data(self, module, run) -> str | None:

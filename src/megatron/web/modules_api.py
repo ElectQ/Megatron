@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import delete, select
@@ -25,6 +27,8 @@ async def _execute_run_background(run_id: int) -> None:
         runner = ModuleRunner(session)
         try:
             await runner.run_run(run_id)
+        except asyncio.CancelledError:
+            pass  # anyio cancel scope propagation, silently ignore
         except Exception as e:
             logger.error("module.background_run_failed", run_id=run_id, error=str(e))
 

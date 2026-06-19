@@ -151,6 +151,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>window.Chart||document.write('<script src="https://unpkg.com/chart.js@4"><\/script>')</script>
 <script>
 fetch('/api/admin/stats/overview')
     .then(r => r.json())
@@ -177,6 +178,14 @@ fetch('/api/admin/stats/overview')
 fetch('/api/admin/stats/trend?days=7')
     .then(r => r.json())
     .then(data => {
+        if (!Array.isArray(data)) throw new Error('Unexpected API response');
+        const hasData = data.some(d => d.runs > 0 || d.tokens > 0);
+        if (!hasData) {
+            const el = document.getElementById('trendChart');
+            el.style.display = 'none';
+            el.insertAdjacentHTML('afterend', '<div class="text-xs text-[#737373] text-center py-24">暂无运行数据，点击 <a href="/ui/tasks" class="link">Tasks</a> 执行任务后生成趋势图</div>');
+            return;
+        }
         const ctx = document.getElementById('trendChart');
         new Chart(ctx, {
             type: 'bar',
