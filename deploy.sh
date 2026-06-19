@@ -87,6 +87,8 @@ deploy)
     _setup
     echo "  Disk: $(df -h . | tail -1 | awk '{print $4}') available"
     _env
+    log "Stopping old containers..."
+    $COMPOSE down 2>/dev/null || true
     log "Building..."
     $COMPOSE build --no-cache --quiet 2>&1 | tail -1
     log "Starting..."
@@ -98,10 +100,12 @@ update)
     _setup
     log "Pulling latest code..."
     git pull
+    log "Stopping old containers..."
+    $COMPOSE down 2>/dev/null || true
     log "Rebuilding..."
-    $COMPOSE build --quiet --no-cache 2>&1 | tail -1
-    log "Restarting..."
-    $COMPOSE up -d --force-recreate
+    $COMPOSE build --no-cache --quiet 2>&1 | tail -1
+    log "Starting..."
+    $COMPOSE up -d
     _wait
     ;;
 
