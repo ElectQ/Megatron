@@ -82,7 +82,7 @@ deploy)
     echo "  Disk: $(df -h . | tail -1 | awk '{print $4}') available"
     _env
     log "Building..."
-    $COMPOSE build --quiet 2>&1 | tail -1
+    $COMPOSE build --no-cache --quiet 2>&1 | tail -1
     log "Starting..."
     $COMPOSE up -d
     _wait
