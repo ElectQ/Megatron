@@ -17,7 +17,8 @@ RUN pip install --no-cache-dir uv \
         "litellm>=1.40.0" "httpx>=0.27.0" "jinja2>=3.1.0" \
         "itsdangerous>=2.2.0" "bcrypt>=4.0.0" "cryptography>=42.0.0" \
         "structlog>=24.1.0" "python-multipart>=0.0.9" "mcp>=1.0.0" \
-        "asyncpg>=0.29.0"
+        "asyncpg>=0.29.0" \
+        "trafilatura>=1.12.0"
 
 # Copy application
 COPY src/ ./src/
