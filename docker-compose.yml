@@ -3,24 +3,18 @@ services:
     build: .
     container_name: megatron
     environment:
-      # 数据库 (默认 SQLite，简单可靠)
-      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./megatron.db}
-      # 安全密钥 (不设置则自动生成)
+      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./app/data/megatron.db}
       MEGATRON_SESSION_SECRET: ${MEGATRON_SESSION_SECRET:-}
       MEGATRON_ADMIN_TOKEN: ${MEGATRON_ADMIN_TOKEN:-}
       MEGATRON_ADMIN_PASSWORD: ${MEGATRON_ADMIN_PASSWORD:-}
-      # DeepSeek
       MEGATRON_DEEPSEEK_API_KEY: ${MEGATRON_DEEPSEEK_API_KEY:-}
-      # 钉钉 Webhook
       MEGATRON_DINGTALK_URL: ${MEGATRON_DINGTALK_URL:-}
       MEGATRON_DINGTALK_SECRET: ${MEGATRON_DINGTALK_SECRET:-}
     ports:
       - "${PORT:-8000}:8000"
     volumes:
       - megatron_data:/app/data
-      - megatron_db:/app  # persist SQLite DB
     restart: unless-stopped
 
 volumes:
   megatron_data:
-  megatron_db:

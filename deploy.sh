@@ -50,7 +50,7 @@ _env() {
         SESSION_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))" 2>/dev/null || openssl rand -base64 48)
         ADMIN_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(12))" 2>/dev/null || openssl rand -base64 12)
         cat > .env << EOF
-DATABASE_URL=sqlite+aiosqlite:///./megatron.db
+DATABASE_URL=sqlite+aiosqlite:///./app/data/megatron.db
 MEGATRON_SESSION_SECRET=${SESSION_SECRET}
 MEGATRON_ADMIN_PASSWORD=${ADMIN_PASS}
 MEGATRON_DEEPSEEK_API_KEY=
@@ -120,8 +120,6 @@ clean)
     fi
     log "Stopping containers..."
     $COMPOSE down -v
-    rm -f megatron.db megatron.db-journal 2>/dev/null || true
-    rm -rf data/ 2>/dev/null || true
     rm -f .env 2>/dev/null || true
     log "Cleaned. Run 'bash deploy.sh' to start fresh."
     ;;
