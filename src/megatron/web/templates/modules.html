@@ -215,7 +215,7 @@
                     </td>
                     <td>{% if m.enabled %}<span class="badge badge-success badge-sm">enabled</span>{% else %}<span class="badge badge-ghost badge-sm">disabled</span>{% endif %}</td>
                     <td class="flex gap-1">
-                        <button class="btn btn-xs btn-primary" onclick="runModule({{ m.id }}, '{{ m.name }}')">Run</button>
+                        <button class="btn btn-xs btn-primary" data-run-id="{{ m.id }}" data-run-name="{{ m.name }}" onclick="runModule(this)">Run</button>
                         <a class="btn btn-xs btn-ghost" href="/ui/tasks?edit={{ m.id }}">Edit</a>
                         <a class="btn btn-xs btn-ghost" href="/ui/runs?module_id={{ m.id }}">History</a>
                         <button class="btn btn-xs btn-ghost text-[#ef4444]" onclick="delModule({{ m.id }})">Delete</button>
@@ -230,9 +230,6 @@
 </div>
 
 <script>
-const token = '{{ request.cookies.get("admin_token") or "" }}';
-const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
-
 function toggleCron() {
     const mode = document.querySelector('input[name=exec_mode]:checked').value;
     document.getElementById('cron-box').classList.toggle('hidden', mode !== 'scheduled');
@@ -279,32 +276,33 @@ document.getElementById('module-form').addEventListener('submit', async (e) => {
 
     const url = moduleId ? `/api/admin/modules/${moduleId}` : '/api/admin/modules';
     const method = moduleId ? 'PUT' : 'POST';
-    const r = await fetch(url, {method, headers, body: JSON.stringify(body)});
+    const r = await MG.apiSend(url, method, body);
     if (r.ok) {
         location.href = '/ui/tasks';
     } else {
-        document.getElementById('form-result').innerHTML = '<div class="alert alert-error py-2"><span class="text-sm">'+ (await r.text()) +'</span></div>';
+        MG.showError('form-result', await MG.errorText(r));
     }
 });
 
-async function runModule(id, name) {
+async function runModule(btn) {
+    const id = btn.dataset.runId;
+    const name = btn.dataset.runName || ('#' + id);
     if (!confirm('Run task "' + name + '" now?\nThis will call the LLM and may incur cost.')) return;
-    const btn = event.target;
     btn.disabled = true; btn.textContent = 'Running...';
-    const r = await fetch(`/api/admin/modules/${id}/run`, {method: 'POST', headers});
-    const d = await r.json();
+    const r = await MG.apiFetch(`/api/admin/modules/${id}/run`, {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
     btn.disabled = false; btn.textContent = 'Run';
     if (r.ok && (d.status === 'queued' || d.status === 'running' || d.status === 'completed')) {
         location.href = '/ui/runs?module_id=' + id;
     } else {
-        alert('Failed: ' + (d.detail || d.error || 'unknown error'));
+        MG.toast('Failed: ' + (d.detail || d.error || 'unknown error'), 'error');
     }
 }
 
 async function delModule(id) {
     if (!confirm('Delete this task? Run history will be preserved.')) return;
-    await fetch(`/api/admin/modules/${id}`, {method: 'DELETE', headers});
-    location.reload();
+    const r = await MG.apiFetch(`/api/admin/modules/${id}`, {method: 'DELETE'});
+    if (r.ok) { location.reload(); } else { MG.toast('Delete failed: ' + await MG.errorText(r), 'error'); }
 }
 </script>
 {% endblock %}

@@ -44,22 +44,33 @@
 </div>
 
 <script>
-const token = '{{ request.cookies.get("admin_token") or "" }}';
-const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
-
 document.getElementById('add-prompt').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const body = {name: fd.get('name'), template: fd.get('template'), output_schema: {}, is_active: true};
-    const r = await fetch('/api/admin/prompts', {method: 'POST', headers, body: JSON.stringify(body)});
-    if (r.ok) { location.reload(); } else { document.getElementById('add-result').innerHTML = '<div class="alert alert-error py-2"><span class="text-sm">'+ (await r.text()) +'</span></div>'; }
+    const r = await MG.apiSend('/api/admin/prompts', 'POST', body);
+    if (r.ok) { location.reload(); } else { MG.showError('add-result', await MG.errorText(r)); }
 });
 
 async function previewPrompt() {
     const tmpl = document.querySelector('textarea[name=template]').value;
-    const r = await fetch('/api/admin/prompts/preview', {method: 'POST', headers, body: JSON.stringify({template: tmpl})});
-    const d = await r.json();
-    document.getElementById('preview').innerHTML = '<details open class="mt-2"><summary class="cursor-pointer text-sm text-[#a3a3a3]">Preview</summary><pre class="bg-[#0d0d0d] border border-white/[0.08] rounded p-3 mt-2 text-xs overflow-x-auto whitespace-pre-wrap">'+ d.rendered.replace(/</g,'&lt;') +'</pre></details>';
+    const r = await MG.apiSend('/api/admin/prompts/preview', 'POST', {template: tmpl});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { MG.showError('preview', d.detail || d.error || 'Preview failed'); return; }
+    const box = document.getElementById('preview');
+    box.textContent = '';
+    const details = document.createElement('details');
+    details.open = true;
+    details.className = 'mt-2';
+    const summary = document.createElement('summary');
+    summary.className = 'cursor-pointer text-sm text-secondary';
+    summary.textContent = 'Preview';
+    const pre = document.createElement('pre');
+    pre.className = 'bg-[#0d0d0d] border border-white/[0.08] rounded p-3 mt-2 text-xs overflow-x-auto whitespace-pre-wrap';
+    pre.textContent = d.rendered || '';
+    details.appendChild(summary);
+    details.appendChild(pre);
+    box.appendChild(details);
 }
 </script>
 {% endblock %}

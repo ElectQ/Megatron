@@ -60,9 +60,6 @@
 </div>
 
 <script>
-const token = '{{ request.cookies.get("admin_token") or "" }}';
-const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
-
 const SCHEMAS = {
     telegram: [{key:'bot_token', label:'Bot Token', type:'password'}, {key:'chat_id', label:'Chat ID'}],
     feishu: [{key:'webhook_url', label:'Webhook URL', type:'password'}],
@@ -87,19 +84,19 @@ document.getElementById('add-channel').addEventListener('submit', async (e) => {
     const config = {};
     (SCHEMAS[kind]||[]).forEach(f => { const v = fd.get('cfg_'+f.key); if (v) config[f.key] = v; });
     const body = {name: fd.get('name'), kind: kind, config: config, enabled: true};
-    const r = await fetch('/api/admin/channels', {method: 'POST', headers, body: JSON.stringify(body)});
-    if (r.ok) { location.reload(); } else { document.getElementById('add-result').innerHTML = '<div class="alert alert-error py-2"><span class="text-sm">'+ (await r.text()) +'</span></div>'; }
+    const r = await MG.apiSend('/api/admin/channels', 'POST', body);
+    if (r.ok) { location.reload(); } else { MG.showError('add-result', await MG.errorText(r)); }
 });
 
 async function testChannel(id) {
-    const r = await fetch(`/api/admin/channels/${id}/test`, {method: 'POST', headers});
-    const d = await r.json();
-    alert(d.ok ? 'Sent (HTTP '+d.status_code+')' : 'Failed: ' + (d.error||'HTTP '+d.status_code));
+    const r = await MG.apiFetch(`/api/admin/channels/${id}/test`, {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    MG.toast(d.ok ? 'Sent (HTTP '+d.status_code+')' : 'Failed: ' + (d.error || 'HTTP '+d.status_code), d.ok ? 'success' : 'error');
 }
 async function delChannel(id) {
     if (!confirm('Delete this channel?')) return;
-    await fetch(`/api/admin/channels/${id}`, {method: 'DELETE', headers});
-    location.reload();
+    const r = await MG.apiFetch(`/api/admin/channels/${id}`, {method: 'DELETE'});
+    if (r.ok) { location.reload(); } else { MG.toast('Delete failed: ' + await MG.errorText(r), 'error'); }
 }
 </script>
 {% endblock %}

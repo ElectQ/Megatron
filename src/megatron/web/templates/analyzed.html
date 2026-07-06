@@ -3,145 +3,19 @@
 {% block content %}
 <div class="mb-8">
     <h2 class="text-2xl font-semibold tracking-tight">Analyzed Data</h2>
-    <p class="text-sm text-[#737373] mt-1">Structured outputs and briefings produced by analysis tasks.</p>
+    <p class="text-sm text-muted mt-1">Structured outputs and briefings produced by analysis tasks.</p>
 </div>
 
 <form method="get" action="/ui/data/analyzed" class="flex flex-wrap gap-2 mb-6">
-    <input type="date" name="date" value="{{ filters.date or '' }}" class="input input-bordered input-sm w-40">
+    <input type="date" name="date" value="{{ filters.date or '' }}" class="input input-bordered input-sm w-40" aria-label="Filter by date">
     <button type="submit" class="btn btn-primary btn-sm">Filter</button>
     {% if filters.date %}<a href="/ui/data/analyzed" class="btn btn-ghost btn-sm">Clear</a>{% endif %}
 </form>
 
 <div class="space-y-4">
 {% for r in runs %}
-<div class="collapse collapse-arrow bg-[#171717] border border-white/[0.08] rounded">
-    <input type="checkbox">
-    <div class="collapse-title flex items-center gap-3 flex-wrap py-4">
-        <span class="font-mono text-sm">#{{ r.id }}</span>
-        <span class="text-sm font-medium">{{ r.module_name or 'Task #' ~ r.module_id }}</span>
-        {% if r.status == 'completed' %}<span class="badge badge-success badge-sm">completed</span>
-        {% elif r.status == 'failed' %}<span class="badge badge-error badge-sm">failed</span>
-        {% elif r.status == 'running' %}<span class="badge badge-info badge-sm">running</span>
-        {% elif r.status == 'queued' %}<span class="badge badge-info badge-sm">queued</span>
-        {% else %}<span class="badge badge-ghost badge-sm">{{ r.status }}</span>{% endif %}
-        {% if r.triggered_by and r.triggered_by != 'manual' %}
-        <span class="badge badge-ghost badge-xs">{{ r.triggered_by }}</span>
-        {% endif %}
-        <span class="text-xs text-[#a3a3a3]">{{ r.input_count }} inputs · {{ r.prompt_tokens + r.completion_tokens }} tokens · ${{ "%.4f"|format(r.cost_usd) }} · {{ r.duration_sec }}s</span>
-        {% if r.status == 'completed' and r.input_count == 0 %}
-        <span class="badge badge-warning badge-sm">no data</span>
-        <span class="text-xs text-[#a3a3a3]">未采集到数据，请先到 Integrations 配置数据源并拉取数据</span>
-        {% endif %}
-        {% if r.tool_calls %}<span class="badge badge-info badge-sm">{{ r.tool_calls|length }} tool calls</span>{% endif %}
-        {% if r.status == 'failed' and r.error %}
-        <span class="text-xs text-[#ef4444] truncate max-w-md" title="{{ r.error }}">{{ r.error[:100] }}</span>
-        {% endif %}
-        <span class="text-xs text-[#737373] ml-auto">{{ r.started_at[:19]|replace('T',' ') }}</span>
-        {% if r.finished_at %}<span class="text-xs text-[#525252]">→ {{ r.finished_at[:19]|replace('T',' ') }}</span>{% endif %}
-    </div>
-    <div class="collapse-content">
-        {% if r.error %}
-        <div class="alert alert-error mb-4"><span class="font-mono text-xs">{{ r.error }}</span></div>
-        {% endif %}
-
-        {% if r.result.report_markdown %}
-        <div class="mb-4">
-            <div class="text-xs text-[#737373] mb-2">Briefing</div>
-            <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4 prose prose-sm max-w-none" id="md-{{ r.id }}"></div>
-            <pre class="hidden" id="raw-md-{{ r.id }}">{{ r.result.report_markdown }}</pre>
-        </div>
-        {% elif r.result.briefing %}
-        <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4 mb-4">
-            <div class="text-sm">{{ r.result.briefing }}</div>
-        </div>
-        {% endif %}
-
-        {% if r.result is mapping and r.result.get('items') %}
-        <div class="text-xs text-[#737373] mb-2">Structured items ({{ r.result.get('items')|length }})</div>
-        <div class="overflow-x-auto">
-            <table class="table table-xs">
-                <thead>
-                    <tr>
-                        <th>Tier</th>
-                        <th>Freshness</th>
-                        <th>Category</th>
-                        <th>Title</th>
-                        <th>CVE</th>
-                        <th>Summary</th>
-                        <th>Artifact</th>
-                        <th>Author</th>
-                        <th>Link</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% for it in r.result.get('items', [])|sort(attribute='tier') %}
-                <tr>
-                    <td>
-                        {% set tier = it.tier or 'quick' %}
-                        {% if tier == 'must' %}<span class="status-dot error"></span><span class="text-xs">must</span>
-                        {% elif tier == 'recommended' %}<span class="status-dot warning"></span><span class="text-xs">recommended</span>
-                        {% else %}<span class="status-dot neutral"></span><span class="text-xs">quick</span>{% endif %}
-                    </td>
-                    <td>
-                        {% set fr = it.freshness or 'new' %}
-                        {% if fr == 'new' %}<span class="badge badge-success badge-xs">new</span>
-                        {% else %}<span class="badge badge-ghost badge-xs">recurring</span>{% endif %}
-                    </td>
-                    <td>
-                        <span class="font-mono text-xs">{{ it.category or 'unknown' }}</span>
-                    </td>
-                    <td class="font-medium text-sm">{{ it.title }}</td>
-                    <td>{% if it.cve %}<span class="badge badge-xs badge-error">{{ it.cve }}</span>{% endif %}</td>
-                    <td class="max-w-md text-sm text-[#a3a3a3]">{{ it.summary }}</td>
-                    <td>
-                        <span class="text-xs text-[#737373]">{{ it.artifact or 'none' }}</span>
-                    </td>
-                    <td class="font-mono text-xs">{{ it.author or '-' }}</td>
-                    <td>
-                        {% if it.source_url %}<a href="{{ it.source_url }}" target="_blank" class="link text-xs">source</a>{% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% endif %}
-
-        {% if r.tool_calls %}
-        <details class="mt-4">
-            <summary class="text-xs cursor-pointer text-[#737373]">Tool calls ({{ r.tool_calls|length }})</summary>
-            <div class="text-xs bg-[#0d0d0d] border border-white/[0.08] rounded p-3 mt-2 space-y-1">
-            {% for tc in r.tool_calls %}
-                <div>
-                    {% if tc.ok %}<span class="status-dot success"></span>{% else %}<span class="status-dot error"></span>{% endif %}
-                    <span class="font-mono">{{ tc.tool }}</span>: <span class="text-[#a3a3a3]">{{ tc.args|tojson }}</span>
-                </div>
-            {% endfor %}
-            </div>
-        </details>
-        {% endif %}
-    </div>
-</div>
+    {% include "_run_card.html" %}
 {% endfor %}
 {% if not runs %}<div class="empty-state">No analyzed outputs yet.</div>{% endif %}
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script>
-document.querySelectorAll('[id^="md-"]').forEach(el => {
-    const id = el.id.replace('md-', '');
-    const raw = document.getElementById('raw-md-' + id);
-    if (raw) el.innerHTML = marked.parse(raw.textContent);
-});
-(function() {
-    const badges = document.querySelectorAll('.badge-info');
-    for (const b of badges) {
-        const t = b.textContent.trim();
-        if (t === 'running' || t === 'queued') {
-            setTimeout(() => location.reload(), 5000);
-            return;
-        }
-    }
-})();
-</script>
 {% endblock %}

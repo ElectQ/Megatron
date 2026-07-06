@@ -145,9 +145,6 @@
 </div>
 
 <script>
-const token = '{{ request.cookies.get("admin_token") or "" }}';
-const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
-
 // Add MCP Server
 document.getElementById('add-mcp-server').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -158,52 +155,34 @@ document.getElementById('add-mcp-server').addEventListener('submit', async (e) =
         transport: fd.get('transport'),
         resource_filter: fd.get('resource_filter') || null
     };
-    
-    const r = await fetch('/api/admin/mcp-servers', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body)
-    });
-    
-    if (r.ok) {
-        location.reload();
-    } else {
-        const err = await r.text();
-        document.getElementById('add-result').innerHTML = 
-            '<div class="alert alert-error py-2"><span class="text-sm">' + err + '</span></div>';
-    }
+    const r = await MG.apiSend('/api/admin/mcp-servers', 'POST', body);
+    if (r.ok) { location.reload(); } else { MG.showError('add-result', await MG.errorText(r)); }
 });
 
 // Test MCP Server connection
 async function testServer(id) {
-    const r = await fetch(`/api/admin/mcp-servers/${id}/test`, {
-        method: 'POST',
-        headers
-    });
-    const d = await r.json();
-    alert(d.ok ? 'Connection successful' : 'Failed: ' + (d.error || 'Unknown error'));
+    const r = await MG.apiFetch(`/api/admin/mcp-servers/${id}/test`, {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    MG.toast(d.ok ? 'Connection successful' : 'Failed: ' + (d.error || 'Unknown error'), d.ok ? 'success' : 'error');
 }
 
 // Discover capabilities
 async function discoverCapabilities(id) {
-    const r = await fetch(`/api/admin/mcp-servers/${id}/discover`, {
-        method: 'POST',
-        headers
-    });
-    const d = await r.json();
+    const r = await MG.apiFetch(`/api/admin/mcp-servers/${id}/discover`, {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
     if (d.ok) {
-        alert('Capabilities discovered: ' + (d.capabilities || []).join(', '));
-        location.reload();
+        MG.toast('Capabilities: ' + (d.capabilities || []).join(', '), 'success');
+        setTimeout(() => location.reload(), 800);
     } else {
-        alert('Discovery failed: ' + (d.error || 'Unknown error'));
+        MG.toast('Discovery failed: ' + (d.error || 'Unknown error'), 'error');
     }
 }
 
 // Delete MCP Server
 async function deleteServer(id) {
     if (!confirm('Delete this MCP server? All associated source configs will be removed.')) return;
-    await fetch(`/api/admin/mcp-servers/${id}`, {method: 'DELETE', headers});
-    location.reload();
+    const r = await MG.apiFetch(`/api/admin/mcp-servers/${id}`, {method: 'DELETE'});
+    if (r.ok) { location.reload(); } else { MG.toast('Delete failed: ' + await MG.errorText(r), 'error'); }
 }
 </script>
 {% endblock %}

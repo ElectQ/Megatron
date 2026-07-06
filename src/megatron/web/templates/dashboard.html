@@ -150,8 +150,7 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>window.Chart||document.write('<script src="https://unpkg.com/chart.js@4"><\/script>')</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
 fetch('/api/admin/stats/overview')
     .then(r => r.json())
@@ -268,18 +267,19 @@ fetch('/api/admin/stats/per-module')
             tbody.innerHTML = '<tr><td colspan="9" class="text-center text-[#737373] py-6">No run records</td></tr>';
             return;
         }
+        const esc = MG.escapeHtml;
         tbody.innerHTML = rows.map(r => {
             const lastRun = r.last_run ? r.last_run.slice(0,19).replace('T',' ') : '-';
             return `<tr>
-                <td><a href="/ui/tasks?module_id=${r.module_id}" class="link font-mono">${r.module_name}</a></td>
-                <td>${r.runs}</td>
-                <td>${r.success_rate}%</td>
-                <td>${r.tokens.toLocaleString()}</td>
-                <td>$${r.cost_usd.toFixed(4)}</td>
-                <td>${r.duration_sec.toFixed(1)}s</td>
-                <td>${r.avg_duration_sec.toFixed(1)}s</td>
-                <td>${r.avg_tokens.toLocaleString()}</td>
-                <td class="text-xs text-[#a3a3a3]">${lastRun}</td>
+                <td><a href="/ui/tasks?module_id=${encodeURIComponent(r.module_id)}" class="link font-mono">${esc(r.module_name)}</a></td>
+                <td>${esc(r.runs)}</td>
+                <td>${esc(r.success_rate)}%</td>
+                <td>${esc(r.tokens.toLocaleString())}</td>
+                <td>$${esc(r.cost_usd.toFixed(4))}</td>
+                <td>${esc(r.duration_sec.toFixed(1))}s</td>
+                <td>${esc(r.avg_duration_sec.toFixed(1))}s</td>
+                <td>${esc(r.avg_tokens.toLocaleString())}</td>
+                <td class="text-xs text-secondary">${esc(lastRun)}</td>
             </tr>`;
         }).join('');
     })

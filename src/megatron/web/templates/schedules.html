@@ -78,14 +78,15 @@
 </div>
 
 <script>
-const token = '{{ request.cookies.get("admin_token") or "" }}';
-const headers = {'Authorization': 'Bearer ' + token};
-
 async function reloadSchedules() {
-    const r = await fetch('/api/admin/schedules/reload', {method: 'POST', headers});
-    const d = await r.json();
-    alert('Reloaded ' + d.scheduled_modules + ' scheduled modules');
-    location.reload();
+    const r = await MG.apiFetch('/api/admin/schedules/reload', {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) {
+        MG.toast('Reloaded ' + d.scheduled_modules + ' scheduled modules', 'success');
+        setTimeout(() => location.reload(), 800);
+    } else {
+        MG.toast('Reload failed: ' + await MG.errorText(r), 'error');
+    }
 }
 </script>
 {% endblock %}

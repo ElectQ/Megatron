@@ -9,7 +9,8 @@
   --border-strong: rgba(255, 255, 255, 0.14);
   --text-primary: #f5f5f5;
   --text-secondary: #a3a3a3;
-  --text-muted: #737373;
+  /* Lightened from #737373 to clear WCAG AA (4.5:1) on the #0d0d0d body. */
+  --text-muted: #8f8f8f;
   --accent: #6366f1;
   --accent-hover: #4f46e5;
   --accent-glow: rgba(99, 102, 241, 0.3);
@@ -20,26 +21,6 @@
   --radius: 6px;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SF Mono", "Menlo", Consolas, "Liberation Mono", monospace;
-}
-
-/* Override DaisyUI dark theme base variables */
-[data-theme="dark"] {
-  --color-base-100: #171717;
-  --color-base-200: #0d0d0d;
-  --color-base-300: #262626;
-  --color-base-content: #f5f5f5;
-  --color-primary: #6366f1;
-  --color-primary-content: #ffffff;
-  --color-secondary: #a3a3a3;
-  --color-secondary-content: #000000;
-  --color-accent: #6366f1;
-  --color-accent-content: #000000;
-  --color-neutral: #262626;
-  --color-neutral-content: #f5f5f5;
-  --color-info: #3b82f6;
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
 }
 
 html,
@@ -62,33 +43,6 @@ body {
 
 .text-muted {
   color: var(--text-muted);
-}
-
-/* Layout */
-.megatron-layout {
-  display: flex;
-  min-height: 100vh;
-}
-
-.megatron-sidebar {
-  width: 240px;
-  flex-shrink: 0;
-  background-color: var(--bg-surface);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-}
-
-.megatron-main {
-  flex: 1;
-  min-width: 0;
-  padding: 32px;
-}
-
-@media (max-width: 1024px) {
-  .megatron-main {
-    padding: 20px;
-  }
 }
 
 /* Cards */
@@ -412,4 +366,37 @@ pre {
 /* Drawer overlay */
 .drawer-overlay {
   background-color: rgba(0, 0, 0, 0.6);
+}
+
+/* Active nav link (also flagged via aria-current for assistive tech) */
+.nav-link[aria-current="page"] {
+  background-color: rgba(99, 102, 241, 0.12);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Toasts (non-blocking replacements for alert()) */
+#mg-toast-host {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(360px, calc(100vw - 40px));
+}
+
+.mg-toast {
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.mg-toast-hide {
+  opacity: 0;
+  transform: translateY(8px);
 }

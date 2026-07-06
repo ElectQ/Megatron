@@ -5,17 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Megatron{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.10"></script>
     <link href="/static/theme.css" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
+    <script defer src="/static/vendor/purify.min.js"></script>
+    <script defer src="/static/app.js"></script>
 </head>
 <body class="min-h-screen bg-[#0d0d0d]">
     <div class="drawer lg:drawer-open">
         <input id="nav" type="checkbox" class="drawer-toggle" />
         <div class="drawer-content flex flex-col">
             <div class="navbar bg-[#171717] border-b border-white/[0.08] lg:hidden">
-                <label for="nav" class="mobile-nav-toggle btn btn-square btn-ghost">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                <label for="nav" class="mobile-nav-toggle btn btn-square btn-ghost" aria-label="Toggle navigation">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
                 </label>
                 <span class="text-base font-medium px-2">Megatron</span>
             </div>
@@ -31,37 +33,29 @@
                     <p class="text-xs text-[#737373] mt-0.5">LLM Analysis Hub</p>
                 </div>
                 <nav class="flex-1 p-3 space-y-0.5">
-                    <a href="/ui/dashboard" class="nav-link {% if active=='dashboard' %}active{% endif %}">
-                        <span>Overview</span>
+                    {% macro nav_link(href, label, key, extra='') -%}
+                    <a href="{{ href }}" class="nav-link {{ extra }} {% if active==key %}active{% endif %}"
+                       {% if active==key %}aria-current="page"{% endif %}>
+                        <span{% if 'text-xs' in extra %} class="text-xs"{% endif %}>{{ label }}</span>
                     </a>
-                    <a href="/ui/tasks" class="nav-link {% if active=='tasks' %}active{% endif %}">
-                        <span>Tasks</span>
-                    </a>
+                    {%- endmacro %}
+                    {{ nav_link('/ui/dashboard', 'Overview', 'dashboard') }}
+                    {{ nav_link('/ui/tasks', 'Tasks', 'tasks') }}
+                    {{ nav_link('/ui/schedules', 'Schedules', 'schedules') }}
                     <div class="pt-2 pb-1">
-                        <a href="/ui/data/sources" class="nav-link {% if active and active.startswith('data_') %}active{% endif %}">
+                        <a href="/ui/data/sources" class="nav-link {% if active and active.startswith('data_') %}active{% endif %}"
+                           {% if active and active.startswith('data_') %}aria-current="page"{% endif %}>
                             <span>Integrations</span>
                         </a>
                         <div class="ml-5 mt-0.5 space-y-0.5 border-l border-white/[0.08] pl-2">
-                            <a href="/ui/data/sources" class="nav-link {% if active=='data_sources' %}active{% endif %}">
-                                <span class="text-xs">MCP Sources</span>
-                            </a>
-                            <a href="/ui/data/collected" class="nav-link {% if active=='data_collected' %}active{% endif %}">
-                                <span class="text-xs">Collected</span>
-                            </a>
-                            <a href="/ui/data/analyzed" class="nav-link {% if active=='data_analyzed' %}active{% endif %}">
-                                <span class="text-xs">Analyzed</span>
-                            </a>
+                            {{ nav_link('/ui/data/sources', 'MCP Sources', 'data_sources', 'text-xs') }}
+                            {{ nav_link('/ui/data/collected', 'Collected', 'data_collected', 'text-xs') }}
+                            {{ nav_link('/ui/data/analyzed', 'Analyzed', 'data_analyzed', 'text-xs') }}
                         </div>
                     </div>
-                    <a href="/ui/prompts" class="nav-link {% if active=='prompts' %}active{% endif %}">
-                        <span>Prompts</span>
-                    </a>
-                    <a href="/ui/providers" class="nav-link {% if active=='providers' %}active{% endif %}">
-                        <span>LLM Providers</span>
-                    </a>
-                    <a href="/ui/channels" class="nav-link {% if active=='channels' %}active{% endif %}">
-                        <span>Webhooks</span>
-                    </a>
+                    {{ nav_link('/ui/prompts', 'Prompts', 'prompts') }}
+                    {{ nav_link('/ui/providers', 'LLM Providers', 'providers') }}
+                    {{ nav_link('/ui/channels', 'Webhooks', 'channels') }}
                 </nav>
                 <div class="p-4 border-t border-white/[0.08]">
                     <div class="flex items-center justify-between mb-2">

@@ -59,28 +59,25 @@
 </div>
 
 <script>
-const token = '{{ request.cookies.get("admin_token") or "" }}';
-const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
-
 document.getElementById('add-provider').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const body = {};
     fd.forEach((v, k) => { if (k === 'temperature' || k === 'max_tokens') body[k] = parseFloat(v); else body[k] = v; });
     body.enabled = true;
-    const r = await fetch('/api/admin/providers', {method: 'POST', headers, body: JSON.stringify(body)});
-    if (r.ok) { location.reload(); } else { document.getElementById('add-result').innerHTML = '<div class="alert alert-error py-2"><span class="text-sm">'+ (await r.text()) +'</span></div>'; }
+    const r = await MG.apiSend('/api/admin/providers', 'POST', body);
+    if (r.ok) { location.reload(); } else { MG.showError('add-result', await MG.errorText(r)); }
 });
 
 async function testProvider(id) {
-    const r = await fetch(`/api/admin/providers/${id}/test`, {method: 'POST', headers});
-    const d = await r.json();
-    alert(d.ok ? 'Connected: ' + d.reply : 'Failed: ' + d.error);
+    const r = await MG.apiFetch(`/api/admin/providers/${id}/test`, {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    MG.toast(d.ok ? 'Connected: ' + d.reply : 'Failed: ' + (d.error || 'error'), d.ok ? 'success' : 'error');
 }
 async function delProvider(id) {
     if (!confirm('Delete this provider?')) return;
-    await fetch(`/api/admin/providers/${id}`, {method: 'DELETE', headers});
-    location.reload();
+    const r = await MG.apiFetch(`/api/admin/providers/${id}`, {method: 'DELETE'});
+    if (r.ok) { location.reload(); } else { MG.toast('Delete failed: ' + await MG.errorText(r), 'error'); }
 }
 </script>
 {% endblock %}

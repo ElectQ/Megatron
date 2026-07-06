@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from ..config import get_admin_token, settings
+from ..config import get_admin_token
 from ..core.security import admin_auth
 
 router = APIRouter(prefix="/ui", tags=["ui"])
@@ -204,7 +204,7 @@ async def channels_page(request: Request):
 async def schedules_page(request: Request):
     schedules = await _api_get(request, "/api/admin/schedules")
     modules = await _api_get(request, "/api/admin/modules")
-    return _render(request, "schedules.html", "tasks", schedules=schedules, modules=modules)
+    return _render(request, "schedules.html", "schedules", schedules=schedules, modules=modules)
 
 
 @router.get("/runs", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
