@@ -158,7 +158,6 @@ async def discover_mcp_capabilities(
             import asyncio
             import sys
             import os
-            import json
 
             # Get the MCP server module path
             server_path = os.path.join(
@@ -234,11 +233,14 @@ async def delete_mcp_server(
     if not server:
         raise HTTPException(status_code=404, detail="MCP server not found")
 
-    # Delete associated source configs
-    await db.execute(
-        select(SourceConfig).where(SourceConfig.config["mcp_server_id"].as_string() == str(server_id))
-    )
-    # Note: JSON filtering syntax may need adjustment based on DB dialect
+    # Delete associated source configs (dialect-neutral: filter the small MCP set
+    # in Python rather than relying on DB-specific JSON operators).
+    mcp_configs = (
+        await db.execute(select(SourceConfig).where(SourceConfig.source_type == "mcp"))
+    ).scalars().all()
+    for sc in mcp_configs:
+        if str((sc.config or {}).get("mcp_server_id")) == str(server_id):
+            await db.delete(sc)
 
     await db.delete(server)
     await db.commit()

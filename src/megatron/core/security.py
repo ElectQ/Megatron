@@ -156,6 +156,13 @@ def validate_runtime_settings() -> None:
         weak.append("MEGATRON_SESSION_SECRET")
     if not settings.master_key or settings.master_key.startswith("change-me"):
         weak.append("MEGATRON_MASTER_KEY")
+    if not settings.admin_password:
+        weak.append("MEGATRON_ADMIN_PASSWORD")
+    from ..config import get_ingest_settings
+
+    ingest_token = get_ingest_settings().ingest_token
+    if ingest_token == "dev-ingest-token-change-me" or ingest_token.startswith("change-me"):
+        weak.append("MEGATRON_INGEST_TOKEN")
     if weak:
         raise RuntimeError("Unsafe production configuration: " + ", ".join(weak))
 

@@ -20,6 +20,28 @@ logger = get_logger(__name__)
 
 ACTIVE_RUN_STATUSES = ("queued", "running")
 
+_DEFAULT_SOUNDWAVE_REPO = "ElectQ/Soundwave"
+_DEFAULT_SOUNDWAVE_BRANCH = "master"
+
+
+def _default_soundwave_repo() -> tuple[str, str]:
+    """Derive ``(repo, branch)`` for the built-in Soundwave source from settings.
+
+    Accepts a full GitHub URL or a bare ``owner/repo`` in ``soundwave_repo_url``;
+    falls back to the historical default so existing installs keep working.
+    """
+    from ..config import ingest_settings
+
+    url = (ingest_settings.soundwave_repo_url or "").strip()
+    if not url:
+        return _DEFAULT_SOUNDWAVE_REPO, _DEFAULT_SOUNDWAVE_BRANCH
+    if "github.com/" in url:
+        url = url.split("github.com/", 1)[1]
+    url = url.rstrip("/")
+    if url.endswith(".git"):
+        url = url[:-4]
+    return (url or _DEFAULT_SOUNDWAVE_REPO), _DEFAULT_SOUNDWAVE_BRANCH
+
 
 class ActiveRunExists(ValueError):
     """Raised when a module already has a queued/running run."""
@@ -29,6 +51,28 @@ class ActiveRunExists(ValueError):
         self.run_id = run_id
         self.status = status
         super().__init__(f"Module {module_id} already has active run #{run_id} ({status})")
+
+
+async def reset_interrupted_runs(session) -> int:
+    """Mark runs left ``queued``/``running`` by a crash or restart as ``failed``.
+
+    The active-run guard blocks new runs while one is queued/running; without
+    this sweep a single crash mid-run would block that module forever.
+    """
+    from ..core.engine_models import AnalysisRun
+    from sqlalchemy import update
+
+    result = await session.execute(
+        update(AnalysisRun)
+        .where(AnalysisRun.status.in_(ACTIVE_RUN_STATUSES))
+        .values(
+            status="failed",
+            error="interrupted by restart",
+            finished_at=datetime.now(timezone.utc),
+        )
+    )
+    await session.commit()
+    return result.rowcount or 0
 
 
 class ModuleRunner:
@@ -203,20 +247,73 @@ class ModuleRunner:
             logger.error("runner.failed", module_id=module.id, run_id=run.id, error=run.error)
             raise
 
+    async def _resolve_source_kwargs(self, module) -> dict:
+        """Resolve constructor kwargs for a module's data source.
+
+        Precedence:
+            1. A matching ``SourceConfig`` row (``name == module.source``, enabled).
+               Its ``config`` blob is decrypted and used as kwargs; for ``mcp``-type
+               configs the linked ``MCPServer`` supplies transport/repo.
+            2. Fallback defaults for the built-in Soundwave/MCP sources, derived
+               from settings (``soundwave_repo_url``) rather than a hardcoded literal.
+
+        This is what makes UI-persisted source configuration actually take effect,
+        and lets a new source type be added without editing the runner.
+        """
+        from ..core.models import MCPServer, SourceConfig
+        from ..core.security import decrypt_config
+        from sqlalchemy import select as sa_select
+
+        result = await self.session.execute(
+            sa_select(SourceConfig).where(
+                SourceConfig.name == module.source,
+                SourceConfig.enabled.is_(True),
+            )
+        )
+        sc = result.scalar_one_or_none()
+
+        kwargs: dict = {}
+        if sc:
+            kwargs = dict(decrypt_config(sc.config or {}))
+            if sc.source_type == "mcp":
+                server_id = kwargs.pop("mcp_server_id", None)
+                kwargs.pop("mcp_server_name", None)
+                if server_id is not None:
+                    srv = (
+                        await self.session.execute(
+                            sa_select(MCPServer).where(MCPServer.id == server_id)
+                        )
+                    ).scalar_one_or_none()
+                    if srv:
+                        kwargs.setdefault("transport", srv.transport)
+                        if srv.server_url and "/" in srv.server_url:
+                            kwargs.setdefault("repo", srv.server_url)
+                        elif srv.server_url:
+                            kwargs.setdefault("server_url", srv.server_url)
+
+        # Built-in MCP/Soundwave sources still need a repo/branch when no
+        # SourceConfig is present, so existing installs keep working.
+        if module.source in ("soundwave", "mcp"):
+            repo, branch = _default_soundwave_repo()
+            kwargs.setdefault("repo", repo)
+            kwargs.setdefault("branch", branch)
+
+        return kwargs
+
     async def _refresh_data(self, module, run) -> str | None:
         """Fetch fresh data from source, return latest date fetched (or None)."""
+        from ..core.db import insert_ignore
         from ..core.models import ItemRecord
         from ..plugins.sources.base import source_registry
-        from sqlalchemy import select as sa_select
-        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-        source_cls = source_registry.get(module.source)
-        if not source_cls:
+        if module.source not in source_registry:
             logger.warning("runner.refresh.no_source", source=module.source)
             return None
+        source_cls = source_registry.get(module.source)
 
         try:
-            source = source_cls(repo="ElectQ/Soundwave", branch="master")
+            source_kwargs = await self._resolve_source_kwargs(module)
+            source = source_cls(**source_kwargs)
             try:
                 items = await source.fetch()
             finally:
@@ -252,10 +349,9 @@ class ModuleRunner:
                     }
                 )
 
-            stmt = sqlite_insert(ItemRecord).values(rows).on_conflict_do_nothing(
-                index_elements=["source", "item_id"]
+            await self.session.execute(
+                insert_ignore(ItemRecord, rows, ["source", "item_id"])
             )
-            await self.session.execute(stmt)
             await self.session.commit()
             logger.info(
                 "runner.refresh.done",
