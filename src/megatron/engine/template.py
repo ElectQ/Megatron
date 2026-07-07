@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from jinja2 import Environment, StrictUndefined, select_autoescape
+from jinja2 import StrictUndefined, select_autoescape
 from jinja2.exceptions import TemplateError
+from jinja2.sandbox import SandboxedEnvironment
 
 from ..core.types import Item
 
-_env = Environment(
+# Sandboxed: prompt templates are admin-authored content stored in the DB and
+# rendered server-side. A plain Environment would let a template reach Python
+# internals (e.g. {{ ''.__class__.__mro__[1].__subclasses__() }}) and execute
+# arbitrary code. SandboxedEnvironment blocks attribute/attr access to unsafe
+# objects, closing that SSTI path.
+_env = SandboxedEnvironment(
     autoescape=select_autoescape(disabled_extensions=("txt",)),
     undefined=StrictUndefined,
     trim_blocks=True,
