@@ -13,7 +13,7 @@
         <span class="text-xs text-secondary">{{ r.input_count }} inputs · {{ r.prompt_tokens + r.completion_tokens }} tokens · ${{ "%.4f"|format(r.cost_usd) }} · {{ r.duration_sec }}s</span>
         {% if r.status == 'completed' and r.input_count == 0 %}
         <span class="badge badge-warning badge-sm">no data</span>
-        <span class="text-xs text-secondary">未采集到数据，请先到 Integrations 配置数据源并拉取数据</span>
+        <span class="text-xs text-secondary">No items collected — configure a data source under Sources and pull data first.</span>
         {% endif %}
         {% if r.tool_calls %}<span class="badge badge-info badge-sm">{{ r.tool_calls|length }} tool calls</span>{% endif %}
         {% if r.status == 'failed' and r.error %}

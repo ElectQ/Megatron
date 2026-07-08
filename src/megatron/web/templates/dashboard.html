@@ -3,75 +3,75 @@
 {% block content %}
 <div class="page-head">
     <div>
-        <div class="crumb"><b>Overview</b></div>
-        <h2 class="page-title">Pipeline health</h2>
+        <div class="crumb"><b>{{ t('Overview') }}</b></div>
+        <h2 class="page-title">{{ t('Pipeline health') }}</h2>
     </div>
-    <a href="/ui/tasks" class="btn btn-primary btn-sm">Run a task</a>
+    <a href="/ui/tasks" class="btn btn-primary btn-sm">{{ t('Run a task') }}</a>
 </div>
 
 <!-- Pipeline strip: Source -> Collect -> Analyze -> Deliver -->
 <div class="pipe mb-8">
     <div class="pipe-step">
         <div class="pipe-card">
-            <div class="pipe-k">Sources</div>
+            <div class="pipe-k">{{ t('Sources') }}</div>
             <div class="pipe-v">{{ source_count }}</div>
-            <div class="pipe-meta"><a href="/ui/data/sources" class="link">manage</a></div>
+            <div class="pipe-meta"><a href="/ui/data/sources" class="link">{{ t('manage') }}</a></div>
         </div>
         <span class="pipe-arrow">→</span>
     </div>
     <div class="pipe-step">
         <div class="pipe-card">
-            <div class="pipe-k">Collected</div>
+            <div class="pipe-k">{{ t('Collected') }}</div>
             <div class="pipe-v">{{ "{:,}".format(item_count) }}</div>
-            <div class="pipe-meta"><span id="pipe-items-delta" class="text-secondary">+0</span> today</div>
+            <div class="pipe-meta"><span id="pipe-items-delta" class="text-secondary">+0</span> {{ t('today') }}</div>
         </div>
         <span class="pipe-arrow">→</span>
     </div>
     <div class="pipe-step">
         <div class="pipe-card">
-            <div class="pipe-k">Analyzed</div>
+            <div class="pipe-k">{{ t('Analyzed') }}</div>
             <div class="pipe-v"><span id="pipe-analyzed">–</span></div>
-            <div class="pipe-meta">last · {% if runs %}{{ runs[0].started_at[:16]|replace('T',' ') }}{% else %}never{% endif %}</div>
+            <div class="pipe-meta">{{ t('last') }} · {% if runs %}{{ runs[0].started_at[:16]|replace('T',' ') }}{% else %}{{ t('never') }}{% endif %}</div>
         </div>
         <span class="pipe-arrow">→</span>
     </div>
     <div class="pipe-step">
         <div class="pipe-card">
-            <div class="pipe-k">Delivery</div>
+            <div class="pipe-k">{{ t('Delivery') }}</div>
             <div class="pipe-v">{{ channels|length }}</div>
-            <div class="pipe-meta">channels configured</div>
+            <div class="pipe-meta">{{ t('channels configured') }}</div>
         </div>
     </div>
 </div>
 
-<div class="mb-4 text-sm text-muted">Today's execution and cost — resets at UTC 00:00.</div>
+<div class="mb-4 text-sm text-muted">{{ t("Today's execution and cost — resets at UTC 00:00.") }}</div>
 
 <!-- Today's metrics -->
 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
     <div class="metric-card">
-        <div class="metric-label">Runs</div>
+        <div class="metric-label">{{ t('Runs') }}</div>
         <div class="metric-value"><span id="t-total">-</span></div>
-        <div class="metric-desc"><span id="t-success">-</span> success / <span id="t-failed">-</span> failed</div>
+        <div class="metric-desc"><span id="t-success">-</span> {{ t('success') }} / <span id="t-failed">-</span> {{ t('failed') }}</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Success rate</div>
+        <div class="metric-label">{{ t('Success rate') }}</div>
         <div class="metric-value text-[var(--success)]"><span id="t-rate">-</span>%</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Tokens</div>
+        <div class="metric-label">{{ t('Tokens') }}</div>
         <div class="metric-value text-[var(--accent)]"><span id="t-tokens">-</span></div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Cost</div>
+        <div class="metric-label">{{ t('Cost') }}</div>
         <div class="metric-value">$<span id="t-cost">-</span></div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">New items</div>
+        <div class="metric-label">{{ t('New items') }}</div>
         <div class="metric-value text-[var(--info)]"><span id="t-items">-</span></div>
-        <div class="metric-desc">collected today</div>
+        <div class="metric-desc">{{ t('collected today') }}</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Duration</div>
+        <div class="metric-label">{{ t('Duration') }}</div>
         <div class="metric-value"><span id="t-duration">-</span>s</div>
     </div>
 </div>
@@ -88,7 +88,7 @@
 <!-- 7-day trend -->
 <div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">7-day trend</h3>
+        <h3 class="card-title">{{ t('7-day trend') }}</h3>
         <div style="height: 300px;">
             <canvas id="trendChart"></canvas>
         </div>
@@ -98,19 +98,19 @@
 <!-- Resource counts -->
 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
     <div class="metric-card">
-        <div class="metric-label">Models</div>
+        <div class="metric-label">{{ t('Models') }}</div>
         <div class="metric-value text-[var(--accent)]">{{ providers|length }}</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Tasks</div>
+        <div class="metric-label">{{ t('Tasks') }}</div>
         <div class="metric-value text-secondary">{{ modules|length }}</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Collected items</div>
+        <div class="metric-label">{{ t('Collected items') }}</div>
         <div class="metric-value text-[var(--info)]">{{ item_count }}</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Delivery</div>
+        <div class="metric-label">{{ t('Delivery') }}</div>
         <div class="metric-value text-[var(--success)]">{{ channels|length }}</div>
     </div>
 </div>
@@ -118,7 +118,7 @@
 <!-- Per-task stats -->
 <div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">Per-task breakdown</h3>
+        <h3 class="card-title">{{ t('Per-task breakdown') }}</h3>
         <div class="overflow-x-auto">
             <table class="table">
                 <thead>
@@ -146,8 +146,8 @@
 <div class="card">
     <div class="card-body">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="card-title">Recent runs</h3>
-            <a href="/ui/tasks" class="btn btn-ghost btn-xs">View all</a>
+            <h3 class="card-title">{{ t('Recent runs') }}</h3>
+            <a href="/ui/tasks" class="btn btn-ghost btn-xs">{{ t('View all') }}</a>
         </div>
         {% if runs %}
         <div class="overflow-x-auto">
@@ -226,7 +226,7 @@ fetch('/api/admin/stats/trend?days=7')
         if (!hasData) {
             const el = document.getElementById('trendChart');
             el.style.display = 'none';
-            el.insertAdjacentHTML('afterend', '<div class="text-xs text-muted text-center py-24">暂无运行数据，点击 <a href="/ui/tasks" class="link">Tasks</a> 执行任务后生成趋势图</div>');
+            el.insertAdjacentHTML('afterend', '<div class="text-xs text-muted text-center py-24">No run data yet. Execute a task from <a href="/ui/tasks" class="link">Tasks</a> to build the trend chart.</div>');
             return;
         }
         const ctx = document.getElementById('trendChart');

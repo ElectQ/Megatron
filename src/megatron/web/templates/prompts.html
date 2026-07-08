@@ -2,20 +2,20 @@
 {% block title %}Prompts · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">Prompts</h2>
-    <p class="text-sm text-muted mt-1">Jinja2 templates used by analysis tasks.</p>
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Prompts') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('Jinja2 templates used by analysis tasks.') }}</p>
 </div>
 
 <div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">New template</h3>
+        <h3 class="card-title">{{ t('New template') }}</h3>
         <form id="add-prompt" class="flex flex-col gap-3">
             <input name="name" placeholder="Template name (technical identifier)" class="input input-bordered" required>
-            <input name="display_name" placeholder="Display name (e.g. 推特安全信息流简报)" class="input input-bordered">
+            <input name="display_name" placeholder="Display name (e.g. Twitter security briefing)" class="input input-bordered">
             <textarea name="template" rows="10" placeholder="Jinja2 template. Available variables: items, item_count, top_items, now, ctx" class="textarea textarea-bordered font-mono text-sm" required></textarea>
             <div class="flex gap-2">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="previewPrompt()">Preview</button>
-                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="previewPrompt()">{{ t('Preview') }}</button>
+                <button type="submit" class="btn btn-primary btn-sm">{{ t('Save') }}</button>
             </div>
         </form>
         <div id="preview" class="mt-3"></div>

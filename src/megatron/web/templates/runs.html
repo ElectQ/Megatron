@@ -2,14 +2,14 @@
 {% block title %}Run History · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">Run History</h2>
-    <p class="text-sm text-muted mt-1">Past analysis executions and their outputs.</p>
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Run History') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('Past analysis executions and their outputs.') }}</p>
 </div>
 
 <form method="get" action="/ui/runs" class="flex flex-wrap gap-2 mb-6">
     <input type="date" name="date" value="{{ filters.date or '' }}" class="input input-bordered input-sm w-40" aria-label="Filter by date">
-    <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-    {% if filters.date %}<a href="/ui/runs" class="btn btn-ghost btn-sm">Clear</a>{% endif %}
+    <button type="submit" class="btn btn-primary btn-sm">{{ t('Filter') }}</button>
+    {% if filters.date %}<a href="/ui/runs" class="btn btn-ghost btn-sm">{{ t('Clear') }}</a>{% endif %}
 </form>
 
 <div class="space-y-4">

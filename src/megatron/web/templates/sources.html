@@ -2,15 +2,15 @@
 {% block title %}Integrations · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <div class="crumb"><b>Data</b> › Sources</div>
-    <h2 class="text-2xl font-semibold tracking-tight">Sources</h2>
-    <p class="text-sm text-muted mt-1">All data sources connect via the MCP protocol. Add an MCP server to start ingesting data.</p>
+    <div class="crumb"><b>{{ t('Data') }}</b> › {{ t('Sources') }}</div>
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Sources') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('All data sources connect via the MCP protocol. Add an MCP server to start ingesting data.') }}</p>
 </div>
 
 <!-- Add MCP Server -->
 <div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">Add MCP Server</h3>
+        <h3 class="card-title">{{ t('Add MCP Server') }}</h3>
         <form id="add-mcp-server" class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input name="name" placeholder="Server name (e.g. soundwave-twitter)" class="input input-bordered" required>
             <input name="server_url" placeholder="MCP Server URL (e.g. https://api.soundwave.dev/mcp)" class="input input-bordered" required>
@@ -20,7 +20,7 @@
             </select>
             <input name="resource_filter" placeholder="Resource filter (optional, e.g. tweets/*)" class="input input-bordered">
             <div class="md:col-span-2 flex justify-end">
-                <button type="submit" class="btn btn-primary btn-sm">Connect MCP Server</button>
+                <button type="submit" class="btn btn-primary btn-sm">{{ t('Connect MCP Server') }}</button>
             </div>
         </form>
         <div id="add-result" class="mt-2"></div>
@@ -74,9 +74,9 @@
                             {% endif %}
                         </td>
                         <td class="flex gap-1">
-                            <button class="btn btn-xs btn-ghost" onclick="testServer({{ server.id }})" title="Test connection">Test</button>
-                            <button class="btn btn-xs btn-ghost" onclick="discoverCapabilities({{ server.id }})" title="Discover capabilities">Discover</button>
-                            <button class="btn btn-xs btn-ghost text-[var(--error)]" onclick="deleteServer({{ server.id }})" title="Delete">Delete</button>
+                            <button class="btn btn-xs btn-ghost" onclick="testServer({{ server.id }})" title="Test connection">{{ t('Test') }}</button>
+                            <button class="btn btn-xs btn-ghost" onclick="discoverCapabilities({{ server.id }})" title="Discover capabilities">{{ t('Discover') }}</button>
+                            <button class="btn btn-xs btn-ghost text-[var(--error)]" onclick="deleteServer({{ server.id }})" title="Delete">{{ t('Delete') }}</button>
                         </td>
                     </tr>
                 {% endfor %}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import httpx
@@ -9,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from ..config import get_admin_token
 from ..core.security import admin_auth
+from .i18n import SUPPORTED_LANGS, get_lang, make_translator, normalize_lang
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 templates = Jinja2Templates(
@@ -57,6 +59,7 @@ async def _api_post(request: Request, path: str, json_body: dict) -> Any:
 
 def _render(request: Request, name: str, active: str, **ctx) -> HTMLResponse:
     user = request.session.get("user", {})
+    lang = get_lang(request)
     return templates.TemplateResponse(
         request,
         name,
@@ -64,9 +67,26 @@ def _render(request: Request, name: str, active: str, **ctx) -> HTMLResponse:
             "request": request,
             "active": active,
             "current_user": user.get("display_name") or user.get("username", ""),
+            "t": make_translator(lang),
+            "lang": lang,
+            "langs": SUPPORTED_LANGS,
             **ctx,
         },
     )
+
+
+@router.get("/lang/{code}")
+async def set_lang(request: Request, code: str):
+    """Persist the UI language in a cookie and return to the current page."""
+    from urllib.parse import urlparse
+
+    ref_path = urlparse(request.headers.get("referer", "")).path
+    target = ref_path if ref_path.startswith("/ui") else "/ui/dashboard"
+    resp = RedirectResponse(target, status_code=303)
+    resp.set_cookie(
+        "lang", normalize_lang(code), max_age=31536000, samesite="lax", path="/"
+    )
+    return resp
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -103,12 +123,14 @@ async def logout(request: Request):
 
 @router.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
 async def dashboard(request: Request):
-    items = await _api_get(request, "/api/items?limit=1")
-    providers = await _api_get(request, "/api/admin/providers")
-    modules = await _api_get(request, "/api/admin/modules")
-    channels = await _api_get(request, "/api/admin/channels")
-    runs = await _api_get(request, "/api/admin/runs?limit=5")
-    sources = await _api_get(request, "/api/admin/source-configs")
+    items, providers, modules, channels, runs, sources = await asyncio.gather(
+        _api_get(request, "/api/items?limit=1"),
+        _api_get(request, "/api/admin/providers"),
+        _api_get(request, "/api/admin/modules"),
+        _api_get(request, "/api/admin/channels"),
+        _api_get(request, "/api/admin/runs?limit=5"),
+        _api_get(request, "/api/admin/source-configs"),
+    )
     item_total = items.get("total", 0) if isinstance(items, dict) else len(items)
     return _render(
         request,
@@ -175,11 +197,13 @@ async def items_redirect():
 
 @router.get("/tasks", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
 async def tasks_page(request: Request, edit: int | None = None):
-    modules = await _api_get(request, "/api/admin/modules")
-    providers = await _api_get(request, "/api/admin/providers")
-    prompts = await _api_get(request, "/api/admin/prompts")
-    channels = await _api_get(request, "/api/admin/channels")
-    opts = await _api_get(request, "/api/admin/modules/options")
+    modules, providers, prompts, channels, opts = await asyncio.gather(
+        _api_get(request, "/api/admin/modules"),
+        _api_get(request, "/api/admin/providers"),
+        _api_get(request, "/api/admin/prompts"),
+        _api_get(request, "/api/admin/channels"),
+        _api_get(request, "/api/admin/modules/options"),
+    )
     edit_module = next((m for m in modules if m["id"] == edit), None) if edit else None
     return _render(
         request,
@@ -213,15 +237,19 @@ async def providers_page(request: Request):
 
 @router.get("/channels", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
 async def channels_page(request: Request):
-    channels = await _api_get(request, "/api/admin/channels")
-    opts = await _api_get(request, "/api/admin/channels/options")
+    channels, opts = await asyncio.gather(
+        _api_get(request, "/api/admin/channels"),
+        _api_get(request, "/api/admin/channels/options"),
+    )
     return _render(request, "channels.html", "channels", channels=channels, opts=opts)
 
 
 @router.get("/schedules", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
 async def schedules_page(request: Request):
-    schedules = await _api_get(request, "/api/admin/schedules")
-    modules = await _api_get(request, "/api/admin/modules")
+    schedules, modules = await asyncio.gather(
+        _api_get(request, "/api/admin/schedules"),
+        _api_get(request, "/api/admin/modules"),
+    )
     return _render(request, "schedules.html", "schedules", schedules=schedules, modules=modules)
 
 
@@ -251,8 +279,10 @@ async def runs_page(
 
 @router.get("/data/sources", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
 async def data_sources_page(request: Request):
-    mcp_servers = await _api_get(request, "/api/admin/mcp-servers")
-    source_configs = await _api_get(request, "/api/admin/source-configs")
+    mcp_servers, source_configs = await asyncio.gather(
+        _api_get(request, "/api/admin/mcp-servers"),
+        _api_get(request, "/api/admin/source-configs"),
+    )
     return _render(
         request,
         "sources.html",

@@ -32,7 +32,7 @@
                     <span class="grid place-items-center font-extrabold text-white" style="width:28px;height:28px;border-radius:7px;background:var(--accent);">M</span>
                     <div>
                         <h1 class="text-base font-semibold tracking-tight leading-tight">Megatron</h1>
-                        <p class="text-xs text-muted">LLM Analysis Hub</p>
+                        <p class="text-xs text-muted">{{ t('LLM Analysis Hub') }}</p>
                     </div>
                 </div>
 
@@ -73,24 +73,31 @@
 
                 <nav class="flex-1 p-2.5 overflow-y-auto">
                     {%- for section, items in nav %}
-                    {%- if section != 'overview' %}<div class="nav-section">{{ section }}</div>{% endif %}
+                    {%- if section != 'overview' %}<div class="nav-section">{{ t(section) }}</div>{% endif %}
                     {%- for href, label, key, ic in items %}
                     <a href="{{ href }}" class="nav-link {% if active == key %}active{% endif %}"
                        {% if active == key %}aria-current="page"{% endif %}>
-                        {{ icon(ic) }}<span>{{ label }}</span>
+                        {{ icon(ic) }}<span>{{ t(label) }}</span>
                     </a>
                     {%- endfor %}
                     {%- endfor %}
                 </nav>
 
                 <div class="p-4 border-t" style="border-color: var(--border);">
+                    <div class="flex items-center gap-2 text-xs mb-3">
+                        {%- for code, label in langs.items() %}
+                        {%- if code == lang %}<span class="text-secondary font-medium">{{ label }}</span>
+                        {%- else %}<a href="/ui/lang/{{ code }}" class="text-muted link">{{ label }}</a>{% endif %}
+                        {%- if not loop.last %}<span class="text-muted">·</span>{% endif %}
+                        {%- endfor %}
+                    </div>
                     <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs text-muted">{{ current_user or 'Guest' }}</span>
-                        <a href="/ui/logout" class="text-xs text-secondary link">Sign out</a>
+                        <span class="text-xs text-muted">{{ current_user or t('Guest') }}</span>
+                        <a href="/ui/logout" class="text-xs text-secondary link">{{ t('Sign out') }}</a>
                     </div>
                     <div class="flex items-center gap-2 text-xs text-muted">
                         <span class="status-dot success"></span>
-                        <span>online</span>
+                        <span>{{ t('online') }}</span>
                         <span class="ml-auto">v0.2.0</span>
                     </div>
                 </div>
