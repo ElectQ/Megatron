@@ -2,8 +2,9 @@
 {% block title %}Integrations · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">Integrations</h2>
-    <p class="text-sm text-[#737373] mt-1">All data sources connect via MCP protocol. Add an MCP server to start ingesting data.</p>
+    <div class="crumb"><b>Data</b> › Sources</div>
+    <h2 class="text-2xl font-semibold tracking-tight">Sources</h2>
+    <p class="text-sm text-muted mt-1">All data sources connect via the MCP protocol. Add an MCP server to start ingesting data.</p>
 </div>
 
 <!-- Add MCP Server -->
@@ -18,7 +19,9 @@
                 <option value="stdio">stdio (Local/Container)</option>
             </select>
             <input name="resource_filter" placeholder="Resource filter (optional, e.g. tweets/*)" class="input input-bordered">
-            <button type="submit" class="btn btn-primary md:col-span-2">Connect MCP Server</button>
+            <div class="md:col-span-2 flex justify-end">
+                <button type="submit" class="btn btn-primary btn-sm">Connect MCP Server</button>
+            </div>
         </form>
         <div id="add-result" class="mt-2"></div>
     </div>
@@ -45,7 +48,7 @@
                 {% for server in mcp_servers %}
                     <tr>
                         <td class="font-mono text-sm">{{ server.name }}</td>
-                        <td class="text-xs text-[#737373]">{{ server.server_url }}</td>
+                        <td class="text-xs text-muted">{{ server.server_url }}</td>
                         <td><span class="badge badge-ghost badge-sm">{{ server.transport }}</span></td>
                         <td>
                             {% if server.status == 'connected' %}
@@ -56,14 +59,14 @@
                                 <span class="badge badge-ghost badge-sm">disconnected</span>
                             {% endif %}
                         </td>
-                        <td class="text-xs text-[#737373]">
+                        <td class="text-xs text-muted">
                             {% if server.capabilities %}
                                 {{ server.capabilities|length }} resources
                             {% else %}
                                 -
                             {% endif %}
                         </td>
-                        <td class="text-xs text-[#737373]">
+                        <td class="text-xs text-muted">
                             {% if server.last_connected_at %}
                                 {{ server.last_connected_at[:19]|replace('T',' ') }}
                             {% else %}
@@ -73,7 +76,7 @@
                         <td class="flex gap-1">
                             <button class="btn btn-xs btn-ghost" onclick="testServer({{ server.id }})" title="Test connection">Test</button>
                             <button class="btn btn-xs btn-ghost" onclick="discoverCapabilities({{ server.id }})" title="Discover capabilities">Discover</button>
-                            <button class="btn btn-xs btn-ghost text-[#ef4444]" onclick="deleteServer({{ server.id }})" title="Delete">Delete</button>
+                            <button class="btn btn-xs btn-ghost text-[var(--error)]" onclick="deleteServer({{ server.id }})" title="Delete">Delete</button>
                         </td>
                     </tr>
                 {% endfor %}
@@ -83,7 +86,7 @@
         {% if not mcp_servers %}
         <div class="empty-state">
             No MCP servers connected. Add one above to start ingesting data.<br>
-            <span class="text-xs text-[#737373] mt-2">All data sources must expose an MCP interface.</span>
+            <span class="text-xs text-muted mt-2">All data sources must expose an MCP interface.</span>
         </div>
         {% endif %}
     </div>
@@ -93,7 +96,7 @@
 <div class="card">
     <div class="card-body">
         <h3 class="card-title">Active Source Configurations</h3>
-        <p class="text-sm text-[#737373] mb-4">
+        <p class="text-sm text-muted mb-4">
             Source configs map MCP servers to data ingestion pipelines. Each config defines how to fetch and normalize data.
         </p>
         <div class="overflow-x-auto">
@@ -112,7 +115,7 @@
                     <tr>
                         <td class="font-mono text-sm">{{ config.name }}</td>
                         <td><span class="badge badge-ghost badge-sm">{{ config.source_type }}</span></td>
-                        <td class="text-xs text-[#737373]">
+                        <td class="text-xs text-muted">
                             {% if config.config and config.config.get('mcp_server_name') %}
                                 {{ config.config.mcp_server_name }}
                             {% else %}
@@ -126,7 +129,7 @@
                                 <span class="badge badge-ghost badge-sm">disabled</span>
                             {% endif %}
                         </td>
-                        <td class="text-xs text-[#737373]">
+                        <td class="text-xs text-muted">
                             {% if config.last_sync_at %}
                                 {{ config.last_sync_at[:19]|replace('T',' ') }}
                             {% else %}

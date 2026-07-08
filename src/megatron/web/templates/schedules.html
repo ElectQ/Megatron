@@ -3,7 +3,7 @@
 {% block content %}
 <div class="mb-8">
     <h2 class="text-2xl font-semibold tracking-tight">Schedules</h2>
-    <p class="text-sm text-[#737373] mt-1">Active cron schedules and module dispatch status.</p>
+    <p class="text-sm text-muted mt-1">Active cron schedules and module dispatch status.</p>
 </div>
 
 <div class="card mb-8">
@@ -28,7 +28,7 @@
                     <td class="font-mono text-xs">{{ s.id }}</td>
                     <td class="text-sm">{{ s.name }}</td>
                     <td class="font-mono text-xs">{{ s.trigger }}</td>
-                    <td class="text-xs text-[#a3a3a3]">{{ s.next_run[:19]|replace('T',' ') if s.next_run else '-' }}</td>
+                    <td class="text-xs text-secondary">{{ s.next_run[:19]|replace('T',' ') if s.next_run else '-' }}</td>
                 </tr>
                 {% endfor %}
                 </tbody>
@@ -57,7 +57,7 @@
                     <td class="font-mono text-sm">{{ m.name }}</td>
                     <td>{% if m.enabled %}<span class="badge badge-success badge-sm">enabled</span>{% else %}<span class="badge badge-ghost badge-sm">disabled</span>{% endif %}</td>
                     <td class="font-mono text-xs">{{ m.schedule_cron or '-' }}</td>
-                    <td class="text-xs text-[#a3a3a3]">
+                    <td class="text-xs text-secondary">
                         {% if not m.enabled %}Module disabled
                         {% elif not m.schedule_cron %}No cron set
                         {% else %}Scheduled{% endif %}

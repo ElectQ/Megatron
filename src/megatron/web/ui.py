@@ -108,11 +108,14 @@ async def dashboard(request: Request):
     modules = await _api_get(request, "/api/admin/modules")
     channels = await _api_get(request, "/api/admin/channels")
     runs = await _api_get(request, "/api/admin/runs?limit=5")
+    sources = await _api_get(request, "/api/admin/source-configs")
+    item_total = items.get("total", 0) if isinstance(items, dict) else len(items)
     return _render(
         request,
         "dashboard.html",
         "dashboard",
-        item_count=len(items),
+        item_count=item_total,
+        source_count=len(sources) if isinstance(sources, list) else 0,
         providers=providers,
         modules=modules,
         channels=channels,

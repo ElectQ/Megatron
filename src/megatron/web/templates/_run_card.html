@@ -1,6 +1,6 @@
 {# One analysis-run card. Expects `r` in context. Shared by runs.html and analyzed.html. #}
 {% import "_macros.html" as ui %}
-<div class="collapse collapse-arrow bg-[#171717] border border-white/[0.08] rounded"
+<div class="collapse collapse-arrow bg-[var(--bg-surface)] border border-white/[0.08] rounded"
      {% if r.status in ('running', 'queued') %}data-poll-active{% endif %}>
     <input type="checkbox">
     <div class="collapse-title flex items-center gap-3 flex-wrap py-4">
@@ -17,7 +17,7 @@
         {% endif %}
         {% if r.tool_calls %}<span class="badge badge-info badge-sm">{{ r.tool_calls|length }} tool calls</span>{% endif %}
         {% if r.status == 'failed' and r.error %}
-        <span class="text-xs text-[#ef4444] truncate max-w-md" title="{{ r.error }}">{{ r.error[:100] }}</span>
+        <span class="text-xs text-[var(--error)] truncate max-w-md" title="{{ r.error }}">{{ r.error[:100] }}</span>
         {% endif %}
         <span class="text-xs text-muted ml-auto">{{ ui.ts(r.started_at) }}</span>
         {% if r.finished_at %}<span class="text-xs text-[#525252]">→ {{ ui.ts(r.finished_at) }}</span>{% endif %}
@@ -30,12 +30,12 @@
         {% if r.result.report_markdown %}
         <div class="mb-4">
             <div class="text-xs text-muted mb-2">Briefing</div>
-            <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4 prose prose-sm max-w-none"
+            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4 prose prose-sm max-w-none"
                  data-md-src="raw-md-{{ r.id }}"></div>
             <pre class="hidden" id="raw-md-{{ r.id }}">{{ r.result.report_markdown }}</pre>
         </div>
         {% elif r.result.briefing %}
-        <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4 mb-4">
+        <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4 mb-4">
             <div class="text-sm">{{ r.result.briefing }}</div>
         </div>
         {% endif %}
@@ -94,7 +94,7 @@
         {% if r.tool_calls %}
         <details class="mt-4">
             <summary class="text-xs cursor-pointer text-muted">Tool calls ({{ r.tool_calls|length }})</summary>
-            <div class="text-xs bg-[#0d0d0d] border border-white/[0.08] rounded p-3 mt-2 space-y-1">
+            <div class="text-xs bg-[var(--bg-body)] border border-white/[0.08] rounded p-3 mt-2 space-y-1">
             {% for tc in r.tool_calls %}
                 <div>
                     {% if tc.ok %}<span class="status-dot success"></span>{% else %}<span class="status-dot error"></span>{% endif %}

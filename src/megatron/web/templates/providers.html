@@ -2,8 +2,8 @@
 {% block title %}LLM Providers · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">LLM Providers</h2>
-    <p class="text-sm text-[#737373] mt-1">Model and API configurations accessed by analysis tasks.</p>
+    <h2 class="text-2xl font-semibold tracking-tight">Models</h2>
+    <p class="text-sm text-muted mt-1">LLM providers and API keys used by analysis tasks.</p>
 </div>
 
 <div class="card mb-8">
@@ -47,7 +47,7 @@
                     <td>{% if p.enabled %}<span class="badge badge-success badge-sm">enabled</span>{% else %}<span class="badge badge-ghost badge-sm">disabled</span>{% endif %}</td>
                     <td class="flex gap-1">
                         <button class="btn btn-xs btn-ghost" onclick="testProvider({{ p.id }})">Test</button>
-                        <button class="btn btn-xs btn-ghost text-[#ef4444]" onclick="delProvider({{ p.id }})">Delete</button>
+                        <button class="btn btn-xs btn-ghost text-[var(--error)]" onclick="delProvider({{ p.id }})">Delete</button>
                     </td>
                 </tr>
                 {% endfor %}

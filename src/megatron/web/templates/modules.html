@@ -3,20 +3,20 @@
 {% block content %}
 <div class="mb-8">
     <h2 class="text-2xl font-semibold tracking-tight">Tasks</h2>
-    <p class="text-sm text-[#737373] mt-1">Analysis modules combine a source, LLM, prompt, tools, and webhooks.</p>
+    <p class="text-sm text-muted mt-1">Analysis modules combine a source, LLM, prompt, tools, and webhooks.</p>
 </div>
 
 <div class="card mb-8">
     <div class="card-body">
         <h3 class="card-title">{{ 'Edit task' if edit_module else 'New task' }}</h3>
-        <p class="text-xs text-[#737373] mb-4">A task = data source + LLM + prompt + optional tools + optional webhooks + execution mode.</p>
+        <p class="text-xs text-muted mb-4">A task = data source + LLM + prompt + optional tools + optional webhooks + execution mode.</p>
 
         <form id="module-form" class="space-y-5">
             <input type="hidden" name="module_id" value="{{ edit_module.id if edit_module else '' }}">
 
             <!-- Basic info -->
-            <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-[#a3a3a3]">Basic info</div>
+            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
+                <div class="text-sm font-medium mb-3 text-secondary">Basic info</div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <input name="name" placeholder="Task name" class="input input-bordered" required value="{{ edit_module.name if edit_module else '' }}">
                     <input name="description" placeholder="Description (optional)" class="input input-bordered" value="{{ edit_module.description if edit_module else '' }}">
@@ -24,23 +24,23 @@
             </div>
 
             <!-- Data source -->
-            <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-[#a3a3a3]">Data source</div>
+            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
+                <div class="text-sm font-medium mb-3 text-secondary">Data source</div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                        <span class="text-xs text-[#737373]">Source type</span>
+                        <span class="text-xs text-muted">Source type</span>
                         <select name="source" class="select select-bordered w-full mt-1">
                             {% for s in opts.sources %}<option value="{{ s }}" {{ 'selected' if edit_module and edit_module.source == s else '' }}>{{ s }}</option>{% endfor %}
                         </select>
                     </div>
                     <div>
-                        <span class="text-xs text-[#737373]">Source reference (optional, e.g. list_id)</span>
+                        <span class="text-xs text-muted">Source reference (optional, e.g. list_id)</span>
                         <input name="source_ref" placeholder="Leave empty for all" class="input input-bordered w-full mt-1" value="{{ edit_module.source_ref if edit_module else '' }}">
                     </div>
                 </div>
 
                 <div class="mt-4">
-                    <span class="text-xs text-[#737373]">Time mode</span>
+                    <span class="text-xs text-muted">Time mode</span>
                     <div class="flex flex-wrap gap-4 mt-2">
                         {% set current_tm = edit_module.filter_config.time_mode if edit_module and edit_module.filter_config.time_mode else 'today' %}
                         <label class="label cursor-pointer gap-2">
@@ -74,48 +74,48 @@
 
                 <div class="grid grid-cols-2 gap-3 mt-4">
                     <div>
-                        <span class="text-xs text-[#737373]">Max items (0 = unlimited)</span>
+                        <span class="text-xs text-muted">Max items (0 = unlimited)</span>
                         <input name="max_items" type="number" value="{{ edit_module.filter_config.max_items if edit_module and edit_module.filter_config.max_items is defined else 0 }}" class="input input-bordered w-full mt-1">
                     </div>
                     <div class="flex items-end">
-                        <span class="text-xs text-[#737373]">Interaction filtering is delegated to the LLM value judgment.</span>
+                        <span class="text-xs text-muted">Interaction filtering is delegated to the LLM value judgment.</span>
                     </div>
                 </div>
             </div>
 
             <!-- LLM -->
-            <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-[#a3a3a3]">LLM provider</div>
+            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
+                <div class="text-sm font-medium mb-3 text-secondary">LLM provider</div>
                 <select name="provider_id" class="select select-bordered w-full" required>
                     {% for p in providers %}<option value="{{ p.id }}" {{ 'selected' if edit_module and edit_module.provider_id == p.id else '' }}>{{ p.name }} — {{ p.model }} {% if not p.enabled %}(disabled){% endif %}</option>{% endfor %}
                 </select>
-                {% if not providers %}<p class="text-xs text-[#ef4444] mt-2">No LLM providers configured yet. Add one in LLM Providers first.</p>{% endif %}
+                {% if not providers %}<p class="text-xs text-[var(--error)] mt-2">No LLM providers configured yet. Add one in LLM Providers first.</p>{% endif %}
             </div>
 
             <!-- Prompt -->
-            <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-[#a3a3a3]">Prompt template</div>
+            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
+                <div class="text-sm font-medium mb-3 text-secondary">Prompt template</div>
                 <select name="prompt_template_id" class="select select-bordered w-full" required>
                     {% for p in prompts %}<option value="{{ p.id }}" {{ 'selected' if edit_module and edit_module.prompt_template_id == p.id else '' }}>{{ p.name }} v{{ p.version }}{% if not p.is_active %} (history){% endif %}</option>{% endfor %}
                 </select>
-                {% if not prompts %}<p class="text-xs text-[#ef4444] mt-2">No prompt templates yet. Create one in Prompts first.</p>{% endif %}
+                {% if not prompts %}<p class="text-xs text-[var(--error)] mt-2">No prompt templates yet. Create one in Prompts first.</p>{% endif %}
             </div>
 
             <!-- Agent + tools -->
-            <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-[#a3a3a3]">Agent mode</div>
+            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
+                <div class="text-sm font-medium mb-3 text-secondary">Agent mode</div>
                 <div class="mb-3">
-                    <span class="text-xs text-[#737373]">Agent backend</span>
+                    <span class="text-xs text-muted">Agent backend</span>
                     <select name="agent_backend" class="select select-bordered w-full mt-1" id="agent-select">
                         {% for a in opts.agents %}<option value="{{ a }}" {{ 'selected' if edit_module and edit_module.agent_backend == a else '' }}>{{ a }}{% if a == 'none' %} (single turn, no tools){% elif a == 'lite' %} (lightweight loop with tools){% endif %}</option>{% endfor %}
                     </select>
                 </div>
                 <div>
-                    <span class="text-xs text-[#737373]">Enabled tools</span>
+                    <span class="text-xs text-muted">Enabled tools</span>
                     {% set active_tools = edit_module.tools_config | map(attribute='name') | list if edit_module else [] %}
                     <div class="flex flex-wrap gap-2 mt-2">
                         {% for t in opts.tools %}
-                        <label class="label cursor-pointer gap-2 bg-[#171717] border border-white/[0.08] rounded px-3 py-1">
+                        <label class="label cursor-pointer gap-2 bg-[var(--bg-surface)] border border-white/[0.08] rounded px-3 py-1">
                             <input type="checkbox" name="tools" value="{{ t }}" class="checkbox checkbox-xs" {{ 'checked' if edit_module and t in active_tools else '' }}>
                             <span class="text-xs font-mono">{{ t }}</span>
                         </label>
@@ -125,23 +125,23 @@
             </div>
 
             <!-- Webhooks -->
-            <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-[#a3a3a3]">Webhooks</div>
+            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
+                <div class="text-sm font-medium mb-3 text-secondary">Webhooks</div>
                 {% set active_channels = edit_module.webhook_channel_ids if edit_module else [] %}
                 <div class="flex flex-wrap gap-2">
                     {% for c in channels %}
-                    <label class="label cursor-pointer gap-2 bg-[#171717] border border-white/[0.08] rounded px-3 py-1">
+                    <label class="label cursor-pointer gap-2 bg-[var(--bg-surface)] border border-white/[0.08] rounded px-3 py-1">
                         <input type="checkbox" name="channels" value="{{ c.id }}" class="checkbox checkbox-xs" {{ 'checked' if edit_module and c.id in active_channels else '' }}>
                         <span class="text-xs">{{ c.name }} <span class="badge badge-xs badge-ghost">{{ c.kind }}</span></span>
                     </label>
                     {% endfor %}
                 </div>
-                {% if not channels %}<p class="text-xs text-[#737373] mt-2">No channels configured. Results will be stored without delivery.</p>{% endif %}
+                {% if not channels %}<p class="text-xs text-muted mt-2">No channels configured. Results will be stored without delivery.</p>{% endif %}
             </div>
 
             <!-- Execution -->
-            <div class="bg-[#0d0d0d] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-[#a3a3a3]">Execution mode</div>
+            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
+                <div class="text-sm font-medium mb-3 text-secondary">Execution mode</div>
                 <div class="flex gap-4 mb-3">
                     <label class="label cursor-pointer gap-2">
                         <input type="radio" name="exec_mode" value="manual" class="radio radio-sm" checked onchange="toggleCron()">
@@ -153,9 +153,9 @@
                     </label>
                 </div>
                 <div id="cron-box" class="{{ '' if edit_module and edit_module.schedule_cron else 'hidden' }}">
-                    <span class="text-xs text-[#737373]">Cron expression (UTC)</span>
+                    <span class="text-xs text-muted">Cron expression (UTC)</span>
                     <input name="schedule_cron" placeholder="e.g. 30 6 * * *" class="input input-bordered w-full mt-1" value="{{ edit_module.schedule_cron if edit_module else '' }}">
-                    <p class="text-xs text-[#737373] mt-2">
+                    <p class="text-xs text-muted mt-2">
                         Examples: <code>0 0 * * *</code> daily · <code>0 0 * * 1</code> weekly Monday · <code>0 */6 * * *</code> every 6 hours
                     </p>
                 </div>
@@ -198,7 +198,7 @@
                 <tr>
                     <td>
                         <div class="font-mono font-medium text-sm">{{ m.name }}</div>
-                        {% if m.description %}<div class="text-xs text-[#737373]">{{ m.description }}</div>{% endif %}
+                        {% if m.description %}<div class="text-xs text-muted">{{ m.description }}</div>{% endif %}
                     </td>
                     <td class="text-xs">{{ m.source }}{% if m.source_ref %}:{{ m.source_ref }}{% endif %}</td>
                     <td class="text-xs">#{{ m.provider_id }}</td>
@@ -218,7 +218,7 @@
                         <button class="btn btn-xs btn-primary" data-run-id="{{ m.id }}" data-run-name="{{ m.name }}" onclick="runModule(this)">Run</button>
                         <a class="btn btn-xs btn-ghost" href="/ui/tasks?edit={{ m.id }}">Edit</a>
                         <a class="btn btn-xs btn-ghost" href="/ui/runs?module_id={{ m.id }}">History</a>
-                        <button class="btn btn-xs btn-ghost text-[#ef4444]" onclick="delModule({{ m.id }})">Delete</button>
+                        <button class="btn btn-xs btn-ghost text-[var(--error)]" onclick="delModule({{ m.id }})">Delete</button>
                     </td>
                 </tr>
                 {% endfor %}

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="mb-8">
     <h2 class="text-2xl font-semibold tracking-tight">Prompts</h2>
-    <p class="text-sm text-[#737373] mt-1">Jinja2 templates used by analysis tasks.</p>
+    <p class="text-sm text-muted mt-1">Jinja2 templates used by analysis tasks.</p>
 </div>
 
 <div class="card mb-8">
@@ -27,15 +27,15 @@
     <div class="card-body">
         <h3 class="card-title">Existing templates ({{ prompts|length }})</h3>
         {% for p in prompts %}
-        <div class="collapse collapse-arrow bg-[#0d0d0d] border border-white/[0.08] rounded mb-2">
+        <div class="collapse collapse-arrow bg-[var(--bg-body)] border border-white/[0.08] rounded mb-2">
             <input type="checkbox">
             <div class="collapse-title text-sm">
                 <span class="font-medium">{{ p.display_name or p.name }}</span>
-                <span class="font-mono text-xs text-[#737373] ml-2">{{ p.name }}</span>
+                <span class="font-mono text-xs text-muted ml-2">{{ p.name }}</span>
                 <span class="badge badge-sm badge-ghost ml-2">v{{ p.version }}</span>
             </div>
             <div class="collapse-content">
-                <pre class="bg-[#171717] border border-white/[0.08] rounded p-4 text-xs overflow-x-auto whitespace-pre-wrap">{{ p.template }}</pre>
+                <pre class="bg-[var(--bg-surface)] border border-white/[0.08] rounded p-4 text-xs overflow-x-auto whitespace-pre-wrap">{{ p.template }}</pre>
             </div>
         </div>
         {% endfor %}
@@ -66,7 +66,7 @@ async function previewPrompt() {
     summary.className = 'cursor-pointer text-sm text-secondary';
     summary.textContent = 'Preview';
     const pre = document.createElement('pre');
-    pre.className = 'bg-[#0d0d0d] border border-white/[0.08] rounded p-3 mt-2 text-xs overflow-x-auto whitespace-pre-wrap';
+    pre.className = 'bg-[var(--bg-body)] border border-white/[0.08] rounded p-3 mt-2 text-xs overflow-x-auto whitespace-pre-wrap';
     pre.textContent = d.rendered || '';
     details.appendChild(summary);
     details.appendChild(pre);
