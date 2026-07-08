@@ -181,6 +181,7 @@ body {
   text-transform: none;
   padding: 0.15rem 0.5rem;
   border: 1px solid transparent;
+  white-space: nowrap;   /* a badge is a single-line tag — never wrap */
 }
 .badge-success { background-color: rgba(53, 196, 122, 0.14); color: var(--success); }
 .badge-error   { background-color: rgba(239, 95, 95, 0.14);  color: var(--error); }

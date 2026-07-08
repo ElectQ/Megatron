@@ -40,7 +40,7 @@
                     <td class="text-xs text-muted">{{ (page.page - 1) * page.page_size + loop.index }}</td>
                     <td>
                         {% if it.collect_date %}
-                        <span class="badge badge-sm badge-info font-mono">{{ it.collect_date }}</span>
+                        <span class="font-mono text-xs whitespace-nowrap text-secondary">{{ it.collect_date }}</span>
                         {% endif %}
                     </td>
                     <td class="font-mono text-xs">@{{ it.author }}</td>

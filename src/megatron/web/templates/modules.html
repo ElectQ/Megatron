@@ -58,7 +58,7 @@
                         {% if m.webhook_channel_ids %}{{ m.webhook_channel_ids|length }}{% else %}<span class="text-muted">—</span>{% endif %}
                     </td>
                     <td class="text-xs">
-                        {% if m.schedule_cron %}<span class="badge badge-info badge-sm font-mono">{{ m.schedule_cron }}</span>{% else %}<span class="text-muted">{{ t('manual') }}</span>{% endif %}
+                        {% if m.schedule_cron %}<span class="text-xs whitespace-nowrap" style="color:var(--info)" data-cron="{{ m.schedule_cron }}">{{ m.schedule_cron }}</span>{% else %}<span class="text-muted">{{ t('manual') }}</span>{% endif %}
                     </td>
                     <td>
                         {% if m.enabled %}<span class="badge badge-success badge-sm">{{ t('enabled') }}</span>{% else %}<span class="badge badge-ghost badge-sm">{{ t('disabled') }}</span>{% endif %}

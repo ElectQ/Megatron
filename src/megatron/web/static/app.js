@@ -220,10 +220,50 @@
   document.addEventListener("click", closeAllCalendars);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeAllCalendars(); });
 
+  // ---- Cron humanizer --------------------------------------------------
+  // Turn common 5-field cron expressions into readable, language-aware text.
+  // Uncommon expressions keep their raw form. The raw cron is always retained
+  // as the title (tooltip).
+  function humanizeCron(expr, lang) {
+    var raw = (expr || "").trim();
+    var f = raw.split(/\s+/);
+    if (f.length !== 5) return null;
+    var zh = lang.indexOf("zh") === 0;
+    var min = f[0], hr = f[1], dom = f[2], mon = f[3], dow = f[4];
+    var isNum = function (s) { return /^\d+$/.test(s); };
+    var hhmm = function (h, m) { return ("0" + h).slice(-2) + ":" + ("0" + m).slice(-2); };
+    var wd = zh ? ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+                : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    var mm;
+    if (min === "*" && hr === "*" && dom === "*" && mon === "*" && dow === "*") return zh ? "每分钟" : "Every minute";
+    if ((mm = /^\*\/(\d+)$/.exec(min)) && hr === "*" && dom === "*" && mon === "*" && dow === "*")
+      return zh ? ("每 " + mm[1] + " 分钟") : ("Every " + mm[1] + " min");
+    if (min === "0" && (mm = /^\*\/(\d+)$/.exec(hr)) && dom === "*" && mon === "*" && dow === "*")
+      return zh ? ("每 " + mm[1] + " 小时") : ("Every " + mm[1] + "h");
+    if (isNum(min) && isNum(hr)) {
+      var t = hhmm(+hr, +min);
+      if (dom === "*" && mon === "*" && dow === "*") return zh ? ("每天 " + t) : ("Daily " + t);
+      if (dom === "*" && mon === "*" && isNum(dow) && +dow <= 6) return zh ? ("每" + wd[+dow] + " " + t) : ("Weekly " + wd[+dow] + " " + t);
+      if (isNum(dom) && mon === "*" && dow === "*") return zh ? ("每月 " + (+dom) + " 日 " + t) : ("Monthly day " + (+dom) + " " + t);
+    }
+    return null;
+  }
+
+  function initCron(root) {
+    var lang = document.documentElement.lang || "en";
+    (root || document).querySelectorAll("[data-cron]").forEach(function (el) {
+      var raw = el.getAttribute("data-cron");
+      if (!raw) return;
+      var human = humanizeCron(raw, lang);
+      if (human) { el.textContent = human; el.title = raw; }
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     renderMarkdown();
     pollWhileActive(5);
     initDatePickers();
+    initCron();
   });
 
   window.MG = {
@@ -236,5 +276,6 @@
     renderMarkdown: renderMarkdown,
     pollWhileActive: pollWhileActive,
     initDatePickers: initDatePickers,
+    initCron: initCron,
   };
 })();

@@ -56,7 +56,7 @@
                 <tr>
                     <td class="font-mono text-sm">{{ m.name }}</td>
                     <td>{% if m.enabled %}<span class="badge badge-success badge-sm">enabled</span>{% else %}<span class="badge badge-ghost badge-sm">disabled</span>{% endif %}</td>
-                    <td class="font-mono text-xs">{{ m.schedule_cron or '-' }}</td>
+                    <td class="text-xs whitespace-nowrap">{% if m.schedule_cron %}<span data-cron="{{ m.schedule_cron }}">{{ m.schedule_cron }}</span>{% else %}-{% endif %}</td>
                     <td class="text-xs text-secondary">
                         {% if not m.enabled %}Module disabled
                         {% elif not m.schedule_cron %}No cron set
