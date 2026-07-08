@@ -36,10 +36,16 @@
             {% for m in modules %}
                 {% set prov = (providers | selectattr('id','equalto', m.provider_id) | list | first) %}
                 {% set pr = (prompts | selectattr('id','equalto', m.prompt_template_id) | list | first) %}
+                {% set st = stats.get(m.id) %}
+                {% set health = 'neutral' if not m.enabled else ('info' if not (st and st.runs) else ('success' if st.success_rate >= 80 else ('error' if st.success_rate < 50 else 'warning'))) %}
                 <tr>
                     <td>
-                        <div class="font-medium text-sm">{{ m.name }}</div>
-                        {% if m.description %}<div class="text-xs text-muted">{{ m.description }}</div>{% endif %}
+                        <div class="flex items-center gap-2">
+                            <span class="status-dot {{ health }}"></span>
+                            <span class="font-medium text-sm">{{ m.name }}</span>
+                        </div>
+                        {% if m.description %}<div class="text-xs text-muted ml-4">{{ m.description }}</div>{% endif %}
+                        {% if st and st.last_run %}<div class="text-xs text-muted ml-4">{{ t('last run') }} {{ st.last_run[:16]|replace('T',' ') }}</div>{% endif %}
                     </td>
                     <td class="text-xs">{{ m.source }}{% if m.source_ref %}<span class="text-muted">:{{ m.source_ref }}</span>{% endif %}</td>
                     <td class="text-xs">{{ prov.name if prov else '#' ~ m.provider_id }}</td>
@@ -54,7 +60,10 @@
                     <td class="text-xs">
                         {% if m.schedule_cron %}<span class="badge badge-info badge-sm font-mono">{{ m.schedule_cron }}</span>{% else %}<span class="text-muted">{{ t('manual') }}</span>{% endif %}
                     </td>
-                    <td>{% if m.enabled %}<span class="badge badge-success badge-sm">{{ t('enabled') }}</span>{% else %}<span class="badge badge-ghost badge-sm">{{ t('disabled') }}</span>{% endif %}</td>
+                    <td>
+                        {% if m.enabled %}<span class="badge badge-success badge-sm">{{ t('enabled') }}</span>{% else %}<span class="badge badge-ghost badge-sm">{{ t('disabled') }}</span>{% endif %}
+                        {% if st and st.runs %}<div class="text-xs text-muted tabular mt-1">{{ st.success_rate }}% · {{ st.runs }} {{ t('runs') }}</div>{% endif %}
+                    </td>
                     <td>
                         <div class="flex gap-1 justify-end">
                             <button class="btn btn-xs btn-primary" data-run-id="{{ m.id }}" data-run-name="{{ m.name }}" onclick="runModule(this)">{{ t('Run') }}</button>
@@ -78,6 +87,19 @@
     {% endif %}
 </div>
 
+{%- macro secicon(name) -%}
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="opacity:.6" aria-hidden="true">
+{%- if name=='info' -%}<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1" stroke-linecap="round"/>
+{%- elif name=='db' -%}<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/>
+{%- elif name=='star' -%}<path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.5-.8z"/>
+{%- elif name=='doc' -%}<path d="M5 3h9l5 5v13H5z"/><path d="M8 12h8M8 16h5" stroke-linecap="round"/>
+{%- elif name=='bolt' -%}<path d="M13 2L4 14h7l-1 8 9-12h-7z" stroke-linejoin="round"/>
+{%- elif name=='send' -%}<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" stroke-linejoin="round"/>
+{%- elif name=='clock' -%}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round"/>
+{%- endif -%}
+</svg>
+{%- endmacro -%}
+
 <!-- Add / edit form, collapsed unless editing or first-run -->
 <details id="task-form" class="card" {% if edit_module or not modules %}open{% endif %}>
     <summary class="card-h cursor-pointer select-none" style="list-style:none">
@@ -95,7 +117,7 @@
 
             <!-- Basic info -->
             <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
-                <legend class="field-label px-1">{{ t('Basic info') }}</legend>
+                <legend class="field-label px-1"><span class="inline-flex items-center gap-1.5">{{ secicon('info') }}{{ t('Basic info') }}</span></legend>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="field-label">{{ t('Task name') }}</label>
@@ -110,7 +132,7 @@
 
             <!-- Data source -->
             <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
-                <legend class="field-label px-1">{{ t('Data source') }}</legend>
+                <legend class="field-label px-1"><span class="inline-flex items-center gap-1.5">{{ secicon('db') }}{{ t('Data source') }}</span></legend>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="field-label">{{ t('Source type') }}</label>
@@ -167,7 +189,7 @@
             <!-- Model + prompt side by side -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
-                    <legend class="field-label px-1">{{ t('Model') }}</legend>
+                    <legend class="field-label px-1"><span class="inline-flex items-center gap-1.5">{{ secicon('star') }}{{ t('Model') }}</span></legend>
                     <select name="provider_id" class="select select-bordered w-full" required>
                         {% for p in providers %}<option value="{{ p.id }}" {{ 'selected' if edit_module and edit_module.provider_id == p.id else '' }}>{{ p.name }} — {{ p.model }}{% if not p.enabled %} ({{ t('disabled') }}){% endif %}</option>{% endfor %}
                     </select>
@@ -175,7 +197,7 @@
                 </fieldset>
 
                 <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
-                    <legend class="field-label px-1">{{ t('Prompt template') }}</legend>
+                    <legend class="field-label px-1"><span class="inline-flex items-center gap-1.5">{{ secicon('doc') }}{{ t('Prompt template') }}</span></legend>
                     <select name="prompt_template_id" class="select select-bordered w-full" required>
                         {% for p in prompts %}<option value="{{ p.id }}" {{ 'selected' if edit_module and edit_module.prompt_template_id == p.id else '' }}>{{ p.name }} v{{ p.version }}{% if not p.is_active %} (history){% endif %}</option>{% endfor %}
                     </select>
@@ -185,7 +207,7 @@
 
             <!-- Agent + tools -->
             <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
-                <legend class="field-label px-1">{{ t('Agent mode') }}</legend>
+                <legend class="field-label px-1"><span class="inline-flex items-center gap-1.5">{{ secicon('bolt') }}{{ t('Agent mode') }}</span></legend>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="field-label">{{ t('Agent backend') }}</label>
@@ -210,7 +232,7 @@
 
             <!-- Delivery -->
             <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
-                <legend class="field-label px-1">{{ t('Delivery') }}</legend>
+                <legend class="field-label px-1"><span class="inline-flex items-center gap-1.5">{{ secicon('send') }}{{ t('Delivery') }}</span></legend>
                 {% set active_channels = edit_module.webhook_channel_ids if edit_module else [] %}
                 <div class="flex flex-wrap gap-2">
                     {% for c in channels %}
@@ -225,7 +247,7 @@
 
             <!-- Execution -->
             <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
-                <legend class="field-label px-1">{{ t('Execution mode') }}</legend>
+                <legend class="field-label px-1"><span class="inline-flex items-center gap-1.5">{{ secicon('clock') }}{{ t('Execution mode') }}</span></legend>
                 <div class="flex gap-4 mb-2">
                     <label class="cursor-pointer flex items-center gap-2">
                         <input type="radio" name="exec_mode" value="manual" class="radio radio-sm" {{ 'checked' if not (edit_module and edit_module.schedule_cron) else '' }} onchange="toggleCron()">

@@ -102,6 +102,8 @@ _ZH: dict[str, str] = {
     "Status": "状态",
     "Actions": "操作",
     "manual": "手动",
+    "last run": "上次",
+    "runs": "次",
     "enabled": "已启用",
     "disabled": "已停用",
     "Run": "运行",

@@ -197,12 +197,18 @@ async def items_redirect():
 
 @router.get("/tasks", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
 async def tasks_page(request: Request, edit: int | None = None):
-    modules, providers, prompts, channels, opts = await asyncio.gather(
+    modules, providers, prompts, channels, opts, stats_rows = await asyncio.gather(
         _api_get(request, "/api/admin/modules"),
         _api_get(request, "/api/admin/providers"),
         _api_get(request, "/api/admin/prompts"),
         _api_get(request, "/api/admin/channels"),
         _api_get(request, "/api/admin/modules/options"),
+        _api_get(request, "/api/admin/stats/per-module"),
+    )
+    stats = (
+        {row["module_id"]: row for row in stats_rows}
+        if isinstance(stats_rows, list)
+        else {}
     )
     edit_module = next((m for m in modules if m["id"] == edit), None) if edit else None
     return _render(
@@ -214,6 +220,7 @@ async def tasks_page(request: Request, edit: int | None = None):
         prompts=prompts,
         channels=channels,
         opts=opts,
+        stats=stats,
         edit_module=edit_module,
     )
 
