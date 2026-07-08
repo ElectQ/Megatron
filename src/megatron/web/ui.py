@@ -18,39 +18,34 @@ templates = Jinja2Templates(
 )
 
 
-def _internal_base_url(request: Request) -> str:
-    """Trusted loopback base URL for internal self-calls.
+def _internal_client(request: Request) -> httpx.AsyncClient:
+    """Client that dispatches to our own app in-process via ASGITransport.
 
-    We must NOT derive this from request.base_url: that honors the client's
-    Host / X-Forwarded-* headers, so a forged Host would make us send the admin
-    Bearer token to an attacker-controlled host (SSRF + credential leak). The
-    ASGI scope's ``server`` is the address the app is actually bound to and is
-    not client-controllable; we pin to loopback with that port so the token can
-    only ever travel to ourselves.
+    We must NOT round-trip over a real socket to reach our own API: under a
+    single worker that self-request can deadlock or ReadError, and deriving the
+    host from request.base_url would honor the client's Host header (SSRF +
+    admin-token leak). ASGITransport invokes the same ASGI app directly on this
+    event loop — no socket, no network, so neither problem exists.
     """
-    server = request.scope.get("server")
-    port = server[1] if server and len(server) > 1 and server[1] else 80
-    return f"http://127.0.0.1:{port}"
+    return httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=request.app),
+        base_url="http://internal",
+    )
 
 
 async def _api_get(request: Request, path: str) -> Any:
     """Call internal API with the admin token (fallback for API auth)."""
-    base_url = _internal_base_url(request)
     token = get_admin_token()
-    async with httpx.AsyncClient() as c:
-        r = await c.get(
-            f"{base_url}{path}",
-            headers={"Authorization": f"Bearer {token}"},
-        )
+    async with _internal_client(request) as c:
+        r = await c.get(path, headers={"Authorization": f"Bearer {token}"})
         return r.json() if r.status_code == 200 else []
 
 
 async def _api_post(request: Request, path: str, json_body: dict) -> Any:
-    base_url = _internal_base_url(request)
     token = get_admin_token()
-    async with httpx.AsyncClient() as c:
+    async with _internal_client(request) as c:
         r = await c.post(
-            f"{base_url}{path}",
+            path,
             headers={"Authorization": f"Bearer {token}"},
             json=json_body,
         )
