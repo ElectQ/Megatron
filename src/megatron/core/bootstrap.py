@@ -270,7 +270,7 @@ async def _ensure_admin_user(session) -> None:
 
     user = User(
         username="admin",
-        display_name="管理员",
+        display_name="Administrator",
         password_hash=hash_password(password),
         is_active=True,
     )
