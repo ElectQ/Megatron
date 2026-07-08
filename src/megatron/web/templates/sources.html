@@ -12,14 +12,28 @@
     <div class="card-body">
         <h3 class="card-title">{{ t('Add MCP Server') }}</h3>
         <form id="add-mcp-server" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input name="name" placeholder="Server name (e.g. soundwave-twitter)" class="input input-bordered" required>
-            <input name="server_url" placeholder="MCP Server URL (e.g. https://api.soundwave.dev/mcp)" class="input input-bordered" required>
-            <select name="transport" class="select select-bordered">
-                <option value="sse">SSE (Server-Sent Events)</option>
-                <option value="stdio">stdio (Local/Container)</option>
-            </select>
-            <input name="resource_filter" placeholder="Resource filter (optional, e.g. tweets/*)" class="input input-bordered">
-            <div class="md:col-span-2 flex justify-end">
+            <label class="form-control">
+                <span class="label-text text-xs text-muted mb-1">{{ t('Server name') }}</span>
+                <input name="name" placeholder="soundwave-twitter" class="input input-bordered w-full" maxlength="32" required>
+            </label>
+            <label class="form-control">
+                <span class="label-text text-xs text-muted mb-1">{{ t('Transport') }}</span>
+                <select name="transport" class="select select-bordered w-full">
+                    <option value="sse">{{ t('SSE (remote endpoint)') }}</option>
+                    <option value="stdio">{{ t('stdio (local command)') }}</option>
+                </select>
+            </label>
+            <label class="form-control md:col-span-2">
+                <span class="label-text text-xs text-muted mb-1" data-endpoint-label>{{ t('MCP Server URL') }}</span>
+                <input name="server_url" class="input input-bordered w-full font-mono text-sm" required>
+                <span class="label-text-alt text-xs text-muted mt-1" data-endpoint-hint></span>
+            </label>
+            <label class="form-control md:col-span-2">
+                <span class="label-text text-xs text-muted mb-1">{{ t('Resource filter (optional)') }}</span>
+                <input name="resource_filter" placeholder="tweets/*" class="input input-bordered w-full">
+            </label>
+            <div class="md:col-span-2 flex justify-end gap-2">
+                <button type="button" id="test-conn" class="btn btn-ghost btn-sm">{{ t('Test connection') }}</button>
                 <button type="submit" class="btn btn-primary btn-sm">{{ t('Connect MCP Server') }}</button>
             </div>
         </form>
@@ -148,8 +162,56 @@
 </div>
 
 <script>
+const addForm = document.getElementById('add-mcp-server');
+const transportSel = addForm.querySelector('[name=transport]');
+const endpointInput = addForm.querySelector('[name=server_url]');
+const endpointLabel = addForm.querySelector('[data-endpoint-label]');
+const endpointHint = addForm.querySelector('[data-endpoint-hint]');
+
+// Endpoint field adapts to the selected transport.
+const ENDPOINT_UI = {
+    sse: {
+        label: {{ t('MCP Server URL')|tojson }},
+        placeholder: 'https://api.soundwave.dev/mcp',
+        hint: {{ t('Full URL of the remote MCP SSE endpoint.')|tojson }},
+    },
+    stdio: {
+        label: {{ t('Command line')|tojson }},
+        placeholder: 'python -m mcp_servers.soundwave --repo owner/repo',
+        hint: {{ t('Command Megatron spawns locally (leave blank to use the bundled server).')|tojson }},
+    },
+};
+function syncEndpointUI() {
+    const ui = ENDPOINT_UI[transportSel.value] || ENDPOINT_UI.sse;
+    endpointLabel.textContent = ui.label;
+    endpointInput.placeholder = ui.placeholder;
+    endpointHint.textContent = ui.hint;
+    // stdio can fall back to the bundled server, so the endpoint is optional there.
+    endpointInput.required = (transportSel.value === 'sse');
+}
+transportSel.addEventListener('change', syncEndpointUI);
+syncEndpointUI();
+
+// Test the unsaved config before committing it (stateless endpoint, no DB write).
+document.getElementById('test-conn').addEventListener('click', async () => {
+    const fd = new FormData(addForm);
+    MG.showInfo('add-result', {{ t('Testing connection…')|tojson }});
+    const r = await MG.apiSend('/api/admin/mcp-servers/test', 'POST', {
+        server_url: fd.get('server_url') || '',
+        transport: fd.get('transport'),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (d.ok) {
+        const caps = (d.capabilities || []);
+        MG.showSuccess('add-result',
+            {{ t('Connected. Tools: ')|tojson }} + (caps.length ? caps.join(', ') : '—'));
+    } else {
+        MG.showError('add-result', {{ t('Connection failed: ')|tojson }} + (d.error || 'unknown'));
+    }
+});
+
 // Add MCP Server
-document.getElementById('add-mcp-server').addEventListener('submit', async (e) => {
+addForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const body = {

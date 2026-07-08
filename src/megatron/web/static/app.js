@@ -36,19 +36,22 @@
   }
 
   // Render an error alert into `target` (id or element) using textContent — no XSS from server text.
-  function showError(target, message) {
+  function showAlert(target, message, kind) {
     var el = typeof target === "string" ? document.getElementById(target) : target;
     if (!el) return;
     el.textContent = "";
     var box = document.createElement("div");
-    box.className = "alert alert-error py-2";
-    box.setAttribute("role", "alert");
+    box.className = "alert alert-" + (kind || "error") + " py-2";
+    box.setAttribute("role", kind === "error" ? "alert" : "status");
     var span = document.createElement("span");
     span.className = "text-sm";
     span.textContent = message;
     box.appendChild(span);
     el.appendChild(box);
   }
+  function showError(target, message) { showAlert(target, message, "error"); }
+  function showInfo(target, message) { showAlert(target, message, "info"); }
+  function showSuccess(target, message) { showAlert(target, message, "success"); }
 
   // Non-blocking toast notification.
   function toast(message, kind) {
@@ -272,6 +275,8 @@
     apiSend: apiSend,
     errorText: errorText,
     showError: showError,
+    showInfo: showInfo,
+    showSuccess: showSuccess,
     toast: toast,
     renderMarkdown: renderMarkdown,
     pollWhileActive: pollWhileActive,

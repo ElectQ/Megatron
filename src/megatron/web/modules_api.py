@@ -153,6 +153,8 @@ async def create_module(body: ModuleIn, session: AsyncSession = Depends(get_sess
     from ..core.engine_models import AnalysisModule
     from ..scheduler import reload_module_schedules
 
+    if body.source not in await _allowed_sources(session):
+        raise HTTPException(400, f"Unknown source: {body.source!r}")
     channel_ids = await _validate_channel_ids(session, body.webhook_channel_ids)
     m = AnalysisModule(
         name=body.name,
@@ -190,6 +192,9 @@ async def update_module(
     m = await session.get(AnalysisModule, module_id)
     if not m:
         raise HTTPException(404, "Module not found")
+    # Allow keeping the module's current source even if it's since been disabled.
+    if body.source != m.source and body.source not in await _allowed_sources(session):
+        raise HTTPException(400, f"Unknown source: {body.source!r}")
     channel_ids = await _validate_channel_ids(session, body.webhook_channel_ids)
     m.name = body.name
     m.description = body.description
@@ -246,11 +251,47 @@ async def run_module(
         raise HTTPException(400, str(e))
 
 
+async def _allowed_sources(session: AsyncSession) -> list[str]:
+    """Selectable data sources for a task, de-duplicated in display order.
+
+    Built-in ``twitter`` first, then enabled configured sources (MCP etc.),
+    then built-in registry kinds, then any source already referenced by an
+    existing module (so opening an old task never loses/changes its selection).
+    """
+    from ..core.engine_models import AnalysisModule
+    from ..core.models import SourceConfig
+
+    sources: list[str] = []
+
+    def _add(x: str) -> None:
+        if x and x not in sources:
+            sources.append(x)
+
+    _add("twitter")
+    cfg_names = (
+        await session.execute(
+            select(SourceConfig.name)
+            .where(SourceConfig.enabled.is_(True))
+            .order_by(SourceConfig.name)
+        )
+    ).scalars().all()
+    for n in cfg_names:
+        _add(n)
+    for k in source_registry.names():
+        _add(k)
+    existing = (
+        await session.execute(select(AnalysisModule.source).distinct())
+    ).scalars().all()
+    for s in existing:
+        _add(s)
+    return sources
+
+
 @router.get("/options", dependencies=[Depends(admin_auth)])
-async def get_options():
+async def get_options(session: AsyncSession = Depends(get_session)):
     """List all available plugins for the module editor."""
     return {
-        "sources": source_registry.names(),
+        "sources": await _allowed_sources(session),
         "filters": filter_registry.names(),
         "tools": tool_registry.names(),
         "agents": ["none"] + agent_registry.names(),

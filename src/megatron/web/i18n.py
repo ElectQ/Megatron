@@ -153,6 +153,20 @@ _ZH: dict[str, str] = {
     # Card titles
     "New template": "新建模板",
     "Add MCP Server": "添加 MCP 服务器",
+    # MCP add form
+    "Server name": "服务器名称",
+    "Transport": "传输方式",
+    "MCP Server URL": "MCP 服务器地址",
+    "Command line": "命令行",
+    "Resource filter (optional)": "资源过滤(可选)",
+    "SSE (remote endpoint)": "SSE(远程端点)",
+    "stdio (local command)": "stdio(本地命令)",
+    "Full URL of the remote MCP SSE endpoint.": "远程 MCP SSE 端点的完整 URL。",
+    "Command Megatron spawns locally (leave blank to use the bundled server).":
+        "Megatron 在本地启动的命令(留空则使用内置服务器)。",
+    "Testing connection…": "正在测试连接……",
+    "Connected. Tools: ": "已连接。工具:",
+    "Connection failed: ": "连接失败:",
     # Login
     "Sign in": "登录",
     "Username": "用户名",
