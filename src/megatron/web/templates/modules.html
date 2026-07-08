@@ -168,11 +168,11 @@
                         </label>
                     </div>
                     <div id="date-input" class="mt-3 {{ '' if current_tm == 'date' else 'hidden' }}">
-                        <input name="target_date" type="date" class="input input-bordered input-sm w-full max-w-xs" value="{{ edit_module.filter_config.target_date if edit_module and edit_module.filter_config.target_date else '' }}">
+                        <div class="mg-date w-full max-w-xs" data-name="target_date" data-value="{{ edit_module.filter_config.target_date if edit_module and edit_module.filter_config.target_date else '' }}"></div>
                     </div>
                     <div id="range-input" class="mt-3 grid grid-cols-2 gap-2 max-w-md {{ '' if current_tm == 'range' else 'hidden' }}">
-                        <input name="date_from" type="date" class="input input-bordered input-sm" value="{{ edit_module.filter_config.date_from if edit_module and edit_module.filter_config.date_from else '' }}">
-                        <input name="date_to" type="date" class="input input-bordered input-sm" value="{{ edit_module.filter_config.date_to if edit_module and edit_module.filter_config.date_to else '' }}">
+                        <div class="mg-date" data-name="date_from" data-value="{{ edit_module.filter_config.date_from if edit_module and edit_module.filter_config.date_from else '' }}"></div>
+                        <div class="mg-date" data-name="date_to" data-value="{{ edit_module.filter_config.date_to if edit_module and edit_module.filter_config.date_to else '' }}"></div>
                     </div>
                     <div id="rolling-input" class="mt-3 {{ '' if current_tm == 'rolling' else 'hidden' }}">
                         <input name="window_hours" type="number" value="{{ edit_module.filter_config.window_hours if edit_module and edit_module.filter_config.window_hours else 24 }}" class="input input-bordered input-sm w-full max-w-xs" placeholder="Window hours">

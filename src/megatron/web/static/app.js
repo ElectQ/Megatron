@@ -90,9 +90,140 @@
     }, (seconds || 5) * 1000);
   }
 
+  // ---- Localized date picker -------------------------------------------
+  // Native <input type=date> ignores the page language in Chromium (it follows
+  // the browser locale), so we render our own. Display follows document.lang
+  // via Intl; the value is stored ISO (YYYY-MM-DD) in a hidden input named for
+  // the field, so server forms are unchanged. Enhance any <div class="mg-date"
+  // data-name data-value>.
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function toISO(y, m, d) { return y + "-" + pad2(m + 1) + "-" + pad2(d); }
+  function parseISO(s) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s || "")) return null;
+    var p = s.split("-");
+    return { y: +p[0], m: +p[1] - 1, d: +p[2] };
+  }
+
+  function closeAllCalendars() {
+    document.querySelectorAll(".mg-cal").forEach(function (p) { p.classList.add("hidden"); });
+  }
+
+  function initDatePickers(root) {
+    var lang = document.documentElement.lang || "en";
+    var zh = lang.indexOf("zh") === 0;
+    var locale = zh ? "zh-CN" : "en-US";
+    var dispFmt = new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "numeric" });
+    var titleFmt = new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" });
+    var wdFmt = new Intl.DateTimeFormat(locale, { weekday: "narrow" });
+    var placeholder = zh ? "选择日期" : "Select date";
+    var todayLabel = zh ? "今天" : "Today";
+    var clearLabel = zh ? "清除" : "Clear";
+    var weekdays = [];
+    for (var i = 0; i < 7; i++) weekdays.push(wdFmt.format(new Date(2023, 0, 1 + i))); // Jan 1 2023 = Sunday
+    var now = new Date();
+    var today = { y: now.getFullYear(), m: now.getMonth(), d: now.getDate() };
+
+    (root || document).querySelectorAll(".mg-date").forEach(function (box) {
+      if (box.dataset.enhanced) return;
+      box.dataset.enhanced = "1";
+
+      var hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = box.dataset.name;
+      hidden.value = box.dataset.value || "";
+
+      var field = document.createElement("button");
+      field.type = "button";
+      field.className = "input input-bordered input-sm w-full text-left mg-date-field";
+      field.setAttribute("aria-label", box.dataset.label || placeholder);
+
+      var panel = document.createElement("div");
+      panel.className = "mg-cal hidden";
+
+      box.appendChild(hidden);
+      box.appendChild(field);
+      box.appendChild(panel);
+
+      var view;
+
+      function setDisplay() {
+        var p = parseISO(hidden.value);
+        field.textContent = p ? dispFmt.format(new Date(p.y, p.m, p.d)) : placeholder;
+        field.classList.toggle("is-placeholder", !p);
+      }
+
+      function render() {
+        var first = new Date(view.y, view.m, 1);
+        var startWd = first.getDay();
+        var dim = new Date(view.y, view.m + 1, 0).getDate();
+        var sel = parseISO(hidden.value);
+        var html = '<div class="mg-cal-head">'
+          + '<button type="button" class="mg-cal-nav" data-nav="-1" aria-label="prev">‹</button>'
+          + '<span class="mg-cal-title">' + titleFmt.format(first) + "</span>"
+          + '<button type="button" class="mg-cal-nav" data-nav="1" aria-label="next">›</button></div>'
+          + '<div class="mg-cal-grid">';
+        weekdays.forEach(function (w) { html += '<span class="mg-cal-wd">' + w + "</span>"; });
+        for (var b = 0; b < startWd; b++) html += "<span></span>";
+        for (var d = 1; d <= dim; d++) {
+          var isSel = sel && sel.y === view.y && sel.m === view.m && sel.d === d;
+          var isToday = today.y === view.y && today.m === view.m && today.d === d;
+          html += '<button type="button" class="mg-cal-day'
+            + (isSel ? " is-selected" : "") + (isToday ? " is-today" : "")
+            + '" data-day="' + d + '">' + d + "</button>";
+        }
+        html += "</div><div class=\"mg-cal-foot\">"
+          + '<button type="button" class="mg-cal-btn" data-act="today">' + todayLabel + "</button>"
+          + '<button type="button" class="mg-cal-btn" data-act="clear">' + clearLabel + "</button></div>";
+        panel.innerHTML = html;
+      }
+
+      field.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var wasOpen = !panel.classList.contains("hidden");
+        closeAllCalendars();
+        if (wasOpen) return;
+        var p = parseISO(hidden.value) || today;
+        view = { y: p.y, m: p.m };
+        render();
+        panel.classList.remove("hidden");
+      });
+
+      panel.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var btn = e.target.closest("button");
+        if (!btn) return;
+        if (btn.dataset.nav) {
+          view.m += +btn.dataset.nav;
+          if (view.m < 0) { view.m = 11; view.y--; }
+          if (view.m > 11) { view.m = 0; view.y++; }
+          render();
+        } else if (btn.dataset.day) {
+          hidden.value = toISO(view.y, view.m, +btn.dataset.day);
+          setDisplay();
+          panel.classList.add("hidden");
+          hidden.dispatchEvent(new Event("change", { bubbles: true }));
+        } else if (btn.dataset.act === "today") {
+          hidden.value = toISO(today.y, today.m, today.d);
+          setDisplay();
+          panel.classList.add("hidden");
+        } else if (btn.dataset.act === "clear") {
+          hidden.value = "";
+          setDisplay();
+          panel.classList.add("hidden");
+        }
+      });
+
+      setDisplay();
+    });
+  }
+
+  document.addEventListener("click", closeAllCalendars);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeAllCalendars(); });
+
   document.addEventListener("DOMContentLoaded", function () {
     renderMarkdown();
     pollWhileActive(5);
+    initDatePickers();
   });
 
   window.MG = {
@@ -104,5 +235,6 @@
     toast: toast,
     renderMarkdown: renderMarkdown,
     pollWhileActive: pollWhileActive,
+    initDatePickers: initDatePickers,
   };
 })();

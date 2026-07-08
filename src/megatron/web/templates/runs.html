@@ -7,7 +7,7 @@
 </div>
 
 <form method="get" action="/ui/runs" class="flex flex-wrap gap-2 mb-6">
-    <input type="date" name="date" value="{{ filters.date or '' }}" class="input input-bordered input-sm w-40" aria-label="Filter by date">
+    <div class="mg-date w-40" data-name="date" data-value="{{ filters.date or '' }}" data-label="Filter by date"></div>
     <button type="submit" class="btn btn-primary btn-sm">{{ t('Filter') }}</button>
     {% if filters.date %}<a href="/ui/runs" class="btn btn-ghost btn-sm">{{ t('Clear') }}</a>{% endif %}
 </form>

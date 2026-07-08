@@ -9,7 +9,7 @@
 <form method="get" action="/ui/data/collected" class="flex flex-wrap gap-2 mb-6">
     <input type="text" name="author" value="{{ filters.author or '' }}" placeholder="@author" class="input input-bordered input-sm w-40">
     <input type="text" name="keyword" value="{{ filters.keyword or '' }}" placeholder="Keyword" class="input input-bordered input-sm w-48">
-    <input type="date" name="collect_date" value="{{ filters.collect_date or '' }}" class="input input-bordered input-sm w-40">
+    <div class="mg-date w-40" data-name="collect_date" data-value="{{ filters.collect_date or '' }}" data-label="Filter by date"></div>
     <button type="submit" class="btn btn-primary btn-sm">{{ t('Filter') }}</button>
     <a href="/ui/data/collected" class="btn btn-ghost btn-sm">{{ t('Clear') }}</a>
 </form>

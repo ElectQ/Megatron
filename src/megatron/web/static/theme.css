@@ -391,6 +391,57 @@ form fieldset > legend.field-label {
   padding: 0 6px;
 }
 
+/* Localized date picker */
+.mg-date { position: relative; }
+.mg-date-field { cursor: pointer; }
+.mg-date-field.is-placeholder { color: var(--text-muted); }
+.mg-cal {
+  position: absolute;
+  z-index: 60;
+  margin-top: 4px;
+  width: 240px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  padding: 10px;
+}
+.mg-cal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.mg-cal-title { font-size: 0.85rem; font-weight: 600; }
+.mg-cal-nav {
+  width: 26px; height: 26px; border-radius: var(--radius-sm);
+  background: transparent; border: none; color: var(--text-secondary);
+  font-size: 1rem; cursor: pointer; line-height: 1;
+}
+.mg-cal-nav:hover { background: rgba(139, 133, 122, 0.12); color: var(--text-primary); }
+.mg-cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+}
+.mg-cal-wd {
+  text-align: center; font-size: 0.65rem; color: var(--text-muted);
+  padding: 2px 0; text-transform: uppercase;
+}
+.mg-cal-day {
+  aspect-ratio: 1; border: none; background: transparent;
+  color: var(--text-primary); border-radius: var(--radius-sm);
+  font-size: 0.78rem; cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.mg-cal-day:hover { background: rgba(139, 133, 122, 0.14); }
+.mg-cal-day.is-today { box-shadow: inset 0 0 0 1px var(--border-strong); }
+.mg-cal-day.is-selected { background: var(--accent); color: #fff; }
+.mg-cal-foot {
+  display: flex; justify-content: space-between; gap: 6px;
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+}
+.mg-cal-btn {
+  background: transparent; border: none; color: var(--text-secondary);
+  font-size: 0.75rem; cursor: pointer; padding: 3px 8px; border-radius: var(--radius-sm);
+}
+.mg-cal-btn:hover { background: rgba(139, 133, 122, 0.12); color: var(--text-primary); }
+
 /* Toasts (non-blocking replacements for alert()) */
 #mg-toast-host {
   position: fixed;
