@@ -369,6 +369,28 @@ pre {
 .mobile-nav-toggle { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; }
 .drawer-overlay { background-color: rgba(0, 0, 0, 0.6); }
 
+/* Collapsible card (details/summary) */
+details.card > summary {
+  list-style: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary:hover { background-color: rgba(139, 133, 122, 0.05); }
+details.card:not([open]) > summary { border-bottom: none; }
+details.card > summary .disclose {
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+details.card[open] > summary .disclose { transform: rotate(180deg); }
+
+/* Form fieldset sections */
+form fieldset { min-width: 0; }
+form fieldset > legend.field-label {
+  margin-bottom: 0;
+  padding: 0 6px;
+}
+
 /* Toasts (non-blocking replacements for alert()) */
 #mg-toast-host {
   position: fixed;

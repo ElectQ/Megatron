@@ -1,233 +1,262 @@
 {% extends "base.html" %}
 {% block title %}Tasks · Megatron{% endblock %}
 {% block content %}
-<div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Tasks') }}</h2>
-    <p class="text-sm text-muted mt-1">{{ t('Analysis modules combine a source, LLM, prompt, tools, and webhooks.') }}</p>
+<div class="page-head">
+    <div>
+        <div class="crumb"><b>{{ t('Analysis') }}</b> › {{ t('Tasks') }}</div>
+        <h2 class="page-title">{{ t('Tasks') }}</h2>
+        <p class="page-subtitle">{{ t('Analysis modules combine a source, LLM, prompt, tools, and webhooks.') }}</p>
+    </div>
+    <a href="#task-form" class="btn btn-primary btn-sm" onclick="document.getElementById('task-form').open=true">＋ {{ t('New task') }}</a>
 </div>
 
-<div class="card mb-8">
-    <div class="card-body">
-        <h3 class="card-title">{{ 'Edit task' if edit_module else 'New task' }}</h3>
-        <p class="text-xs text-muted mb-4">A task = data source + LLM + prompt + optional tools + optional webhooks + execution mode.</p>
+<!-- Existing tasks FIRST -->
+<div class="card mb-6">
+    <div class="card-h">
+        <span class="card-title" style="margin:0">{{ t('Your tasks') }}</span>
+        <span class="text-xs text-muted tabular">{{ modules|length }}</span>
+    </div>
+    {% if modules %}
+    <div class="overflow-x-auto">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>{{ t('Task') }}</th>
+                    <th>{{ t('Source') }}</th>
+                    <th>{{ t('Model') }}</th>
+                    <th>{{ t('Prompt') }}</th>
+                    <th>{{ t('Agent') }}</th>
+                    <th>{{ t('Delivery') }}</th>
+                    <th>{{ t('Schedule') }}</th>
+                    <th>{{ t('Status') }}</th>
+                    <th class="text-right">{{ t('Actions') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for m in modules %}
+                {% set prov = (providers | selectattr('id','equalto', m.provider_id) | list | first) %}
+                {% set pr = (prompts | selectattr('id','equalto', m.prompt_template_id) | list | first) %}
+                <tr>
+                    <td>
+                        <div class="font-medium text-sm">{{ m.name }}</div>
+                        {% if m.description %}<div class="text-xs text-muted">{{ m.description }}</div>{% endif %}
+                    </td>
+                    <td class="text-xs">{{ m.source }}{% if m.source_ref %}<span class="text-muted">:{{ m.source_ref }}</span>{% endif %}</td>
+                    <td class="text-xs">{{ prov.name if prov else '#' ~ m.provider_id }}</td>
+                    <td class="text-xs">{{ pr.name if pr else '#' ~ m.prompt_template_id }}</td>
+                    <td class="text-xs">
+                        {{ m.agent_backend }}
+                        {% if m.tools_config %}<span class="badge badge-xs badge-ghost">{{ m.tools_config|length }}</span>{% endif %}
+                    </td>
+                    <td class="text-xs tabular">
+                        {% if m.webhook_channel_ids %}{{ m.webhook_channel_ids|length }}{% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    <td class="text-xs">
+                        {% if m.schedule_cron %}<span class="badge badge-info badge-sm font-mono">{{ m.schedule_cron }}</span>{% else %}<span class="text-muted">{{ t('manual') }}</span>{% endif %}
+                    </td>
+                    <td>{% if m.enabled %}<span class="badge badge-success badge-sm">{{ t('enabled') }}</span>{% else %}<span class="badge badge-ghost badge-sm">{{ t('disabled') }}</span>{% endif %}</td>
+                    <td>
+                        <div class="flex gap-1 justify-end">
+                            <button class="btn btn-xs btn-primary" data-run-id="{{ m.id }}" data-run-name="{{ m.name }}" onclick="runModule(this)">{{ t('Run') }}</button>
+                            <a class="btn btn-xs btn-ghost" href="/ui/tasks?edit={{ m.id }}">{{ t('Edit') }}</a>
+                            <a class="btn btn-xs btn-ghost" href="/ui/runs?module_id={{ m.id }}">{{ t('History') }}</a>
+                            <button class="btn btn-xs btn-ghost text-[var(--error)]" onclick="delModule({{ m.id }})">{{ t('Delete') }}</button>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>
+        </div>
+        {{ t('No tasks yet. Create one below to start analyzing collected data.') }}
+    </div>
+    {% endif %}
+</div>
 
-        <form id="module-form" class="space-y-5">
+<!-- Add / edit form, collapsed unless editing or first-run -->
+<details id="task-form" class="card" {% if edit_module or not modules %}open{% endif %}>
+    <summary class="card-h cursor-pointer select-none" style="list-style:none">
+        <div>
+            <span class="card-title" style="margin:0">{{ t('Edit task') if edit_module else t('New task') }}</span>
+            {% if edit_module %}<span class="badge badge-info badge-sm ml-2">{{ edit_module.name }}</span>{% endif %}
+            <p class="text-xs text-muted mt-1">{{ t('A task = source + LLM + prompt + optional tools + optional delivery + schedule.') }}</p>
+        </div>
+        <span class="disclose text-muted text-xs">▾</span>
+    </summary>
+
+    <div class="card-body pt-0">
+        <form id="module-form" class="space-y-4">
             <input type="hidden" name="module_id" value="{{ edit_module.id if edit_module else '' }}">
 
             <!-- Basic info -->
-            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-secondary">Basic info</div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input name="name" placeholder="Task name" class="input input-bordered" required value="{{ edit_module.name if edit_module else '' }}">
-                    <input name="description" placeholder="Description (optional)" class="input input-bordered" value="{{ edit_module.description if edit_module else '' }}">
-                </div>
-            </div>
-
-            <!-- Data source -->
-            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-secondary">Data source</div>
+            <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
+                <legend class="field-label px-1">{{ t('Basic info') }}</legend>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                        <span class="text-xs text-muted">Source type</span>
-                        <select name="source" class="select select-bordered w-full mt-1">
+                        <label class="field-label">{{ t('Task name') }}</label>
+                        <input name="name" placeholder="twitter-security-briefing" class="input input-bordered w-full" required value="{{ edit_module.name if edit_module else '' }}">
+                    </div>
+                    <div>
+                        <label class="field-label">{{ t('Description') }} <span class="text-muted">· {{ t('optional') }}</span></label>
+                        <input name="description" placeholder="Daily security digest" class="input input-bordered w-full" value="{{ edit_module.description if edit_module else '' }}">
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Data source -->
+            <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
+                <legend class="field-label px-1">{{ t('Data source') }}</legend>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="field-label">{{ t('Source type') }}</label>
+                        <select name="source" class="select select-bordered w-full">
                             {% for s in opts.sources %}<option value="{{ s }}" {{ 'selected' if edit_module and edit_module.source == s else '' }}>{{ s }}</option>{% endfor %}
                         </select>
                     </div>
                     <div>
-                        <span class="text-xs text-muted">Source reference (optional, e.g. list_id)</span>
-                        <input name="source_ref" placeholder="Leave empty for all" class="input input-bordered w-full mt-1" value="{{ edit_module.source_ref if edit_module else '' }}">
+                        <label class="field-label">{{ t('Source reference') }} <span class="text-muted">· {{ t('optional') }}</span></label>
+                        <input name="source_ref" placeholder="e.g. list_id — empty = all" class="input input-bordered w-full" value="{{ edit_module.source_ref if edit_module else '' }}">
                     </div>
                 </div>
 
                 <div class="mt-4">
-                    <span class="text-xs text-muted">Time mode</span>
-                    <div class="flex flex-wrap gap-4 mt-2">
+                    <label class="field-label">{{ t('Time window') }}</label>
+                    <div class="flex flex-wrap gap-x-4 gap-y-2">
                         {% set current_tm = edit_module.filter_config.time_mode if edit_module and edit_module.filter_config.time_mode else 'today' %}
-                        <label class="label cursor-pointer gap-2">
+                        <label class="cursor-pointer flex items-center gap-2">
                             <input type="radio" name="time_mode" value="today" class="radio radio-xs" {{ 'checked' if current_tm == 'today' else '' }} onchange="toggleTimeMode()">
-                            <span class="text-xs">Today (default for scheduled runs)</span>
+                            <span class="text-xs">{{ t('Today') }}</span>
                         </label>
-                        <label class="label cursor-pointer gap-2">
+                        <label class="cursor-pointer flex items-center gap-2">
                             <input type="radio" name="time_mode" value="date" class="radio radio-xs" {{ 'checked' if current_tm == 'date' else '' }} onchange="toggleTimeMode()">
-                            <span class="text-xs">Specific date</span>
+                            <span class="text-xs">{{ t('Specific date') }}</span>
                         </label>
-                        <label class="label cursor-pointer gap-2">
+                        <label class="cursor-pointer flex items-center gap-2">
                             <input type="radio" name="time_mode" value="range" class="radio radio-xs" {{ 'checked' if current_tm == 'range' else '' }} onchange="toggleTimeMode()">
-                            <span class="text-xs">Date range</span>
+                            <span class="text-xs">{{ t('Date range') }}</span>
                         </label>
-                        <label class="label cursor-pointer gap-2">
+                        <label class="cursor-pointer flex items-center gap-2">
                             <input type="radio" name="time_mode" value="rolling" class="radio radio-xs" {{ 'checked' if current_tm == 'rolling' else '' }} onchange="toggleTimeMode()">
-                            <span class="text-xs">Rolling window</span>
+                            <span class="text-xs">{{ t('Rolling window') }}</span>
                         </label>
                     </div>
                     <div id="date-input" class="mt-3 {{ '' if current_tm == 'date' else 'hidden' }}">
-                        <input name="target_date" type="date" class="input input-bordered input-sm w-full" value="{{ edit_module.filter_config.target_date if edit_module and edit_module.filter_config.target_date else '' }}">
+                        <input name="target_date" type="date" class="input input-bordered input-sm w-full max-w-xs" value="{{ edit_module.filter_config.target_date if edit_module and edit_module.filter_config.target_date else '' }}">
                     </div>
-                    <div id="range-input" class="mt-3 grid grid-cols-2 gap-2 {{ '' if current_tm == 'range' else 'hidden' }}">
-                        <input name="date_from" type="date" class="input input-bordered input-sm" placeholder="From" value="{{ edit_module.filter_config.date_from if edit_module and edit_module.filter_config.date_from else '' }}">
-                        <input name="date_to" type="date" class="input input-bordered input-sm" placeholder="To" value="{{ edit_module.filter_config.date_to if edit_module and edit_module.filter_config.date_to else '' }}">
+                    <div id="range-input" class="mt-3 grid grid-cols-2 gap-2 max-w-md {{ '' if current_tm == 'range' else 'hidden' }}">
+                        <input name="date_from" type="date" class="input input-bordered input-sm" value="{{ edit_module.filter_config.date_from if edit_module and edit_module.filter_config.date_from else '' }}">
+                        <input name="date_to" type="date" class="input input-bordered input-sm" value="{{ edit_module.filter_config.date_to if edit_module and edit_module.filter_config.date_to else '' }}">
                     </div>
                     <div id="rolling-input" class="mt-3 {{ '' if current_tm == 'rolling' else 'hidden' }}">
-                        <input name="window_hours" type="number" value="{{ edit_module.filter_config.window_hours if edit_module and edit_module.filter_config.window_hours else 24 }}" class="input input-bordered input-sm w-full" placeholder="Window hours">
+                        <input name="window_hours" type="number" value="{{ edit_module.filter_config.window_hours if edit_module and edit_module.filter_config.window_hours else 24 }}" class="input input-bordered input-sm w-full max-w-xs" placeholder="Window hours">
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3 mt-4">
-                    <div>
-                        <span class="text-xs text-muted">Max items (0 = unlimited)</span>
-                        <input name="max_items" type="number" value="{{ edit_module.filter_config.max_items if edit_module and edit_module.filter_config.max_items is defined else 0 }}" class="input input-bordered w-full mt-1">
-                    </div>
-                    <div class="flex items-end">
-                        <span class="text-xs text-muted">Interaction filtering is delegated to the LLM value judgment.</span>
-                    </div>
+                <div class="mt-4 max-w-xs">
+                    <label class="field-label">{{ t('Max items') }} <span class="text-muted">· 0 = {{ t('unlimited') }}</span></label>
+                    <input name="max_items" type="number" value="{{ edit_module.filter_config.max_items if edit_module and edit_module.filter_config.max_items is defined else 0 }}" class="input input-bordered w-full">
+                    <p class="text-xs text-muted mt-1">{{ t('Interaction filtering is delegated to the LLM value judgment.') }}</p>
                 </div>
-            </div>
+            </fieldset>
 
-            <!-- LLM -->
-            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-secondary">LLM provider</div>
-                <select name="provider_id" class="select select-bordered w-full" required>
-                    {% for p in providers %}<option value="{{ p.id }}" {{ 'selected' if edit_module and edit_module.provider_id == p.id else '' }}>{{ p.name }} — {{ p.model }} {% if not p.enabled %}(disabled){% endif %}</option>{% endfor %}
-                </select>
-                {% if not providers %}<p class="text-xs text-[var(--error)] mt-2">No LLM providers configured yet. Add one in LLM Providers first.</p>{% endif %}
-            </div>
+            <!-- Model + prompt side by side -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
+                    <legend class="field-label px-1">{{ t('Model') }}</legend>
+                    <select name="provider_id" class="select select-bordered w-full" required>
+                        {% for p in providers %}<option value="{{ p.id }}" {{ 'selected' if edit_module and edit_module.provider_id == p.id else '' }}>{{ p.name }} — {{ p.model }}{% if not p.enabled %} ({{ t('disabled') }}){% endif %}</option>{% endfor %}
+                    </select>
+                    {% if not providers %}<p class="text-xs text-[var(--error)] mt-2">{{ t('No models yet — add one under Models first.') }}</p>{% endif %}
+                </fieldset>
 
-            <!-- Prompt -->
-            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-secondary">Prompt template</div>
-                <select name="prompt_template_id" class="select select-bordered w-full" required>
-                    {% for p in prompts %}<option value="{{ p.id }}" {{ 'selected' if edit_module and edit_module.prompt_template_id == p.id else '' }}>{{ p.name }} v{{ p.version }}{% if not p.is_active %} (history){% endif %}</option>{% endfor %}
-                </select>
-                {% if not prompts %}<p class="text-xs text-[var(--error)] mt-2">No prompt templates yet. Create one in Prompts first.</p>{% endif %}
+                <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
+                    <legend class="field-label px-1">{{ t('Prompt template') }}</legend>
+                    <select name="prompt_template_id" class="select select-bordered w-full" required>
+                        {% for p in prompts %}<option value="{{ p.id }}" {{ 'selected' if edit_module and edit_module.prompt_template_id == p.id else '' }}>{{ p.name }} v{{ p.version }}{% if not p.is_active %} (history){% endif %}</option>{% endfor %}
+                    </select>
+                    {% if not prompts %}<p class="text-xs text-[var(--error)] mt-2">{{ t('No prompts yet — create one under Prompts first.') }}</p>{% endif %}
+                </fieldset>
             </div>
 
             <!-- Agent + tools -->
-            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-secondary">Agent mode</div>
-                <div class="mb-3">
-                    <span class="text-xs text-muted">Agent backend</span>
-                    <select name="agent_backend" class="select select-bordered w-full mt-1" id="agent-select">
-                        {% for a in opts.agents %}<option value="{{ a }}" {{ 'selected' if edit_module and edit_module.agent_backend == a else '' }}>{{ a }}{% if a == 'none' %} (single turn, no tools){% elif a == 'lite' %} (lightweight loop with tools){% endif %}</option>{% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <span class="text-xs text-muted">Enabled tools</span>
-                    {% set active_tools = edit_module.tools_config | map(attribute='name') | list if edit_module else [] %}
-                    <div class="flex flex-wrap gap-2 mt-2">
-                        {% for t in opts.tools %}
-                        <label class="label cursor-pointer gap-2 bg-[var(--bg-surface)] border border-white/[0.08] rounded px-3 py-1">
-                            <input type="checkbox" name="tools" value="{{ t }}" class="checkbox checkbox-xs" {{ 'checked' if edit_module and t in active_tools else '' }}>
-                            <span class="text-xs font-mono">{{ t }}</span>
-                        </label>
-                        {% endfor %}
+            <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
+                <legend class="field-label px-1">{{ t('Agent mode') }}</legend>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="field-label">{{ t('Agent backend') }}</label>
+                        <select name="agent_backend" class="select select-bordered w-full" id="agent-select">
+                            {% for a in opts.agents %}<option value="{{ a }}" {{ 'selected' if edit_module and edit_module.agent_backend == a else '' }}>{{ a }}{% if a == 'none' %} (single turn){% elif a == 'lite' %} (loop + tools){% endif %}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label">{{ t('Enabled tools') }}</label>
+                        {% set active_tools = edit_module.tools_config | map(attribute='name') | list if edit_module else [] %}
+                        <div class="flex flex-wrap gap-2">
+                            {% for tool in opts.tools %}
+                            <label class="cursor-pointer flex items-center gap-2 rounded px-3 py-1.5" style="background:var(--bg-surface);border:1px solid var(--border);">
+                                <input type="checkbox" name="tools" value="{{ tool }}" class="checkbox checkbox-xs" {{ 'checked' if edit_module and tool in active_tools else '' }}>
+                                <span class="text-xs font-mono">{{ tool }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
-            </div>
+            </fieldset>
 
-            <!-- Webhooks -->
-            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-secondary">Webhooks</div>
+            <!-- Delivery -->
+            <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
+                <legend class="field-label px-1">{{ t('Delivery') }}</legend>
                 {% set active_channels = edit_module.webhook_channel_ids if edit_module else [] %}
                 <div class="flex flex-wrap gap-2">
                     {% for c in channels %}
-                    <label class="label cursor-pointer gap-2 bg-[var(--bg-surface)] border border-white/[0.08] rounded px-3 py-1">
+                    <label class="cursor-pointer flex items-center gap-2 rounded px-3 py-1.5" style="background:var(--bg-surface);border:1px solid var(--border);">
                         <input type="checkbox" name="channels" value="{{ c.id }}" class="checkbox checkbox-xs" {{ 'checked' if edit_module and c.id in active_channels else '' }}>
                         <span class="text-xs">{{ c.name }} <span class="badge badge-xs badge-ghost">{{ c.kind }}</span></span>
                     </label>
                     {% endfor %}
                 </div>
-                {% if not channels %}<p class="text-xs text-muted mt-2">No channels configured. Results will be stored without delivery.</p>{% endif %}
-            </div>
+                {% if not channels %}<p class="text-xs text-muted mt-2">{{ t('No channels configured. Results will be stored without delivery.') }}</p>{% endif %}
+            </fieldset>
 
             <!-- Execution -->
-            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4">
-                <div class="text-sm font-medium mb-3 text-secondary">Execution mode</div>
-                <div class="flex gap-4 mb-3">
-                    <label class="label cursor-pointer gap-2">
-                        <input type="radio" name="exec_mode" value="manual" class="radio radio-sm" checked onchange="toggleCron()">
-                        <span class="text-sm">Manual only</span>
+            <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
+                <legend class="field-label px-1">{{ t('Execution mode') }}</legend>
+                <div class="flex gap-4 mb-2">
+                    <label class="cursor-pointer flex items-center gap-2">
+                        <input type="radio" name="exec_mode" value="manual" class="radio radio-sm" {{ 'checked' if not (edit_module and edit_module.schedule_cron) else '' }} onchange="toggleCron()">
+                        <span class="text-sm">{{ t('Manual only') }}</span>
                     </label>
-                    <label class="label cursor-pointer gap-2">
+                    <label class="cursor-pointer flex items-center gap-2">
                         <input type="radio" name="exec_mode" value="scheduled" class="radio radio-sm" {{ 'checked' if edit_module and edit_module.schedule_cron else '' }} onchange="toggleCron()">
-                        <span class="text-sm">Scheduled</span>
+                        <span class="text-sm">{{ t('Scheduled') }}</span>
                     </label>
                 </div>
-                <div id="cron-box" class="{{ '' if edit_module and edit_module.schedule_cron else 'hidden' }}">
-                    <span class="text-xs text-muted">Cron expression (UTC)</span>
-                    <input name="schedule_cron" placeholder="e.g. 30 6 * * *" class="input input-bordered w-full mt-1" value="{{ edit_module.schedule_cron if edit_module else '' }}">
+                <div id="cron-box" class="max-w-md {{ '' if edit_module and edit_module.schedule_cron else 'hidden' }}">
+                    <label class="field-label">{{ t('Cron expression (UTC)') }}</label>
+                    <input name="schedule_cron" placeholder="30 6 * * *" class="input input-bordered w-full font-mono" value="{{ edit_module.schedule_cron if edit_module else '' }}">
                     <p class="text-xs text-muted mt-2">
-                        Examples: <code>0 0 * * *</code> daily · <code>0 0 * * 1</code> weekly Monday · <code>0 */6 * * *</code> every 6 hours
+                        <code>0 0 * * *</code> {{ t('daily') }} · <code>0 0 * * 1</code> {{ t('weekly') }} · <code>0 */6 * * *</code> {{ t('every 6h') }}
                     </p>
                 </div>
-            </div>
+            </fieldset>
 
-            <div class="flex items-center gap-3">
-                <label class="label cursor-pointer gap-2">
+            <div class="flex items-center gap-3 pt-1">
+                <label class="cursor-pointer flex items-center gap-2">
                     <input type="checkbox" name="enabled" class="checkbox checkbox-sm" {{ 'checked' if not edit_module or edit_module.enabled else '' }}>
-                    <span class="text-sm">Enabled</span>
+                    <span class="text-sm">{{ t('Enabled') }}</span>
                 </label>
-                <button type="submit" class="btn btn-primary btn-sm">{{ 'Save changes' if edit_module else 'Create task' }}</button>
-                {% if edit_module %}<a href="/ui/tasks" class="btn btn-ghost btn-sm">Cancel</a>{% endif %}
+                <button type="submit" class="btn btn-primary btn-sm">{{ t('Save changes') if edit_module else t('Create task') }}</button>
+                {% if edit_module %}<a href="/ui/tasks" class="btn btn-ghost btn-sm">{{ t('Cancel') }}</a>{% endif %}
             </div>
         </form>
         <div id="form-result" class="mt-3"></div>
     </div>
-</div>
-
-<!-- Existing tasks -->
-<div class="card">
-    <div class="card-body">
-        <h3 class="card-title">Existing tasks ({{ modules|length }})</h3>
-        <div class="overflow-x-auto">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Task</th>
-                        <th>Source</th>
-                        <th>LLM</th>
-                        <th>Prompt</th>
-                        <th>Agent</th>
-                        <th>Webhooks</th>
-                        <th>Schedule</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% for m in modules %}
-                <tr>
-                    <td>
-                        <div class="font-mono font-medium text-sm">{{ m.name }}</div>
-                        {% if m.description %}<div class="text-xs text-muted">{{ m.description }}</div>{% endif %}
-                    </td>
-                    <td class="text-xs">{{ m.source }}{% if m.source_ref %}:{{ m.source_ref }}{% endif %}</td>
-                    <td class="text-xs">#{{ m.provider_id }}</td>
-                    <td class="text-xs">#{{ m.prompt_template_id }}</td>
-                    <td class="text-xs">
-                        {{ m.agent_backend }}
-                        {% if m.tools_config %}<span class="badge badge-xs badge-ghost">{{ m.tools_config|length }} tools</span>{% endif %}
-                    </td>
-                    <td class="text-xs">
-                        {% if m.webhook_channel_ids %}{{ m.webhook_channel_ids|length }} channels{% else %}-{% endif %}
-                    </td>
-                    <td class="text-xs">
-                        {% if m.schedule_cron %}<span class="badge badge-info badge-xs font-mono">{{ m.schedule_cron }}</span>{% else %}manual{% endif %}
-                    </td>
-                    <td>{% if m.enabled %}<span class="badge badge-success badge-sm">enabled</span>{% else %}<span class="badge badge-ghost badge-sm">disabled</span>{% endif %}</td>
-                    <td class="flex gap-1">
-                        <button class="btn btn-xs btn-primary" data-run-id="{{ m.id }}" data-run-name="{{ m.name }}" onclick="runModule(this)">Run</button>
-                        <a class="btn btn-xs btn-ghost" href="/ui/tasks?edit={{ m.id }}">Edit</a>
-                        <a class="btn btn-xs btn-ghost" href="/ui/runs?module_id={{ m.id }}">History</a>
-                        <button class="btn btn-xs btn-ghost text-[var(--error)]" onclick="delModule({{ m.id }})">Delete</button>
-                    </td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% if not modules %}<div class="empty-state">No tasks yet. Add an LLM provider and a prompt first.</div>{% endif %}
-    </div>
-</div>
+</details>
 
 <script>
 function toggleCron() {
@@ -288,7 +317,7 @@ async function runModule(btn) {
     const id = btn.dataset.runId;
     const name = btn.dataset.runName || ('#' + id);
     if (!confirm('Run task "' + name + '" now?\nThis will call the LLM and may incur cost.')) return;
-    btn.disabled = true; btn.textContent = 'Running...';
+    btn.disabled = true; btn.textContent = '...';
     const r = await MG.apiFetch(`/api/admin/modules/${id}/run`, {method: 'POST'});
     const d = await r.json().catch(() => ({}));
     btn.disabled = false; btn.textContent = 'Run';
@@ -304,5 +333,7 @@ async function delModule(id) {
     const r = await MG.apiFetch(`/api/admin/modules/${id}`, {method: 'DELETE'});
     if (r.ok) { location.reload(); } else { MG.toast('Delete failed: ' + await MG.errorText(r), 'error'); }
 }
+
+{% if edit_module %}document.getElementById('task-form').scrollIntoView({behavior: 'smooth', block: 'start'});{% endif %}
 </script>
 {% endblock %}
