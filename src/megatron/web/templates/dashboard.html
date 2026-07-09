@@ -1,54 +1,94 @@
 {% extends "base.html" %}
 {% block title %}Overview · Megatron{% endblock %}
 {% block content %}
-<div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">Overview</h2>
-    <p class="text-sm text-[#737373] mt-1">Today's execution and cost metrics. Resets at UTC 00:00.</p>
+<div class="page-head">
+    <div>
+        <div class="crumb"><b>{{ t('Overview') }}</b></div>
+        <h2 class="page-title">{{ t('Pipeline health') }}</h2>
+    </div>
+    <a href="/ui/tasks" class="btn btn-primary btn-sm">{{ t('Run a task') }}</a>
 </div>
+
+<!-- Pipeline strip: Source -> Collect -> Analyze -> Deliver -->
+<div class="pipe mb-8">
+    <div class="pipe-step">
+        <div class="pipe-card">
+            <div class="pipe-k">{{ t('Sources') }}</div>
+            <div class="pipe-v">{{ source_count }}</div>
+            <div class="pipe-meta"><a href="/ui/data/sources" class="link">{{ t('manage') }}</a></div>
+        </div>
+        <span class="pipe-arrow">→</span>
+    </div>
+    <div class="pipe-step">
+        <div class="pipe-card">
+            <div class="pipe-k">{{ t('Collected') }}</div>
+            <div class="pipe-v">{{ "{:,}".format(item_count) }}</div>
+            <div class="pipe-meta"><span id="pipe-items-delta" class="text-secondary">+0</span> {{ t('today') }}</div>
+        </div>
+        <span class="pipe-arrow">→</span>
+    </div>
+    <div class="pipe-step">
+        <div class="pipe-card">
+            <div class="pipe-k">{{ t('Analyzed') }}</div>
+            <div class="pipe-v"><span id="pipe-analyzed">–</span></div>
+            <div class="pipe-meta">{{ t('last') }} · {% if runs %}{{ runs[0].started_at[:16]|replace('T',' ') }}{% else %}{{ t('never') }}{% endif %}</div>
+        </div>
+        <span class="pipe-arrow">→</span>
+    </div>
+    <div class="pipe-step">
+        <div class="pipe-card">
+            <div class="pipe-k">{{ t('Delivery') }}</div>
+            <div class="pipe-v">{{ channels|length }}</div>
+            <div class="pipe-meta">{{ t('channels configured') }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="mb-4 text-sm text-muted">{{ t("Today's execution and cost — resets at UTC 00:00.") }}</div>
 
 <!-- Today's metrics -->
 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
     <div class="metric-card">
-        <div class="metric-label">Runs</div>
+        <div class="metric-label">{{ t('Runs') }}</div>
         <div class="metric-value"><span id="t-total">-</span></div>
-        <div class="metric-desc"><span id="t-success">-</span> success / <span id="t-failed">-</span> failed</div>
+        <div class="metric-desc"><span id="t-success">-</span> {{ t('success') }} / <span id="t-failed">-</span> {{ t('failed') }}</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Success rate</div>
-        <div class="metric-value text-[#22c55e]"><span id="t-rate">-</span>%</div>
+        <div class="metric-label">{{ t('Success rate') }}</div>
+        <div class="metric-value text-[var(--success)]"><span id="t-rate">-</span>%</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Tokens</div>
-        <div class="metric-value text-[#f48120]"><span id="t-tokens">-</span></div>
+        <div class="metric-label">{{ t('Tokens') }}</div>
+        <div class="metric-value text-[var(--accent)]"><span id="t-tokens">-</span></div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Cost</div>
+        <div class="metric-label">{{ t('Cost') }}</div>
         <div class="metric-value">$<span id="t-cost">-</span></div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">New items</div>
-        <div class="metric-value text-[#3b82f6]"><span id="t-items">-</span></div>
-        <div class="metric-desc">collected today</div>
+        <div class="metric-label">{{ t('New items') }}</div>
+        <div class="metric-value text-[var(--info)]"><span id="t-items">-</span></div>
+        <div class="metric-desc">{{ t('collected today') }}</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Duration</div>
+        <div class="metric-label">{{ t('Duration') }}</div>
         <div class="metric-value"><span id="t-duration">-</span>s</div>
     </div>
 </div>
 
 <!-- Cumulative summary -->
-<div class="mb-8 text-sm text-[#737373]">
+<div class="mb-8 text-sm text-muted">
     All time:
-    <span id="a-total" class="text-[#a3a3a3]">-</span> runs ·
-    <span id="a-tokens" class="text-[#a3a3a3]">-</span> tokens ·
-    $<span id="a-cost" class="text-[#a3a3a3]">-</span> ·
-    <span id="a-items" class="text-[#a3a3a3]">-</span> items
+    <span id="a-total" class="text-secondary">-</span> runs ·
+    <span id="a-tokens" class="text-secondary">-</span> tokens ·
+    $<span id="a-cost" class="text-secondary">-</span> ·
+    <span id="a-items" class="text-secondary">-</span> items
 </div>
 
 <!-- 7-day trend -->
 <div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">7-day trend</h3>
+        <h3 class="card-title">{{ t('7-day trend') }}</h3>
         <div style="height: 300px;">
             <canvas id="trendChart"></canvas>
         </div>
@@ -58,27 +98,27 @@
 <!-- Resource counts -->
 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
     <div class="metric-card">
-        <div class="metric-label">LLM providers</div>
-        <div class="metric-value text-[#f48120]">{{ providers|length }}</div>
+        <div class="metric-label">{{ t('Models') }}</div>
+        <div class="metric-value text-[var(--accent)]">{{ providers|length }}</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Tasks</div>
-        <div class="metric-value text-[#a3a3a3]">{{ modules|length }}</div>
+        <div class="metric-label">{{ t('Tasks') }}</div>
+        <div class="metric-value text-secondary">{{ modules|length }}</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Collected items</div>
-        <div class="metric-value text-[#3b82f6]">{{ item_count }}</div>
+        <div class="metric-label">{{ t('Collected items') }}</div>
+        <div class="metric-value text-[var(--info)]">{{ item_count }}</div>
     </div>
     <div class="metric-card">
-        <div class="metric-label">Webhook channels</div>
-        <div class="metric-value text-[#22c55e]">{{ channels|length }}</div>
+        <div class="metric-label">{{ t('Delivery') }}</div>
+        <div class="metric-value text-[var(--success)]">{{ channels|length }}</div>
     </div>
 </div>
 
 <!-- Per-task stats -->
 <div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">Per-task breakdown</h3>
+        <h3 class="card-title">{{ t('Per-task breakdown') }}</h3>
         <div class="overflow-x-auto">
             <table class="table">
                 <thead>
@@ -95,7 +135,7 @@
                     </tr>
                 </thead>
                 <tbody id="per-module-rows">
-                    <tr><td colspan="9" class="text-center text-[#737373] py-6">Loading...</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-6">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -106,8 +146,8 @@
 <div class="card">
     <div class="card-body">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="card-title">Recent runs</h3>
-            <a href="/ui/tasks" class="btn btn-ghost btn-xs">View all</a>
+            <h3 class="card-title">{{ t('Recent runs') }}</h3>
+            <a href="/ui/tasks" class="btn btn-ghost btn-xs">{{ t('View all') }}</a>
         </div>
         {% if runs %}
         <div class="overflow-x-auto">
@@ -138,7 +178,7 @@
                         <td>{{ r.prompt_tokens + r.completion_tokens }}</td>
                         <td>${{ "%.4f"|format(r.cost_usd) }}</td>
                         <td>{{ r.duration_sec }}s</td>
-                        <td class="text-xs text-[#a3a3a3]">{{ r.started_at[:19]|replace('T',' ') }}</td>
+                        <td class="text-xs text-secondary">{{ r.started_at[:19]|replace('T',' ') }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>
@@ -150,8 +190,7 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>window.Chart||document.write('<script src="https://unpkg.com/chart.js@4"><\/script>')</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
 fetch('/api/admin/stats/overview')
     .then(r => r.json())
@@ -169,6 +208,10 @@ fetch('/api/admin/stats/overview')
         document.getElementById('a-tokens').textContent = a.tokens.toLocaleString();
         document.getElementById('a-cost').textContent = a.cost_usd.toFixed(4);
         document.getElementById('a-items').textContent = (a.items || 0).toLocaleString();
+        const pa = document.getElementById('pipe-analyzed');
+        if (pa) pa.textContent = a.total.toLocaleString();
+        const pd = document.getElementById('pipe-items-delta');
+        if (pd) pd.textContent = '+' + (t.new_items || 0).toLocaleString();
     })
     .catch(() => {
         document.getElementById('t-total').textContent = '0';
@@ -183,7 +226,7 @@ fetch('/api/admin/stats/trend?days=7')
         if (!hasData) {
             const el = document.getElementById('trendChart');
             el.style.display = 'none';
-            el.insertAdjacentHTML('afterend', '<div class="text-xs text-[#737373] text-center py-24">暂无运行数据，点击 <a href="/ui/tasks" class="link">Tasks</a> 执行任务后生成趋势图</div>');
+            el.insertAdjacentHTML('afterend', '<div class="text-xs text-muted text-center py-24">No run data yet. Execute a task from <a href="/ui/tasks" class="link">Tasks</a> to build the trend chart.</div>');
             return;
         }
         const ctx = document.getElementById('trendChart');
@@ -196,16 +239,16 @@ fetch('/api/admin/stats/trend?days=7')
                         type: 'bar',
                         label: 'Runs',
                         data: data.map(d => d.runs),
-                        backgroundColor: 'rgba(244, 129, 32, 0.7)',
-                        borderColor: 'rgba(244, 129, 32, 1)',
+                        backgroundColor: 'rgba(246, 130, 31, 0.75)',
+                        borderColor: '#f6821f',
                         yAxisID: 'y1',
                     },
                     {
                         type: 'line',
                         label: 'Tokens',
                         data: data.map(d => d.tokens),
-                        borderColor: 'rgba(163, 163, 163, 0.9)',
-                        backgroundColor: 'rgba(163, 163, 163, 0.1)',
+                        borderColor: 'rgba(184, 178, 168, 0.9)',
+                        backgroundColor: 'rgba(184, 178, 168, 0.1)',
                         yAxisID: 'y2',
                         tension: 0.3,
                     },
@@ -213,8 +256,8 @@ fetch('/api/admin/stats/trend?days=7')
                         type: 'line',
                         label: 'Cost (m$)',
                         data: data.map(d => d.cost_usd * 1000),
-                        borderColor: 'rgba(34, 197, 94, 0.9)',
-                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        borderColor: 'rgba(53, 196, 122, 0.9)',
+                        backgroundColor: 'rgba(53, 196, 122, 0.1)',
                         yAxisID: 'y2',
                         tension: 0.3,
                     }
@@ -224,7 +267,7 @@ fetch('/api/admin/stats/trend?days=7')
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'top', labels: { color: '#a3a3a3', font: { size: 11 } } },
+                    legend: { position: 'top', labels: { color: '#8b857a', font: { size: 11 } } },
                     tooltip: {
                         callbacks: {
                             label: function(ctx) {
@@ -235,21 +278,21 @@ fetch('/api/admin/stats/trend?days=7')
                     }
                 },
                 scales: {
-                    x: { ticks: { color: '#a3a3a3' }, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+                    x: { ticks: { color: '#8b857a' }, grid: { color: 'rgba(139, 133, 122, 0.12)' } },
                     y1: {
                         type: 'linear',
                         position: 'left',
                         beginAtZero: true,
-                        title: { display: true, text: 'Runs', color: '#a3a3a3' },
-                        ticks: { color: '#a3a3a3', precision: 0 },
-                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        title: { display: true, text: 'Runs', color: '#8b857a' },
+                        ticks: { color: '#8b857a', precision: 0 },
+                        grid: { color: 'rgba(139, 133, 122, 0.12)' },
                     },
                     y2: {
                         type: 'linear',
                         position: 'right',
                         beginAtZero: true,
-                        title: { display: true, text: 'Tokens / Cost (m$)', color: '#a3a3a3' },
-                        ticks: { color: '#a3a3a3' },
+                        title: { display: true, text: 'Tokens / Cost (m$)', color: '#8b857a' },
+                        ticks: { color: '#8b857a' },
                         grid: { drawOnChartArea: false },
                     }
                 }
@@ -265,26 +308,27 @@ fetch('/api/admin/stats/per-module')
     .then(rows => {
         const tbody = document.getElementById('per-module-rows');
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-[#737373] py-6">No run records</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-6">No run records</td></tr>';
             return;
         }
+        const esc = MG.escapeHtml;
         tbody.innerHTML = rows.map(r => {
             const lastRun = r.last_run ? r.last_run.slice(0,19).replace('T',' ') : '-';
             return `<tr>
-                <td><a href="/ui/tasks?module_id=${r.module_id}" class="link font-mono">${r.module_name}</a></td>
-                <td>${r.runs}</td>
-                <td>${r.success_rate}%</td>
-                <td>${r.tokens.toLocaleString()}</td>
-                <td>$${r.cost_usd.toFixed(4)}</td>
-                <td>${r.duration_sec.toFixed(1)}s</td>
-                <td>${r.avg_duration_sec.toFixed(1)}s</td>
-                <td>${r.avg_tokens.toLocaleString()}</td>
-                <td class="text-xs text-[#a3a3a3]">${lastRun}</td>
+                <td><a href="/ui/tasks?module_id=${encodeURIComponent(r.module_id)}" class="link font-mono">${esc(r.module_name)}</a></td>
+                <td>${esc(r.runs)}</td>
+                <td>${esc(r.success_rate)}%</td>
+                <td>${esc(r.tokens.toLocaleString())}</td>
+                <td>$${esc(r.cost_usd.toFixed(4))}</td>
+                <td>${esc(r.duration_sec.toFixed(1))}s</td>
+                <td>${esc(r.avg_duration_sec.toFixed(1))}s</td>
+                <td>${esc(r.avg_tokens.toLocaleString())}</td>
+                <td class="text-xs text-secondary">${esc(lastRun)}</td>
             </tr>`;
         }).join('');
     })
     .catch(() => {
-        document.getElementById('per-module-rows').innerHTML = '<tr><td colspan="9" class="text-center text-[#ef4444] py-6">Failed to load</td></tr>';
+        document.getElementById('per-module-rows').innerHTML = '<tr><td colspan="9" class="text-center text-[var(--error)] py-6">Failed to load</td></tr>';
     });
 </script>
 {% endblock %}

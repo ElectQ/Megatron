@@ -2,8 +2,8 @@
 {% block title %}Schedules · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">Schedules</h2>
-    <p class="text-sm text-[#737373] mt-1">Active cron schedules and module dispatch status.</p>
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Schedules') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('Active cron schedules and module dispatch status.') }}</p>
 </div>
 
 <div class="card mb-8">
@@ -28,7 +28,7 @@
                     <td class="font-mono text-xs">{{ s.id }}</td>
                     <td class="text-sm">{{ s.name }}</td>
                     <td class="font-mono text-xs">{{ s.trigger }}</td>
-                    <td class="text-xs text-[#a3a3a3]">{{ s.next_run[:19]|replace('T',' ') if s.next_run else '-' }}</td>
+                    <td class="text-xs text-secondary">{{ s.next_run[:19]|replace('T',' ') if s.next_run else '-' }}</td>
                 </tr>
                 {% endfor %}
                 </tbody>
@@ -56,8 +56,8 @@
                 <tr>
                     <td class="font-mono text-sm">{{ m.name }}</td>
                     <td>{% if m.enabled %}<span class="badge badge-success badge-sm">enabled</span>{% else %}<span class="badge badge-ghost badge-sm">disabled</span>{% endif %}</td>
-                    <td class="font-mono text-xs">{{ m.schedule_cron or '-' }}</td>
-                    <td class="text-xs text-[#a3a3a3]">
+                    <td class="text-xs whitespace-nowrap">{% if m.schedule_cron %}<span data-cron="{{ m.schedule_cron }}">{{ m.schedule_cron }}</span>{% else %}-{% endif %}</td>
+                    <td class="text-xs text-secondary">
                         {% if not m.enabled %}Module disabled
                         {% elif not m.schedule_cron %}No cron set
                         {% else %}Scheduled{% endif %}
@@ -78,14 +78,15 @@
 </div>
 
 <script>
-const token = '{{ request.cookies.get("admin_token") or "" }}';
-const headers = {'Authorization': 'Bearer ' + token};
-
 async function reloadSchedules() {
-    const r = await fetch('/api/admin/schedules/reload', {method: 'POST', headers});
-    const d = await r.json();
-    alert('Reloaded ' + d.scheduled_modules + ' scheduled modules');
-    location.reload();
+    const r = await MG.apiFetch('/api/admin/schedules/reload', {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) {
+        MG.toast('Reloaded ' + d.scheduled_modules + ' scheduled modules', 'success');
+        setTimeout(() => location.reload(), 800);
+    } else {
+        MG.toast('Reload failed: ' + await MG.errorText(r), 'error');
+    }
 }
 </script>
 {% endblock %}

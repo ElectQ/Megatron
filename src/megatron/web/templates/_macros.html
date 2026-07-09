@@ -1,0 +1,22 @@
+{# Shared presentation macros. Import with:
+   {% import "_macros.html" as ui %} #}
+
+{# Run/generic status → colored badge. Single source of truth for the
+   status→badge mapping that was duplicated across many templates. #}
+{% macro status_badge(status, size='sm') -%}
+  {%- set s = status or 'unknown' -%}
+  {%- if s == 'completed' or s == 'enabled' or s == 'connected' or s == 'active' -%}
+    <span class="badge badge-success badge-{{ size }}">{{ s }}</span>
+  {%- elif s == 'failed' or s == 'error' -%}
+    <span class="badge badge-error badge-{{ size }}">{{ s }}</span>
+  {%- elif s == 'running' or s == 'queued' -%}
+    <span class="badge badge-info badge-{{ size }}">{{ s }}</span>
+  {%- else -%}
+    <span class="badge badge-ghost badge-{{ size }}">{{ s }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{# ISO timestamp → "YYYY-MM-DD HH:MM:SS", tolerant of empty values. #}
+{% macro ts(value) -%}
+  {{- (value[:19] | replace('T', ' ')) if value else '-' -}}
+{%- endmacro %}

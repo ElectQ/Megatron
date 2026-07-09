@@ -1,21 +1,23 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="{{ 'zh-CN' if lang == 'zh' else 'en' }}" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Megatron{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.10"></script>
     <link href="/static/theme.css" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
+    <script defer src="/static/vendor/purify.min.js"></script>
+    <script defer src="/static/app.js"></script>
 </head>
-<body class="min-h-screen bg-[#0d0d0d]">
+<body class="min-h-screen" style="background-color: var(--bg-body);">
     <div class="drawer lg:drawer-open">
         <input id="nav" type="checkbox" class="drawer-toggle" />
         <div class="drawer-content flex flex-col">
-            <div class="navbar bg-[#171717] border-b border-white/[0.08] lg:hidden">
-                <label for="nav" class="mobile-nav-toggle btn btn-square btn-ghost">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            <div class="navbar border-b lg:hidden" style="background-color: var(--bg-surface); border-color: var(--border);">
+                <label for="nav" class="mobile-nav-toggle btn btn-square btn-ghost" aria-label="Toggle navigation">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
                 </label>
                 <span class="text-base font-medium px-2">Megatron</span>
             </div>
@@ -25,54 +27,77 @@
         </div>
         <div class="drawer-side">
             <label for="nav" class="drawer-overlay"></label>
-            <aside class="min-h-full w-60 bg-[#171717] border-r border-white/[0.08] flex flex-col">
-                <div class="p-4 border-b border-white/[0.08]">
-                    <h1 class="text-lg font-semibold tracking-tight">Megatron</h1>
-                    <p class="text-xs text-[#737373] mt-0.5">LLM Analysis Hub</p>
+            <aside class="min-h-full w-60 flex flex-col border-r" style="background-color: var(--bg-surface); border-color: var(--border);">
+                <div class="p-4 border-b flex items-center gap-2.5" style="border-color: var(--border);">
+                    <span class="grid place-items-center font-extrabold text-white" style="width:28px;height:28px;border-radius:7px;background:var(--accent);">M</span>
+                    <div>
+                        <h1 class="text-base font-semibold tracking-tight leading-tight">Megatron</h1>
+                        <p class="text-xs text-muted">{{ t('LLM Analysis Hub') }}</p>
+                    </div>
                 </div>
-                <nav class="flex-1 p-3 space-y-0.5">
-                    <a href="/ui/dashboard" class="nav-link {% if active=='dashboard' %}active{% endif %}">
-                        <span>Overview</span>
+
+                {%- set nav = [
+                    ('overview', [
+                        ('/ui/dashboard', 'Overview', 'dashboard', 'grid')
+                    ]),
+                    ('Data', [
+                        ('/ui/data/sources', 'Sources', 'data_sources', 'db'),
+                        ('/ui/data/collected', 'Collected', 'data_collected', 'rows'),
+                        ('/ui/data/analyzed', 'Analyzed', 'data_analyzed', 'doc')
+                    ]),
+                    ('Analysis', [
+                        ('/ui/tasks', 'Tasks', 'tasks', 'check'),
+                        ('/ui/schedules', 'Schedules', 'schedules', 'clock')
+                    ]),
+                    ('Configuration', [
+                        ('/ui/prompts', 'Prompts', 'prompts', 'lines'),
+                        ('/ui/providers', 'Models', 'providers', 'star'),
+                        ('/ui/channels', 'Delivery', 'channels', 'send')
+                    ])
+                ] -%}
+
+                {%- macro icon(name) -%}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                {%- if name == 'grid' -%}<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                {%- elif name == 'db' -%}<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/>
+                {%- elif name == 'rows' -%}<path d="M4 6h16M4 12h16M4 18h10" stroke-linecap="round"/>
+                {%- elif name == 'doc' -%}<path d="M5 3h9l5 5v13H5z"/><path d="M8 12h8M8 16h5" stroke-linecap="round"/>
+                {%- elif name == 'check' -%}<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>
+                {%- elif name == 'clock' -%}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round"/>
+                {%- elif name == 'lines' -%}<rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/>
+                {%- elif name == 'star' -%}<path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.5-.8z"/>
+                {%- elif name == 'send' -%}<path d="M4 12a8 8 0 0 1 8-8"/><path d="M4 12h6M12 20a8 8 0 0 0 8-8" stroke-linecap="round"/><circle cx="12" cy="12" r="2"/>
+                {%- endif -%}
+                </svg>
+                {%- endmacro -%}
+
+                <nav class="flex-1 p-2.5 overflow-y-auto">
+                    {%- for section, items in nav %}
+                    {%- if section != 'overview' %}<div class="nav-section">{{ t(section) }}</div>{% endif %}
+                    {%- for href, label, key, ic in items %}
+                    <a href="{{ href }}" class="nav-link {% if active == key %}active{% endif %}"
+                       {% if active == key %}aria-current="page"{% endif %}>
+                        {{ icon(ic) }}<span>{{ t(label) }}</span>
                     </a>
-                    <a href="/ui/tasks" class="nav-link {% if active=='tasks' %}active{% endif %}">
-                        <span>Tasks</span>
-                    </a>
-                    <div class="pt-2 pb-1">
-                        <a href="/ui/data/sources" class="nav-link {% if active and active.startswith('data_') %}active{% endif %}">
-                            <span>Integrations</span>
-                        </a>
-                        <div class="ml-5 mt-0.5 space-y-0.5 border-l border-white/[0.08] pl-2">
-                            <a href="/ui/data/sources" class="nav-link {% if active=='data_sources' %}active{% endif %}">
-                                <span class="text-xs">MCP Sources</span>
-                            </a>
-                            <a href="/ui/data/collected" class="nav-link {% if active=='data_collected' %}active{% endif %}">
-                                <span class="text-xs">Collected</span>
-                            </a>
-                            <a href="/ui/data/analyzed" class="nav-link {% if active=='data_analyzed' %}active{% endif %}">
-                                <span class="text-xs">Analyzed</span>
-                            </a>
-                        </div>
-                    </div>
-                    <a href="/ui/prompts" class="nav-link {% if active=='prompts' %}active{% endif %}">
-                        <span>Prompts</span>
-                    </a>
-                    <a href="/ui/providers" class="nav-link {% if active=='providers' %}active{% endif %}">
-                        <span>LLM Providers</span>
-                    </a>
-                    <a href="/ui/channels" class="nav-link {% if active=='channels' %}active{% endif %}">
-                        <span>Webhooks</span>
-                    </a>
+                    {%- endfor %}
+                    {%- endfor %}
                 </nav>
-                <div class="p-4 border-t border-white/[0.08]">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs text-[#737373]">
-                            {{ current_user or 'Guest' }}
-                        </span>
-                        <a href="/ui/logout" class="text-xs text-[#a3a3a3] hover:text-[#6366f1]">Sign out</a>
+
+                <div class="p-4 border-t" style="border-color: var(--border);">
+                    <div class="flex items-center gap-2 text-xs mb-3">
+                        {%- for code, label in langs.items() %}
+                        {%- if code == lang %}<span class="text-secondary font-medium">{{ label }}</span>
+                        {%- else %}<a href="/ui/lang/{{ code }}" class="text-muted link">{{ label }}</a>{% endif %}
+                        {%- if not loop.last %}<span class="text-muted">·</span>{% endif %}
+                        {%- endfor %}
                     </div>
-                    <div class="flex items-center gap-2 text-xs text-[#737373]">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs text-muted">{{ current_user or t('Guest') }}</span>
+                        <a href="/ui/logout" class="text-xs text-secondary link">{{ t('Sign out') }}</a>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-muted">
                         <span class="status-dot success"></span>
-                        <span>online</span>
+                        <span>{{ t('online') }}</span>
                         <span class="ml-auto">v0.2.0</span>
                     </div>
                 </div>

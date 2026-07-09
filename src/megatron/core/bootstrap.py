@@ -252,23 +252,39 @@ def _persist_or_generate(env_var: str, filename: str) -> None:
 
 async def _ensure_admin_user(session) -> None:
     """Create default admin user if none exists."""
+    from ..config import settings
     from .engine_models import User
-    from .security import hash_password
+    from .security import generate_token, hash_password
 
     result = await session.execute(select(User).limit(1))
     if result.scalar_one_or_none():
         return
 
-    password = os.getenv("MEGATRON_ADMIN_PASSWORD") or "admin"
+    password = settings.admin_password
+    generated = False
+    if not password:
+        # No configured password: mint a strong random one instead of the old
+        # hardcoded "admin", and log it once so the operator can sign in.
+        password = generate_token(18)
+        generated = True
+
     user = User(
         username="admin",
-        display_name="管理员",
+        display_name="Administrator",
         password_hash=hash_password(password),
         is_active=True,
     )
     session.add(user)
     await session.commit()
-    logger.info("bootstrap.admin_user_created")
+    if generated:
+        logger.warning(
+            "bootstrap.admin_user_created_with_generated_password",
+            username="admin",
+            password=password,
+            hint="Set MEGATRON_ADMIN_PASSWORD to control this; change it after first login.",
+        )
+    else:
+        logger.info("bootstrap.admin_user_created", username="admin")
 
 
 async def _ensure_prompt_template(session) -> None:
@@ -297,6 +313,7 @@ async def _ensure_prompt_template(session) -> None:
 async def _ensure_llm_provider(session) -> None:
     """Create DeepSeek provider if API key is provided and no provider exists."""
     from .engine_models import LLMProvider
+    from .security import encrypt_secret
 
     api_key = os.getenv("MEGATRON_DEEPSEEK_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
@@ -311,7 +328,7 @@ async def _ensure_llm_provider(session) -> None:
         name="deepseek",
         model="deepseek/deepseek-chat",
         api_base="https://api.deepseek.com/v1",
-        api_key=api_key,
+        api_key=encrypt_secret(api_key),
         temperature=0.3,
         max_tokens=32768,
         enabled=True,

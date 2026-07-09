@@ -32,6 +32,8 @@ class LLMProvider:
         self.api_base = config.get("api_base", "") or None
         self.temperature = float(config.get("temperature", 0.7))
         self.max_tokens = int(config.get("max_tokens", 4096))
+        # Cap each call so a hung upstream can't stall a run indefinitely.
+        self.timeout = float(config.get("timeout", 120))
 
     async def chat(
         self,
@@ -47,6 +49,7 @@ class LLMProvider:
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "api_key": self._api_key,
+            "timeout": self.timeout,
         }
         if self.api_base:
             kwargs["api_base"] = self.api_base

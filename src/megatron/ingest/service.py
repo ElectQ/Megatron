@@ -2,9 +2,9 @@ from __future__ import annotations
 
 
 from sqlalchemy import select
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.db import insert_ignore
 from ..core.logging import get_logger
 from ..core.models import IngestLog, ItemRecord
 from ..core.types import Item
@@ -27,39 +27,41 @@ class IngestService:
         if not items:
             return 0, 0
 
-        ingested = 0
-        duplicated = 0
         source = items[0].source if items else ""
         source_ref = items[0].source_ref if items else ""
 
-        for item in items:
-            stmt = sqlite_insert(ItemRecord).values(
-                item_id=item.id,
-                source=item.source,
-                source_ref=item.source_ref,
-                title=item.title,
-                content=item.content,
-                url=item.url,
-                author=item.author,
-                author_name=item.author_name,
-                language=item.language,
-                published_at=item.published_at,
-                collected_at=item.collected_at,
-                collect_date=item.collect_date,
-                is_retweet=item.is_retweet,
-                is_quote=item.is_quote,
-                tags=item.tags,
-                links=item.links,
-                media=item.media,
-                metrics=item.metrics,
-                raw=item.raw,
-            )
-            stmt = stmt.on_conflict_do_nothing(index_elements=["source", "item_id"])
-            result = await self.session.execute(stmt)
-            if result.rowcount > 0:
-                ingested += 1
-            else:
-                duplicated += 1
+        rows = [
+            {
+                "item_id": item.id,
+                "source": item.source,
+                "source_ref": item.source_ref,
+                "title": item.title,
+                "content": item.content,
+                "url": item.url,
+                "author": item.author,
+                "author_name": item.author_name,
+                "language": item.language,
+                "published_at": item.published_at,
+                "collected_at": item.collected_at,
+                "collect_date": item.collect_date,
+                "is_retweet": item.is_retweet,
+                "is_quote": item.is_quote,
+                "tags": item.tags,
+                "links": item.links,
+                "media": item.media,
+                "metrics": item.metrics,
+                "raw": item.raw,
+            }
+            for item in items
+        ]
+
+        # One multi-row upsert instead of a round-trip per item; rowcount is the
+        # number actually inserted, so the rest were duplicates.
+        result = await self.session.execute(
+            insert_ignore(ItemRecord, rows, ["source", "item_id"])
+        )
+        ingested = result.rowcount if result.rowcount and result.rowcount > 0 else 0
+        duplicated = len(items) - ingested
 
         self.session.add(
             IngestLog(

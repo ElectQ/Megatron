@@ -1,35 +1,35 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="{{ 'zh-CN' if lang == 'zh' else 'en' }}" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Megatron · Sign in</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.10"></script>
     <link href="/static/theme.css" rel="stylesheet">
 </head>
-<body class="min-h-screen flex items-center justify-center bg-[#0d0d0d]">
+<body class="min-h-screen flex items-center justify-center bg-[var(--bg-body)]">
     <div class="card w-96">
         <div class="card-body">
             <div class="text-center mb-6">
                 <h2 class="text-2xl font-semibold tracking-tight">Megatron</h2>
-                <p class="text-xs text-[#737373] mt-1">LLM Analysis Hub</p>
+                <p class="text-xs text-muted mt-1">{{ t('LLM Analysis Hub') }}</p>
             </div>
             {% if request.query_params.get('error') %}
             <div class="alert alert-error py-2 mb-4">
-                <span class="text-sm">Invalid username or password</span>
+                <span class="text-sm">{{ t('Invalid username or password') }}</span>
             </div>
             {% endif %}
             <form method="post" action="/ui/login">
                 <label class="form-control mb-3">
-                    <span class="label-text mb-1 text-[#a3a3a3] text-sm">Username</span>
+                    <span class="label-text mb-1 text-secondary text-sm">{{ t('Username') }}</span>
                     <input type="text" name="username" class="input input-bordered w-full" required autofocus>
                 </label>
                 <label class="form-control mb-5">
-                    <span class="label-text mb-1 text-[#a3a3a3] text-sm">Password</span>
+                    <span class="label-text mb-1 text-secondary text-sm">{{ t('Password') }}</span>
                     <input type="password" name="password" class="input input-bordered w-full" required>
                 </label>
-                <button type="submit" class="btn btn-primary w-full">Sign in</button>
+                <button type="submit" class="btn btn-primary w-full">{{ t('Sign in') }}</button>
             </form>
         </div>
     </div>

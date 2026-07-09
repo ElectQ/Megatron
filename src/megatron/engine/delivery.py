@@ -77,8 +77,15 @@ class DeliveryService:
     async def _send_one(self, ch: WebhookChannel, result: AnalysisResult, run_id: int) -> dict:
         if ch.kind not in channel_registry:
             return {"ok": False, "error": f"Unknown channel kind '{ch.kind}'"}
-        channel = channel_registry.create(ch.kind, **decrypt_config(ch.config or {}))
-        return await channel.send(result)
+        # Build + send inside one guard so a single bad channel (unparseable
+        # config, network error) is logged as a failed delivery rather than
+        # bubbling up and rolling back the whole batch of DeliveryLog rows.
+        try:
+            channel = channel_registry.create(ch.kind, **decrypt_config(ch.config or {}))
+            return await channel.send(result)
+        except Exception as e:
+            logger.error("delivery.send_failed", channel=ch.name, kind=ch.kind, error=str(e))
+            return {"ok": False, "error": str(e)[:500]}
 
 
 __all__ = ["DeliveryService"]

@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block title %}LLM Providers · Megatron{% endblock %}
+{% block title %}Models · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">LLM Providers</h2>
-    <p class="text-sm text-[#737373] mt-1">Model and API configurations accessed by analysis tasks.</p>
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Models') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('LLM providers and API keys used by analysis tasks.') }}</p>
 </div>
 
 <div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">Add provider</h3>
+        <h3 class="card-title">{{ t('Add provider') }}</h3>
         <form id="add-provider" class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input name="name" placeholder="Name (e.g. deepseek)" class="input input-bordered" required>
             <input name="model" placeholder="Model (e.g. deepseek/deepseek-chat)" class="input input-bordered" required>
@@ -16,7 +16,9 @@
             <input name="api_key" type="password" placeholder="API key" class="input input-bordered" required>
             <input name="temperature" type="number" step="0.1" value="0.7" class="input input-bordered">
             <input name="max_tokens" type="number" value="4096" class="input input-bordered">
-            <button type="submit" class="btn btn-primary md:col-span-2">Add</button>
+            <div class="md:col-span-2 flex justify-end">
+                <button type="submit" class="btn btn-primary btn-sm">{{ t('Add provider') }}</button>
+            </div>
         </form>
         <div id="add-result" class="mt-2"></div>
     </div>
@@ -47,7 +49,7 @@
                     <td>{% if p.enabled %}<span class="badge badge-success badge-sm">enabled</span>{% else %}<span class="badge badge-ghost badge-sm">disabled</span>{% endif %}</td>
                     <td class="flex gap-1">
                         <button class="btn btn-xs btn-ghost" onclick="testProvider({{ p.id }})">Test</button>
-                        <button class="btn btn-xs btn-ghost text-[#ef4444]" onclick="delProvider({{ p.id }})">Delete</button>
+                        <button class="btn btn-xs btn-ghost text-[var(--error)]" onclick="delProvider({{ p.id }})">Delete</button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -59,28 +61,25 @@
 </div>
 
 <script>
-const token = '{{ request.cookies.get("admin_token") or "" }}';
-const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
-
 document.getElementById('add-provider').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const body = {};
     fd.forEach((v, k) => { if (k === 'temperature' || k === 'max_tokens') body[k] = parseFloat(v); else body[k] = v; });
     body.enabled = true;
-    const r = await fetch('/api/admin/providers', {method: 'POST', headers, body: JSON.stringify(body)});
-    if (r.ok) { location.reload(); } else { document.getElementById('add-result').innerHTML = '<div class="alert alert-error py-2"><span class="text-sm">'+ (await r.text()) +'</span></div>'; }
+    const r = await MG.apiSend('/api/admin/providers', 'POST', body);
+    if (r.ok) { location.reload(); } else { MG.showError('add-result', await MG.errorText(r)); }
 });
 
 async function testProvider(id) {
-    const r = await fetch(`/api/admin/providers/${id}/test`, {method: 'POST', headers});
-    const d = await r.json();
-    alert(d.ok ? 'Connected: ' + d.reply : 'Failed: ' + d.error);
+    const r = await MG.apiFetch(`/api/admin/providers/${id}/test`, {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    MG.toast(d.ok ? 'Connected: ' + d.reply : 'Failed: ' + (d.error || 'error'), d.ok ? 'success' : 'error');
 }
 async function delProvider(id) {
     if (!confirm('Delete this provider?')) return;
-    await fetch(`/api/admin/providers/${id}`, {method: 'DELETE', headers});
-    location.reload();
+    const r = await MG.apiFetch(`/api/admin/providers/${id}`, {method: 'DELETE'});
+    if (r.ok) { location.reload(); } else { MG.toast('Delete failed: ' + await MG.errorText(r), 'error'); }
 }
 </script>
 {% endblock %}

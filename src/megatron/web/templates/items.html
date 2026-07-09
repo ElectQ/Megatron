@@ -2,23 +2,23 @@
 {% block title %}Collected Data · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">Collected Data</h2>
-    <p class="text-sm text-[#737373] mt-1">Raw items ingested from configured sources.</p>
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Collected Data') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('Raw items ingested from configured sources.') }}</p>
 </div>
 
 <form method="get" action="/ui/data/collected" class="flex flex-wrap gap-2 mb-6">
     <input type="text" name="author" value="{{ filters.author or '' }}" placeholder="@author" class="input input-bordered input-sm w-40">
     <input type="text" name="keyword" value="{{ filters.keyword or '' }}" placeholder="Keyword" class="input input-bordered input-sm w-48">
-    <input type="date" name="collect_date" value="{{ filters.collect_date or '' }}" class="input input-bordered input-sm w-40">
-    <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-    <a href="/ui/data/collected" class="btn btn-ghost btn-sm">Clear</a>
+    <div class="mg-date w-40" data-name="collect_date" data-value="{{ filters.collect_date or '' }}" data-label="Filter by date"></div>
+    <button type="submit" class="btn btn-primary btn-sm">{{ t('Filter') }}</button>
+    <a href="/ui/data/collected" class="btn btn-ghost btn-sm">{{ t('Clear') }}</a>
 </form>
 
 <div class="card">
     <div class="card-body">
         <div class="flex items-center justify-between mb-4">
             <h3 class="card-title">Items</h3>
-            <span class="text-sm text-[#737373]">{{ page.total }} total · page {{ page.page }}/{{ total_pages }}</span>
+            <span class="text-sm text-muted">{{ page.total }} total · page {{ page.page }}/{{ total_pages }}</span>
         </div>
         <div class="overflow-x-auto">
             <table class="table">
@@ -37,10 +37,10 @@
                 <tbody>
                 {% for it in page['items'] %}
                 <tr class="hover">
-                    <td class="text-xs text-[#737373]">{{ (page.page - 1) * page.page_size + loop.index }}</td>
+                    <td class="text-xs text-muted">{{ (page.page - 1) * page.page_size + loop.index }}</td>
                     <td>
                         {% if it.collect_date %}
-                        <span class="badge badge-sm badge-info font-mono">{{ it.collect_date }}</span>
+                        <span class="font-mono text-xs whitespace-nowrap text-secondary">{{ it.collect_date }}</span>
                         {% endif %}
                     </td>
                     <td class="font-mono text-xs">@{{ it.author }}</td>
@@ -49,14 +49,14 @@
                         {% for tag in it.tags[:3] %}
                         <span class="badge badge-xs badge-ghost">{{ tag }}</span>
                         {% endfor %}
-                        {% if it.tags|length > 3 %}<span class="text-xs text-[#737373]">+{{ it.tags|length - 3 }}</span>{% endif %}
+                        {% if it.tags|length > 3 %}<span class="text-xs text-muted">+{{ it.tags|length - 3 }}</span>{% endif %}
                     </td>
-                    <td class="text-xs whitespace-nowrap text-[#a3a3a3]">
+                    <td class="text-xs whitespace-nowrap text-secondary">
                         {{ it.metrics.like_count }} likes · {{ it.metrics.retweet_count }} RT · {{ it.metrics.reply_count }} replies
                     </td>
-                    <td class="text-xs text-[#a3a3a3]">{{ it.published_at[:10] }}</td>
+                    <td class="text-xs text-secondary">{{ it.published_at[:10] }}</td>
                     <td>
-                        {% if it.url %}<a href="{{ it.url }}" target="_blank" class="link text-xs">open</a>{% endif %}
+                        {% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener noreferrer" class="link text-xs">open</a>{% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -69,7 +69,7 @@
             {% if page.page > 1 %}
             <a href="?{{ prev_page }}" class="btn btn-sm btn-ghost">Previous</a>
             {% endif %}
-            <span class="text-sm text-[#737373]">{{ page.page }} / {{ total_pages }}</span>
+            <span class="text-sm text-muted">{{ page.page }} / {{ total_pages }}</span>
             {% if page.page < total_pages %}
             <a href="?{{ next_page }}" class="btn btn-sm btn-ghost">Next</a>
             {% endif %}

@@ -2,23 +2,40 @@
 {% block title %}Integrations · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">Integrations</h2>
-    <p class="text-sm text-[#737373] mt-1">All data sources connect via MCP protocol. Add an MCP server to start ingesting data.</p>
+    <div class="crumb"><b>{{ t('Data') }}</b> › {{ t('Sources') }}</div>
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Sources') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('All data sources connect via the MCP protocol. Add an MCP server to start ingesting data.') }}</p>
 </div>
 
 <!-- Add MCP Server -->
 <div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">Add MCP Server</h3>
+        <h3 class="card-title">{{ t('Add MCP Server') }}</h3>
         <form id="add-mcp-server" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input name="name" placeholder="Server name (e.g. soundwave-twitter)" class="input input-bordered" required>
-            <input name="server_url" placeholder="MCP Server URL (e.g. https://api.soundwave.dev/mcp)" class="input input-bordered" required>
-            <select name="transport" class="select select-bordered">
-                <option value="sse">SSE (Server-Sent Events)</option>
-                <option value="stdio">stdio (Local/Container)</option>
-            </select>
-            <input name="resource_filter" placeholder="Resource filter (optional, e.g. tweets/*)" class="input input-bordered">
-            <button type="submit" class="btn btn-primary md:col-span-2">Connect MCP Server</button>
+            <label class="form-control">
+                <span class="label-text text-xs text-muted mb-1">{{ t('Server name') }}</span>
+                <input name="name" placeholder="soundwave-twitter" class="input input-bordered w-full" maxlength="32" required>
+            </label>
+            <label class="form-control">
+                <span class="label-text text-xs text-muted mb-1">{{ t('Transport') }}</span>
+                <select name="transport" class="select select-bordered w-full">
+                    <option value="sse">{{ t('SSE (remote endpoint)') }}</option>
+                    <option value="stdio">{{ t('stdio (local command)') }}</option>
+                </select>
+            </label>
+            <label class="form-control md:col-span-2">
+                <span class="label-text text-xs text-muted mb-1" data-endpoint-label>{{ t('MCP Server URL') }}</span>
+                <input name="server_url" class="input input-bordered w-full font-mono text-sm" required>
+                <span class="label-text-alt text-xs text-muted mt-1" data-endpoint-hint></span>
+            </label>
+            <label class="form-control md:col-span-2">
+                <span class="label-text text-xs text-muted mb-1">{{ t('Resource filter (optional)') }}</span>
+                <input name="resource_filter" placeholder="tweets/*" class="input input-bordered w-full">
+            </label>
+            <div class="md:col-span-2 flex justify-end gap-2">
+                <button type="button" id="test-conn" class="btn btn-ghost btn-sm">{{ t('Test connection') }}</button>
+                <button type="submit" class="btn btn-primary btn-sm">{{ t('Connect MCP Server') }}</button>
+            </div>
         </form>
         <div id="add-result" class="mt-2"></div>
     </div>
@@ -45,7 +62,7 @@
                 {% for server in mcp_servers %}
                     <tr>
                         <td class="font-mono text-sm">{{ server.name }}</td>
-                        <td class="text-xs text-[#737373]">{{ server.server_url }}</td>
+                        <td class="text-xs text-muted">{{ server.server_url }}</td>
                         <td><span class="badge badge-ghost badge-sm">{{ server.transport }}</span></td>
                         <td>
                             {% if server.status == 'connected' %}
@@ -56,14 +73,14 @@
                                 <span class="badge badge-ghost badge-sm">disconnected</span>
                             {% endif %}
                         </td>
-                        <td class="text-xs text-[#737373]">
+                        <td class="text-xs text-muted">
                             {% if server.capabilities %}
                                 {{ server.capabilities|length }} resources
                             {% else %}
                                 -
                             {% endif %}
                         </td>
-                        <td class="text-xs text-[#737373]">
+                        <td class="text-xs text-muted">
                             {% if server.last_connected_at %}
                                 {{ server.last_connected_at[:19]|replace('T',' ') }}
                             {% else %}
@@ -71,9 +88,9 @@
                             {% endif %}
                         </td>
                         <td class="flex gap-1">
-                            <button class="btn btn-xs btn-ghost" onclick="testServer({{ server.id }})" title="Test connection">Test</button>
-                            <button class="btn btn-xs btn-ghost" onclick="discoverCapabilities({{ server.id }})" title="Discover capabilities">Discover</button>
-                            <button class="btn btn-xs btn-ghost text-[#ef4444]" onclick="deleteServer({{ server.id }})" title="Delete">Delete</button>
+                            <button class="btn btn-xs btn-ghost" onclick="testServer({{ server.id }})" title="Test connection">{{ t('Test') }}</button>
+                            <button class="btn btn-xs btn-ghost" onclick="discoverCapabilities({{ server.id }})" title="Discover capabilities">{{ t('Discover') }}</button>
+                            <button class="btn btn-xs btn-ghost text-[var(--error)]" onclick="deleteServer({{ server.id }})" title="Delete">{{ t('Delete') }}</button>
                         </td>
                     </tr>
                 {% endfor %}
@@ -83,7 +100,7 @@
         {% if not mcp_servers %}
         <div class="empty-state">
             No MCP servers connected. Add one above to start ingesting data.<br>
-            <span class="text-xs text-[#737373] mt-2">All data sources must expose an MCP interface.</span>
+            <span class="text-xs text-muted mt-2">All data sources must expose an MCP interface.</span>
         </div>
         {% endif %}
     </div>
@@ -93,7 +110,7 @@
 <div class="card">
     <div class="card-body">
         <h3 class="card-title">Active Source Configurations</h3>
-        <p class="text-sm text-[#737373] mb-4">
+        <p class="text-sm text-muted mb-4">
             Source configs map MCP servers to data ingestion pipelines. Each config defines how to fetch and normalize data.
         </p>
         <div class="overflow-x-auto">
@@ -112,7 +129,7 @@
                     <tr>
                         <td class="font-mono text-sm">{{ config.name }}</td>
                         <td><span class="badge badge-ghost badge-sm">{{ config.source_type }}</span></td>
-                        <td class="text-xs text-[#737373]">
+                        <td class="text-xs text-muted">
                             {% if config.config and config.config.get('mcp_server_name') %}
                                 {{ config.config.mcp_server_name }}
                             {% else %}
@@ -126,7 +143,7 @@
                                 <span class="badge badge-ghost badge-sm">disabled</span>
                             {% endif %}
                         </td>
-                        <td class="text-xs text-[#737373]">
+                        <td class="text-xs text-muted">
                             {% if config.last_sync_at %}
                                 {{ config.last_sync_at[:19]|replace('T',' ') }}
                             {% else %}
@@ -145,11 +162,56 @@
 </div>
 
 <script>
-const token = '{{ request.cookies.get("admin_token") or "" }}';
-const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
+const addForm = document.getElementById('add-mcp-server');
+const transportSel = addForm.querySelector('[name=transport]');
+const endpointInput = addForm.querySelector('[name=server_url]');
+const endpointLabel = addForm.querySelector('[data-endpoint-label]');
+const endpointHint = addForm.querySelector('[data-endpoint-hint]');
+
+// Endpoint field adapts to the selected transport.
+const ENDPOINT_UI = {
+    sse: {
+        label: {{ t('MCP Server URL')|tojson }},
+        placeholder: 'https://api.soundwave.dev/mcp',
+        hint: {{ t('Full URL of the remote MCP SSE endpoint.')|tojson }},
+    },
+    stdio: {
+        label: {{ t('Command line')|tojson }},
+        placeholder: 'python -m mcp_servers.soundwave --repo owner/repo',
+        hint: {{ t('Command Megatron spawns locally (leave blank to use the bundled server).')|tojson }},
+    },
+};
+function syncEndpointUI() {
+    const ui = ENDPOINT_UI[transportSel.value] || ENDPOINT_UI.sse;
+    endpointLabel.textContent = ui.label;
+    endpointInput.placeholder = ui.placeholder;
+    endpointHint.textContent = ui.hint;
+    // stdio can fall back to the bundled server, so the endpoint is optional there.
+    endpointInput.required = (transportSel.value === 'sse');
+}
+transportSel.addEventListener('change', syncEndpointUI);
+syncEndpointUI();
+
+// Test the unsaved config before committing it (stateless endpoint, no DB write).
+document.getElementById('test-conn').addEventListener('click', async () => {
+    const fd = new FormData(addForm);
+    MG.showInfo('add-result', {{ t('Testing connection…')|tojson }});
+    const r = await MG.apiSend('/api/admin/mcp-servers/test', 'POST', {
+        server_url: fd.get('server_url') || '',
+        transport: fd.get('transport'),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (d.ok) {
+        const caps = (d.capabilities || []);
+        MG.showSuccess('add-result',
+            {{ t('Connected. Tools: ')|tojson }} + (caps.length ? caps.join(', ') : '—'));
+    } else {
+        MG.showError('add-result', {{ t('Connection failed: ')|tojson }} + (d.error || 'unknown'));
+    }
+});
 
 // Add MCP Server
-document.getElementById('add-mcp-server').addEventListener('submit', async (e) => {
+addForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const body = {
@@ -158,52 +220,34 @@ document.getElementById('add-mcp-server').addEventListener('submit', async (e) =
         transport: fd.get('transport'),
         resource_filter: fd.get('resource_filter') || null
     };
-    
-    const r = await fetch('/api/admin/mcp-servers', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body)
-    });
-    
-    if (r.ok) {
-        location.reload();
-    } else {
-        const err = await r.text();
-        document.getElementById('add-result').innerHTML = 
-            '<div class="alert alert-error py-2"><span class="text-sm">' + err + '</span></div>';
-    }
+    const r = await MG.apiSend('/api/admin/mcp-servers', 'POST', body);
+    if (r.ok) { location.reload(); } else { MG.showError('add-result', await MG.errorText(r)); }
 });
 
 // Test MCP Server connection
 async function testServer(id) {
-    const r = await fetch(`/api/admin/mcp-servers/${id}/test`, {
-        method: 'POST',
-        headers
-    });
-    const d = await r.json();
-    alert(d.ok ? 'Connection successful' : 'Failed: ' + (d.error || 'Unknown error'));
+    const r = await MG.apiFetch(`/api/admin/mcp-servers/${id}/test`, {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    MG.toast(d.ok ? 'Connection successful' : 'Failed: ' + (d.error || 'Unknown error'), d.ok ? 'success' : 'error');
 }
 
 // Discover capabilities
 async function discoverCapabilities(id) {
-    const r = await fetch(`/api/admin/mcp-servers/${id}/discover`, {
-        method: 'POST',
-        headers
-    });
-    const d = await r.json();
+    const r = await MG.apiFetch(`/api/admin/mcp-servers/${id}/discover`, {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
     if (d.ok) {
-        alert('Capabilities discovered: ' + (d.capabilities || []).join(', '));
-        location.reload();
+        MG.toast('Capabilities: ' + (d.capabilities || []).join(', '), 'success');
+        setTimeout(() => location.reload(), 800);
     } else {
-        alert('Discovery failed: ' + (d.error || 'Unknown error'));
+        MG.toast('Discovery failed: ' + (d.error || 'Unknown error'), 'error');
     }
 }
 
 // Delete MCP Server
 async function deleteServer(id) {
     if (!confirm('Delete this MCP server? All associated source configs will be removed.')) return;
-    await fetch(`/api/admin/mcp-servers/${id}`, {method: 'DELETE', headers});
-    location.reload();
+    const r = await MG.apiFetch(`/api/admin/mcp-servers/${id}`, {method: 'DELETE'});
+    if (r.ok) { location.reload(); } else { MG.toast('Delete failed: ' + await MG.errorText(r), 'error'); }
 }
 </script>
 {% endblock %}

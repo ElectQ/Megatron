@@ -1,0 +1,108 @@
+{# One analysis-run card. Expects `r` in context. Shared by runs.html and analyzed.html. #}
+{% import "_macros.html" as ui %}
+<div class="collapse collapse-arrow bg-[var(--bg-surface)] border border-white/[0.08] rounded"
+     {% if r.status in ('running', 'queued') %}data-poll-active{% endif %}>
+    <input type="checkbox">
+    <div class="collapse-title flex items-center gap-3 flex-wrap py-4">
+        <span class="font-mono text-sm">#{{ r.id }}</span>
+        <span class="text-sm font-medium">{{ r.module_name or 'Task #' ~ r.module_id }}</span>
+        {{ ui.status_badge(r.status) }}
+        {% if r.triggered_by and r.triggered_by != 'manual' %}
+        <span class="badge badge-ghost badge-xs">{{ r.triggered_by }}</span>
+        {% endif %}
+        <span class="text-xs text-secondary">{{ r.input_count }} inputs · {{ r.prompt_tokens + r.completion_tokens }} tokens · ${{ "%.4f"|format(r.cost_usd) }} · {{ r.duration_sec }}s</span>
+        {% if r.status == 'completed' and r.input_count == 0 %}
+        <span class="badge badge-warning badge-sm">no data</span>
+        <span class="text-xs text-secondary">No items collected — configure a data source under Sources and pull data first.</span>
+        {% endif %}
+        {% if r.tool_calls %}<span class="badge badge-info badge-sm">{{ r.tool_calls|length }} tool calls</span>{% endif %}
+        {% if r.status == 'failed' and r.error %}
+        <span class="text-xs text-[var(--error)] truncate max-w-md" title="{{ r.error }}">{{ r.error[:100] }}</span>
+        {% endif %}
+        <span class="text-xs text-muted ml-auto">{{ ui.ts(r.started_at) }}</span>
+        {% if r.finished_at %}<span class="text-xs text-[#525252]">→ {{ ui.ts(r.finished_at) }}</span>{% endif %}
+    </div>
+    <div class="collapse-content">
+        {% if r.error %}
+        <div class="alert alert-error mb-4" role="alert"><span class="font-mono text-xs">{{ r.error }}</span></div>
+        {% endif %}
+
+        {% if r.result.report_markdown %}
+        <div class="mb-4">
+            <div class="text-xs text-muted mb-2">Briefing</div>
+            <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4 prose prose-sm max-w-none"
+                 data-md-src="raw-md-{{ r.id }}"></div>
+            <pre class="hidden" id="raw-md-{{ r.id }}">{{ r.result.report_markdown }}</pre>
+        </div>
+        {% elif r.result.briefing %}
+        <div class="bg-[var(--bg-body)] border border-white/[0.08] rounded p-4 mb-4">
+            <div class="text-sm">{{ r.result.briefing }}</div>
+        </div>
+        {% endif %}
+
+        {% if r.result is mapping and r.result.get('items') %}
+        <div class="text-xs text-muted mb-2">Structured items ({{ r.result.get('items')|length }})</div>
+        <div class="overflow-x-auto">
+            <table class="table table-xs">
+                <thead>
+                    <tr>
+                        <th>Tier</th>
+                        <th>Freshness</th>
+                        <th>Category</th>
+                        <th>Title</th>
+                        <th>CVE</th>
+                        <th>Summary</th>
+                        <th>Artifact</th>
+                        <th>Author</th>
+                        <th>Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for it in r.result.get('items', [])|sort(attribute='tier') %}
+                <tr>
+                    <td>
+                        {% set tier = it.tier or 'quick' %}
+                        {% if tier == 'must' %}<span class="status-dot error"></span><span class="text-xs">must</span>
+                        {% elif tier == 'recommended' %}<span class="status-dot warning"></span><span class="text-xs">recommended</span>
+                        {% else %}<span class="status-dot neutral"></span><span class="text-xs">quick</span>{% endif %}
+                    </td>
+                    <td>
+                        {% set fr = it.freshness or 'new' %}
+                        {% if fr == 'new' %}<span class="badge badge-success badge-xs">new</span>
+                        {% else %}<span class="badge badge-ghost badge-xs">recurring</span>{% endif %}
+                    </td>
+                    <td>
+                        <span class="font-mono text-xs">{{ it.category or 'unknown' }}</span>
+                    </td>
+                    <td class="font-medium text-sm">{{ it.title }}</td>
+                    <td>{% if it.cve %}<span class="badge badge-xs badge-error">{{ it.cve }}</span>{% endif %}</td>
+                    <td class="max-w-md text-sm text-secondary">{{ it.summary }}</td>
+                    <td>
+                        <span class="text-xs text-muted">{{ it.artifact or 'none' }}</span>
+                    </td>
+                    <td class="font-mono text-xs">{{ it.author or '-' }}</td>
+                    <td>
+                        {% if it.source_url %}<a href="{{ it.source_url }}" target="_blank" rel="noopener noreferrer" class="link text-xs">source</a>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if r.tool_calls %}
+        <details class="mt-4">
+            <summary class="text-xs cursor-pointer text-muted">Tool calls ({{ r.tool_calls|length }})</summary>
+            <div class="text-xs bg-[var(--bg-body)] border border-white/[0.08] rounded p-3 mt-2 space-y-1">
+            {% for tc in r.tool_calls %}
+                <div>
+                    {% if tc.ok %}<span class="status-dot success"></span>{% else %}<span class="status-dot error"></span>{% endif %}
+                    <span class="font-mono">{{ tc.tool }}</span>: <span class="text-secondary">{{ tc.args|tojson }}</span>
+                </div>
+            {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+    </div>
+</div>

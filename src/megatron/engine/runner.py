@@ -20,6 +20,28 @@ logger = get_logger(__name__)
 
 ACTIVE_RUN_STATUSES = ("queued", "running")
 
+_DEFAULT_SOUNDWAVE_REPO = "ElectQ/Soundwave"
+_DEFAULT_SOUNDWAVE_BRANCH = "master"
+
+
+def _default_soundwave_repo() -> tuple[str, str]:
+    """Derive ``(repo, branch)`` for the built-in Soundwave source from settings.
+
+    Accepts a full GitHub URL or a bare ``owner/repo`` in ``soundwave_repo_url``;
+    falls back to the historical default so existing installs keep working.
+    """
+    from ..config import ingest_settings
+
+    url = (ingest_settings.soundwave_repo_url or "").strip()
+    if not url:
+        return _DEFAULT_SOUNDWAVE_REPO, _DEFAULT_SOUNDWAVE_BRANCH
+    if "github.com/" in url:
+        url = url.split("github.com/", 1)[1]
+    url = url.rstrip("/")
+    if url.endswith(".git"):
+        url = url[:-4]
+    return (url or _DEFAULT_SOUNDWAVE_REPO), _DEFAULT_SOUNDWAVE_BRANCH
+
 
 class ActiveRunExists(ValueError):
     """Raised when a module already has a queued/running run."""
@@ -29,6 +51,28 @@ class ActiveRunExists(ValueError):
         self.run_id = run_id
         self.status = status
         super().__init__(f"Module {module_id} already has active run #{run_id} ({status})")
+
+
+async def reset_interrupted_runs(session) -> int:
+    """Mark runs left ``queued``/``running`` by a crash or restart as ``failed``.
+
+    The active-run guard blocks new runs while one is queued/running; without
+    this sweep a single crash mid-run would block that module forever.
+    """
+    from ..core.engine_models import AnalysisRun
+    from sqlalchemy import update
+
+    result = await session.execute(
+        update(AnalysisRun)
+        .where(AnalysisRun.status.in_(ACTIVE_RUN_STATUSES))
+        .values(
+            status="failed",
+            error="interrupted by restart",
+            finished_at=datetime.now(timezone.utc),
+        )
+    )
+    await session.commit()
+    return result.rowcount or 0
 
 
 class ModuleRunner:
@@ -126,13 +170,16 @@ class ModuleRunner:
             run.provider_snapshot = await self._provider_snapshot(module)
             await self.session.commit()
 
-            # Refresh data from source before selecting
+            # Refresh data from source before selecting. Compute the effective
+            # selection window on a COPY — never mutate the persisted
+            # module.filter_config (the JSON column isn't change-tracked and an
+            # accidental persist would lock the task to a fixed date forever).
             latest_date = await self._refresh_data(module, run)
-            if latest_date and module.filter_config.get("time_mode") in (None, "today", "date"):
-                module.filter_config["time_mode"] = "date"
-                module.filter_config["target_date"] = latest_date
+            effective_fc = dict(module.filter_config or {})
+            if latest_date and effective_fc.get("time_mode") in (None, "today", "date"):
+                effective_fc = {**effective_fc, "time_mode": "date", "target_date": latest_date}
 
-            items = await self._select_items(module)
+            items = await self._select_items(module, effective_fc)
             run.input_count = len(items)
             run.input_item_ids = [it.id for it in items]
             await self.session.commit()
@@ -203,76 +250,166 @@ class ModuleRunner:
             logger.error("runner.failed", module_id=module.id, run_id=run.id, error=run.error)
             raise
 
-    async def _refresh_data(self, module, run) -> str | None:
-        """Fetch fresh data from source, return latest date fetched (or None)."""
-        from ..core.models import ItemRecord
-        from ..plugins.sources.base import source_registry
-        from sqlalchemy import select as sa_select
-        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+    async def _resolve_source(self, module) -> tuple[str | None, dict]:
+        """Resolve a module's data source to ``(source_kind, kwargs)``.
 
-        source_cls = source_registry.get(module.source)
-        if not source_cls:
+        ``module.source`` may name either a plugin kind (built-in
+        ``twitter``/``soundwave``/``mcp``) or a configured ``SourceConfig`` row.
+        We always inject ``source_label = module.source`` so ingested items are
+        tagged with a label that ``_select_items`` will match by construction.
+
+        Precedence:
+            1. A matching enabled ``SourceConfig`` (``name == module.source``):
+               its decrypted ``config`` supplies kwargs; for ``mcp`` type the
+               linked ``MCPServer`` supplies transport + address (server_url for
+               SSE, or a command line split into command/args for stdio).
+            2. A built-in registry kind; ``soundwave``/``mcp`` get repo/branch
+               defaults so existing installs keep working.
+        """
+        import shlex
+
+        from sqlalchemy import select as sa_select
+
+        from ..core.models import MCPServer, SourceConfig
+        from ..core.security import decrypt_config
+        from ..plugins.sources.base import source_registry
+
+        source_name = module.source
+        kwargs: dict = {"source_label": source_name}
+
+        sc = (
+            await self.session.execute(
+                sa_select(SourceConfig).where(
+                    SourceConfig.name == source_name,
+                    SourceConfig.enabled.is_(True),
+                )
+            )
+        ).scalar_one_or_none()
+
+        if sc:
+            cfg = dict(decrypt_config(sc.config or {}))
+            if sc.source_type == "mcp":
+                server_id = cfg.pop("mcp_server_id", None)
+                cfg.pop("mcp_server_name", None)
+                kwargs.update(cfg)
+                if server_id is not None:
+                    srv = (
+                        await self.session.execute(
+                            sa_select(MCPServer).where(MCPServer.id == server_id)
+                        )
+                    ).scalar_one_or_none()
+                    if srv:
+                        kwargs.setdefault("transport", srv.transport)
+                        url = srv.server_url or ""
+                        if srv.transport == "sse":
+                            kwargs.setdefault("server_url", url)
+                        elif " " in url:  # stdio command line
+                            parts = shlex.split(url)
+                            if parts:
+                                kwargs.setdefault("command", parts[0])
+                                kwargs.setdefault("args", parts[1:])
+                        elif "/" in url:  # owner/repo → bundled soundwave
+                            kwargs.setdefault("repo", url)
+                return "mcp", kwargs
+            # Native (non-MCP) source config: the plugin kind lives in config.
+            kind = cfg.pop("plugin_name", source_name)
+            kwargs.update(cfg)
+            return kind, kwargs
+
+        # No SourceConfig: fall back to a built-in registry kind.
+        if source_name in source_registry:
+            if source_name in ("soundwave", "mcp"):
+                repo, branch = _default_soundwave_repo()
+                kwargs.setdefault("repo", repo)
+                kwargs.setdefault("branch", branch)
+            return source_name, kwargs
+
+        return None, kwargs
+
+    async def _refresh_data(self, module, run) -> str | None:
+        """Fetch fresh data inline for live sources; return latest date fetched.
+
+        Pull-based sources (git/twitter, ``live_fetch=False``) are ingested
+        out-of-band by the scheduler, so this is a no-op for them. Live sources
+        (MCP) fetch on demand; any failure propagates so the run is marked
+        FAILED rather than silently "completed / 无数据".
+        """
+        from datetime import timedelta
+
+        from ..core.db import insert_ignore
+        from ..core.models import ItemRecord
+        from ..ingest.watermark import advance_watermark, get_watermark
+        from ..plugins.sources.base import source_registry
+
+        kind, source_kwargs = await self._resolve_source(module)
+        if not kind or kind not in source_registry:
             logger.warning("runner.refresh.no_source", source=module.source)
             return None
-
-        try:
-            source = source_cls(repo="ElectQ/Soundwave", branch="master")
-            try:
-                items = await source.fetch()
-            finally:
-                await source.close()
-            if not items:
-                logger.info("runner.refresh.no_items", source=module.source)
-                return None
-
-            rows = []
-            latest_date = items[0].collect_date
-            for item in items:
-                if item.collect_date > latest_date:
-                    latest_date = item.collect_date
-                rows.append(
-                    {
-                        "item_id": item.id,
-                        "source": item.source,
-                        "source_ref": item.source_ref,
-                        "content": item.content,
-                        "url": item.url,
-                        "author": item.author,
-                        "author_name": item.author_name,
-                        "published_at": item.published_at,
-                        "collected_at": item.collected_at,
-                        "collect_date": item.collect_date,
-                        "is_retweet": item.is_retweet,
-                        "is_quote": item.is_quote,
-                        "tags": item.tags,
-                        "links": item.links,
-                        "media": item.media,
-                        "metrics": item.metrics,
-                        "raw": item.raw,
-                    }
-                )
-
-            stmt = sqlite_insert(ItemRecord).values(rows).on_conflict_do_nothing(
-                index_elements=["source", "item_id"]
-            )
-            await self.session.execute(stmt)
-            await self.session.commit()
-            logger.info(
-                "runner.refresh.done",
-                source=module.source,
-                fetched=len(rows),
-                latest_date=latest_date,
-            )
-            return latest_date
-        except Exception as e:
-            msg = str(e)[:500]
-            run.error = f"[refresh] {module.source} 采集失败: {msg}"
-            await self.session.commit()
-            logger.error("runner.refresh.failed", source=module.source, error=msg)
+        source_cls = source_registry.get(kind)
+        if not source_cls.live_fetch:
+            # Pull-based source: data arrives via the scheduler, not here.
             return None
 
-    async def _select_items(self, module) -> list[ItemRecord]:
-        """Select items based on filter_config.time_mode.
+        # Incremental: fetch only dates strictly after our watermark.
+        wm = await get_watermark(self.session, module.source)
+        since = None
+        if wm:
+            since = datetime.strptime(wm, "%Y-%m-%d") + timedelta(days=1)
+
+        source = source_cls(**source_kwargs)
+        try:
+            items = await source.fetch(since=since)  # raises → run fails
+        finally:
+            await source.close()
+
+        if not items:
+            logger.info("runner.refresh.no_items", source=module.source)
+            return None
+
+        rows = []
+        latest_date = items[0].collect_date
+        for item in items:
+            if item.collect_date > latest_date:
+                latest_date = item.collect_date
+            rows.append(
+                {
+                    "item_id": item.id,
+                    "source": item.source,
+                    "source_ref": item.source_ref,
+                    "content": item.content,
+                    "url": item.url,
+                    "author": item.author,
+                    "author_name": item.author_name,
+                    "published_at": item.published_at,
+                    "collected_at": item.collected_at,
+                    "collect_date": item.collect_date,
+                    "is_retweet": item.is_retweet,
+                    "is_quote": item.is_quote,
+                    "tags": item.tags,
+                    "links": item.links,
+                    "media": item.media,
+                    "metrics": item.metrics,
+                    "raw": item.raw,
+                }
+            )
+
+        await self.session.execute(insert_ignore(ItemRecord, rows, ["source", "item_id"]))
+        await advance_watermark(self.session, module.source, latest_date)
+        await self.session.commit()
+        logger.info(
+            "runner.refresh.done",
+            source=module.source,
+            fetched=len(rows),
+            latest_date=latest_date,
+        )
+        return latest_date
+
+    async def _select_items(self, module, fc: dict | None = None) -> list[ItemRecord]:
+        """Select items based on time_mode.
+
+        ``fc`` is the effective filter config (a copy computed by the caller so
+        the persisted ``module.filter_config`` is never mutated); falls back to
+        the module's own config.
 
         Modes (default 'today'):
             today   — collect_date == today (UTC)
@@ -280,7 +417,7 @@ class ModuleRunner:
             range   — collect_date BETWEEN from AND to
             rolling — published_at >= now - window_hours (legacy)
         """
-        fc = module.filter_config or {}
+        fc = fc if fc is not None else (module.filter_config or {})
         time_mode = fc.get("time_mode", "today")
 
         stmt = (

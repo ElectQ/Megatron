@@ -2,20 +2,20 @@
 {% block title %}Prompts · Megatron{% endblock %}
 {% block content %}
 <div class="mb-8">
-    <h2 class="text-2xl font-semibold tracking-tight">Prompts</h2>
-    <p class="text-sm text-[#737373] mt-1">Jinja2 templates used by analysis tasks.</p>
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Prompts') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('Jinja2 templates used by analysis tasks.') }}</p>
 </div>
 
 <div class="card mb-8">
     <div class="card-body">
-        <h3 class="card-title">New template</h3>
+        <h3 class="card-title">{{ t('New template') }}</h3>
         <form id="add-prompt" class="flex flex-col gap-3">
             <input name="name" placeholder="Template name (technical identifier)" class="input input-bordered" required>
-            <input name="display_name" placeholder="Display name (e.g. 推特安全信息流简报)" class="input input-bordered">
+            <input name="display_name" placeholder="Display name (e.g. Twitter security briefing)" class="input input-bordered">
             <textarea name="template" rows="10" placeholder="Jinja2 template. Available variables: items, item_count, top_items, now, ctx" class="textarea textarea-bordered font-mono text-sm" required></textarea>
             <div class="flex gap-2">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="previewPrompt()">Preview</button>
-                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="previewPrompt()">{{ t('Preview') }}</button>
+                <button type="submit" class="btn btn-primary btn-sm">{{ t('Save') }}</button>
             </div>
         </form>
         <div id="preview" class="mt-3"></div>
@@ -27,15 +27,15 @@
     <div class="card-body">
         <h3 class="card-title">Existing templates ({{ prompts|length }})</h3>
         {% for p in prompts %}
-        <div class="collapse collapse-arrow bg-[#0d0d0d] border border-white/[0.08] rounded mb-2">
+        <div class="collapse collapse-arrow bg-[var(--bg-body)] border border-white/[0.08] rounded mb-2">
             <input type="checkbox">
             <div class="collapse-title text-sm">
                 <span class="font-medium">{{ p.display_name or p.name }}</span>
-                <span class="font-mono text-xs text-[#737373] ml-2">{{ p.name }}</span>
+                <span class="font-mono text-xs text-muted ml-2">{{ p.name }}</span>
                 <span class="badge badge-sm badge-ghost ml-2">v{{ p.version }}</span>
             </div>
             <div class="collapse-content">
-                <pre class="bg-[#171717] border border-white/[0.08] rounded p-4 text-xs overflow-x-auto whitespace-pre-wrap">{{ p.template }}</pre>
+                <pre class="bg-[var(--bg-surface)] border border-white/[0.08] rounded p-4 text-xs overflow-x-auto whitespace-pre-wrap">{{ p.template }}</pre>
             </div>
         </div>
         {% endfor %}
@@ -44,22 +44,33 @@
 </div>
 
 <script>
-const token = '{{ request.cookies.get("admin_token") or "" }}';
-const headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'};
-
 document.getElementById('add-prompt').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const body = {name: fd.get('name'), template: fd.get('template'), output_schema: {}, is_active: true};
-    const r = await fetch('/api/admin/prompts', {method: 'POST', headers, body: JSON.stringify(body)});
-    if (r.ok) { location.reload(); } else { document.getElementById('add-result').innerHTML = '<div class="alert alert-error py-2"><span class="text-sm">'+ (await r.text()) +'</span></div>'; }
+    const r = await MG.apiSend('/api/admin/prompts', 'POST', body);
+    if (r.ok) { location.reload(); } else { MG.showError('add-result', await MG.errorText(r)); }
 });
 
 async function previewPrompt() {
     const tmpl = document.querySelector('textarea[name=template]').value;
-    const r = await fetch('/api/admin/prompts/preview', {method: 'POST', headers, body: JSON.stringify({template: tmpl})});
-    const d = await r.json();
-    document.getElementById('preview').innerHTML = '<details open class="mt-2"><summary class="cursor-pointer text-sm text-[#a3a3a3]">Preview</summary><pre class="bg-[#0d0d0d] border border-white/[0.08] rounded p-3 mt-2 text-xs overflow-x-auto whitespace-pre-wrap">'+ d.rendered.replace(/</g,'&lt;') +'</pre></details>';
+    const r = await MG.apiSend('/api/admin/prompts/preview', 'POST', {template: tmpl});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { MG.showError('preview', d.detail || d.error || 'Preview failed'); return; }
+    const box = document.getElementById('preview');
+    box.textContent = '';
+    const details = document.createElement('details');
+    details.open = true;
+    details.className = 'mt-2';
+    const summary = document.createElement('summary');
+    summary.className = 'cursor-pointer text-sm text-secondary';
+    summary.textContent = 'Preview';
+    const pre = document.createElement('pre');
+    pre.className = 'bg-[var(--bg-body)] border border-white/[0.08] rounded p-3 mt-2 text-xs overflow-x-auto whitespace-pre-wrap';
+    pre.textContent = d.rendered || '';
+    details.appendChild(summary);
+    details.appendChild(pre);
+    box.appendChild(details);
 }
 </script>
 {% endblock %}

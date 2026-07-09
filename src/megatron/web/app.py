@@ -43,6 +43,17 @@ async def lifespan(app: FastAPI):
     await init_db()
     from ..core.bootstrap import bootstrap
     await bootstrap(None)
+
+    # Recover runs interrupted by the previous shutdown/crash so their modules
+    # are not blocked forever by the active-run guard.
+    from ..core.db import async_session_factory
+    from ..engine.runner import reset_interrupted_runs
+
+    async with async_session_factory() as session:
+        recovered = await reset_interrupted_runs(session)
+    if recovered:
+        logger.info("app.reset_interrupted_runs", count=recovered)
+
     start_scheduler()
     logger.info("app.started", env=settings.env)
     yield

@@ -38,7 +38,8 @@ class Settings(BaseSettings):
     admin_token: str = "dev-admin-token-change-me"
     session_secret: str = "dev-session-secret-change-me-for-prod"
     master_key: str = ""
-    admin_password: str = "Ch@ngeMe#2024!Secure"
+    # Empty means "generate a random one at first boot and log it" (see bootstrap).
+    admin_password: str = ""
 
     database_url: str = "sqlite+aiosqlite:///./megatron.db"
     base_url: str = "http://localhost:8000"
