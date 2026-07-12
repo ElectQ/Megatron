@@ -213,8 +213,10 @@ async def delete_mcp_server(
     # Delete associated source configs (dialect-neutral: filter the small MCP set
     # in Python rather than relying on DB-specific JSON operators).
     mcp_configs = (
-        await db.execute(select(SourceConfig).where(SourceConfig.source_type == "mcp"))
-    ).scalars().all()
+        (await db.execute(select(SourceConfig).where(SourceConfig.source_type == "mcp")))
+        .scalars()
+        .all()
+    )
     for sc in mcp_configs:
         if str((sc.config or {}).get("mcp_server_id")) == str(server_id):
             await db.delete(sc)

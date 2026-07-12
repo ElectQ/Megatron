@@ -111,9 +111,10 @@ async def test_full_pipeline_with_mock_llm(sample_items):
         assert summary["prompt_snapshot"]["name"] == "e2e-tmpl"
         assert summary["provider_snapshot"]["model"] == "deepseek/deepseek-chat"
         assert "api_key" not in summary["provider_snapshot"]
-        assert summary["rendered_prompt_hash"] == hashlib.sha256(
-            "Analyze 1 items.".encode()
-        ).hexdigest()
+        assert (
+            summary["rendered_prompt_hash"]
+            == hashlib.sha256("Analyze 1 items.".encode()).hexdigest()
+        )
 
         run = await session.get(AnalysisRun, summary["run_id"])
         assert run.status == "completed"

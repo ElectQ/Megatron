@@ -87,8 +87,14 @@ async def delete_provider(pid: int, session: AsyncSession = Depends(get_session)
     if not p:
         raise HTTPException(404, "Provider not found")
     used_by = (
-        await session.execute(select(AnalysisModule.name).where(AnalysisModule.provider_id == pid))
-    ).scalars().first()
+        (
+            await session.execute(
+                select(AnalysisModule.name).where(AnalysisModule.provider_id == pid)
+            )
+        )
+        .scalars()
+        .first()
+    )
     if used_by:
         raise HTTPException(409, f"Provider is used by module '{used_by}'")
     await session.delete(p)

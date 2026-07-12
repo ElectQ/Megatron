@@ -84,9 +84,7 @@ def test_rss_needs_no_map():
 
 def test_audience_scalar_collapses_both():
     assert SourceSpec(source_id="a_src", audience=["personal"]).audience_scalar == "personal"
-    assert (
-        SourceSpec(source_id="b_src", audience=["personal", "public"]).audience_scalar == "both"
-    )
+    assert SourceSpec(source_id="b_src", audience=["personal", "public"]).audience_scalar == "both"
 
 
 def test_env_interpolation_keeps_secret_out_of_the_file(monkeypatch):

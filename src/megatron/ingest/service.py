@@ -57,9 +57,7 @@ class IngestService:
 
         # One multi-row upsert instead of a round-trip per item; rowcount is the
         # number actually inserted, so the rest were duplicates.
-        result = await self.session.execute(
-            insert_ignore(ItemRecord, rows, ["source", "item_id"])
-        )
+        result = await self.session.execute(insert_ignore(ItemRecord, rows, ["source", "item_id"]))
         ingested = result.rowcount if result.rowcount and result.rowcount > 0 else 0
         duplicated = len(items) - ingested
 

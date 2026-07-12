@@ -114,9 +114,7 @@ async def test_backfill_is_skipped_when_the_day_already_has_rows(monkeypatch):
     async with async_session_factory() as session:
         runner = ModuleRunner(session)
         runner._warnings = []
-        monkeypatch.setattr(
-            "megatron.plugins.sources.base.MCPSource.fetch", _boom, raising=False
-        )
+        monkeypatch.setattr("megatron.plugins.sources.base.MCPSource.fetch", _boom, raising=False)
         assert await runner._refresh_data(_Module("mcp_src"), run=None) is None
 
     # Nothing was backfilled, and no warning was raised: this is the happy path.

@@ -66,7 +66,10 @@ def load_specs(sources_dir: str | Path) -> tuple[list[SourceSpec], list[SpecErro
             continue
         if spec.source_id in seen:
             errors.append(
-                SpecError(path, f"duplicate source_id '{spec.source_id}' (also in {seen[spec.source_id].name})")
+                SpecError(
+                    path,
+                    f"duplicate source_id '{spec.source_id}' (also in {seen[spec.source_id].name})",
+                )
             )
             continue
         seen[spec.source_id] = path
@@ -89,10 +92,7 @@ async def sync_specs(session: AsyncSession, specs: list[SourceSpec]) -> dict[str
     now = datetime.now(timezone.utc)
     created = updated = disabled = 0
 
-    rows = {
-        sc.name: sc
-        for sc in (await session.execute(select(SourceConfig))).scalars().all()
-    }
+    rows = {sc.name: sc for sc in (await session.execute(select(SourceConfig))).scalars().all()}
     spec_ids = set()
 
     for spec in specs:

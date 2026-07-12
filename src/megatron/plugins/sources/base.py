@@ -89,10 +89,14 @@ class MCPSource(BaseSource):
                 server_params = StdioServerParameters(
                     command=sys.executable,
                     args=[
-                        "-m", "mcp_servers.soundwave",
-                        "--repo", self._repo,
-                        "--branch", self._branch,
-                        "--transport", "stdio",
+                        "-m",
+                        "mcp_servers.soundwave",
+                        "--repo",
+                        self._repo,
+                        "--branch",
+                        self._branch,
+                        "--transport",
+                        "stdio",
                     ],
                 )
             async with stdio_client(server_params) as (read_stream, write_stream):
@@ -155,12 +159,7 @@ class MCPSource(BaseSource):
         """Enumerate the tools the MCP server exposes (real protocol query)."""
         async with self._session() as client:
             result = await client.list_tools()
-            return {
-                "tools": [
-                    {"name": t.name, "description": t.description}
-                    for t in result.tools
-                ]
-            }
+            return {"tools": [{"name": t.name, "description": t.description} for t in result.tools]}
 
     def _parse_tool_result(self, result) -> dict:
         """Parse an MCP tool result into a dict."""

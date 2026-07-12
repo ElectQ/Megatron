@@ -109,10 +109,8 @@ _ZH: dict[str, str] = {
     "Run": "运行",
     "Edit": "编辑",
     "History": "历史",
-    "No tasks yet. Create one below to start analyzing collected data.":
-        "还没有任务。在下方新建一个,开始分析已采集的数据。",
-    "A task = source + LLM + prompt + optional tools + optional delivery + schedule.":
-        "一个任务 = 数据源 + LLM + 提示词 +(可选)工具 +(可选)推送 + 执行方式。",
+    "No tasks yet. Create one below to start analyzing collected data.": "还没有任务。在下方新建一个,开始分析已采集的数据。",
+    "A task = source + LLM + prompt + optional tools + optional delivery + schedule.": "一个任务 = 数据源 + LLM + 提示词 +(可选)工具 +(可选)推送 + 执行方式。",
     "Basic info": "基本信息",
     "Task name": "任务名称",
     "Description": "描述",
@@ -126,15 +124,13 @@ _ZH: dict[str, str] = {
     "Rolling window": "滚动窗口",
     "Max items": "最大条数",
     "unlimited": "不限",
-    "Interaction filtering is delegated to the LLM value judgment.":
-        "互动量筛选交由 LLM 价值判断处理。",
+    "Interaction filtering is delegated to the LLM value judgment.": "互动量筛选交由 LLM 价值判断处理。",
     "No models yet — add one under Models first.": "还没有模型 —— 请先在「模型」中添加。",
     "No prompts yet — create one under Prompts first.": "还没有提示词 —— 请先在「提示词」中创建。",
     "Agent mode": "Agent 模式",
     "Agent backend": "Agent 后端",
     "Enabled tools": "启用的工具",
-    "No channels configured. Results will be stored without delivery.":
-        "尚未配置通道。结果将仅保存,不推送。",
+    "No channels configured. Results will be stored without delivery.": "尚未配置通道。结果将仅保存,不推送。",
     "Execution mode": "执行方式",
     "Manual only": "仅手动",
     "Scheduled": "定时执行",
@@ -143,8 +139,7 @@ _ZH: dict[str, str] = {
     "weekly": "每周",
     "every 6h": "每 6 小时",
     "Sources subtitle": "所有数据源均通过 MCP 协议接入。添加一个 MCP 服务器即可开始采集数据。",
-    "All data sources connect via the MCP protocol. Add an MCP server to start ingesting data.":
-        "所有数据源均通过 MCP 协议接入。添加一个 MCP 服务器即可开始采集数据。",
+    "All data sources connect via the MCP protocol. Add an MCP server to start ingesting data.": "所有数据源均通过 MCP 协议接入。添加一个 MCP 服务器即可开始采集数据。",
     "Delivery subtitle": "接收分析结果的 Webhook 通道。",
     "Webhook channels that receive analysis results.": "接收分析结果的 Webhook 通道。",
     "Models subtitle": "分析任务使用的 LLM 提供方与 API 密钥。",
@@ -162,8 +157,7 @@ _ZH: dict[str, str] = {
     "SSE (remote endpoint)": "SSE(远程端点)",
     "stdio (local command)": "stdio(本地命令)",
     "Full URL of the remote MCP SSE endpoint.": "远程 MCP SSE 端点的完整 URL。",
-    "Command Megatron spawns locally (leave blank to use the bundled server).":
-        "Megatron 在本地启动的命令(留空则使用内置服务器)。",
+    "Command Megatron spawns locally (leave blank to use the bundled server).": "Megatron 在本地启动的命令(留空则使用内置服务器)。",
     "Testing connection…": "正在测试连接……",
     "Connected. Tools: ": "已连接。工具:",
     "Connection failed: ": "连接失败:",

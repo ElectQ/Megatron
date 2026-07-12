@@ -68,12 +68,16 @@ async def _module_channel_ids(session: AsyncSession, module_id: int) -> list[int
     from ..core.engine_models import ModuleChannel
 
     rows = (
-        await session.execute(
-            select(ModuleChannel.channel_id)
-            .where(ModuleChannel.module_id == module_id)
-            .order_by(ModuleChannel.position, ModuleChannel.channel_id)
+        (
+            await session.execute(
+                select(ModuleChannel.channel_id)
+                .where(ModuleChannel.module_id == module_id)
+                .order_by(ModuleChannel.position, ModuleChannel.channel_id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [int(r) for r in rows]
 
 
@@ -116,11 +120,9 @@ async def _validate_channel_ids(session: AsyncSession, channel_ids: list) -> lis
         return []
 
     existing = set(
-        (
-            await session.execute(
-                select(WebhookChannel.id).where(WebhookChannel.id.in_(normalized))
-            )
-        ).scalars().all()
+        (await session.execute(select(WebhookChannel.id).where(WebhookChannel.id.in_(normalized))))
+        .scalars()
+        .all()
     )
     missing = [cid for cid in normalized if cid not in existing]
     if missing:
@@ -269,19 +271,21 @@ async def _allowed_sources(session: AsyncSession) -> list[str]:
 
     _add("twitter")
     cfg_names = (
-        await session.execute(
-            select(SourceConfig.name)
-            .where(SourceConfig.enabled.is_(True))
-            .order_by(SourceConfig.name)
+        (
+            await session.execute(
+                select(SourceConfig.name)
+                .where(SourceConfig.enabled.is_(True))
+                .order_by(SourceConfig.name)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for n in cfg_names:
         _add(n)
     for k in source_registry.names():
         _add(k)
-    existing = (
-        await session.execute(select(AnalysisModule.source).distinct())
-    ).scalars().all()
+    existing = (await session.execute(select(AnalysisModule.source).distinct())).scalars().all()
     for s in existing:
         _add(s)
     return sources

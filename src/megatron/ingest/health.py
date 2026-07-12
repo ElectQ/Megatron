@@ -109,9 +109,7 @@ async def today_arrivals(
     }
 
     sources = (
-        (await session.execute(select(SourceConfig).order_by(SourceConfig.name)))
-        .scalars()
-        .all()
+        (await session.execute(select(SourceConfig).order_by(SourceConfig.name))).scalars().all()
     )
 
     out: list[SourceArrival] = []

@@ -19,7 +19,9 @@ from ..ingest.registry import get_source, list_sources, sync_from_dir, to_api
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/admin/sources", tags=["sources"], dependencies=[Depends(admin_auth)])
+router = APIRouter(
+    prefix="/api/admin/sources", tags=["sources"], dependencies=[Depends(admin_auth)]
+)
 
 
 @router.get("")

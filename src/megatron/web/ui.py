@@ -78,9 +78,7 @@ async def set_lang(request: Request, code: str):
     ref_path = urlparse(request.headers.get("referer", "")).path
     target = ref_path if ref_path.startswith("/ui") else "/ui/dashboard"
     resp = RedirectResponse(target, status_code=303)
-    resp.set_cookie(
-        "lang", normalize_lang(code), max_age=31536000, samesite="lax", path="/"
-    )
+    resp.set_cookie("lang", normalize_lang(code), max_age=31536000, samesite="lax", path="/")
     return resp
 
 
@@ -200,11 +198,7 @@ async def tasks_page(request: Request, edit: int | None = None):
         _api_get(request, "/api/admin/modules/options"),
         _api_get(request, "/api/admin/stats/per-module"),
     )
-    stats = (
-        {row["module_id"]: row for row in stats_rows}
-        if isinstance(stats_rows, list)
-        else {}
-    )
+    stats = {row["module_id"]: row for row in stats_rows} if isinstance(stats_rows, list) else {}
     edit_module = next((m for m in modules if m["id"] == edit), None) if edit else None
     return _render(
         request,

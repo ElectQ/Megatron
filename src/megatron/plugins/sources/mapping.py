@@ -132,7 +132,9 @@ def extract_items(payload: Any, spec: MapSpec) -> list[Any]:
             f"(top-level keys: {list(payload)[:8] if isinstance(payload, dict) else type(payload).__name__})"
         )
     if not isinstance(raw, list):
-        raise MappingError(f"map.items '{spec.items}' must resolve to a list, got {type(raw).__name__}")
+        raise MappingError(
+            f"map.items '{spec.items}' must resolve to a list, got {type(raw).__name__}"
+        )
     return raw
 
 
@@ -142,7 +144,11 @@ def map_item(raw: Any, spec: MapSpec, *, source_id: str, collect_date: str) -> I
     if not external_id:
         return None
 
-    published = parse_dt(resolve_path(raw, spec.published_at)) if spec.published_at else datetime.now(timezone.utc)
+    published = (
+        parse_dt(resolve_path(raw, spec.published_at))
+        if spec.published_at
+        else datetime.now(timezone.utc)
+    )
     metrics = {k: resolve_path(raw, expr) for k, expr in spec.metrics.items()}
 
     return Item(

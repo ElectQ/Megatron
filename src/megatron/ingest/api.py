@@ -113,8 +113,7 @@ async def _ingest_envelope(
         raise ingest_error(
             400,
             "schema_version_missing",
-            "Envelope requires `schema_version`. "
-            f"Supported: {sorted(SUPPORTED_SCHEMA_VERSIONS)}",
+            f"Envelope requires `schema_version`. Supported: {sorted(SUPPORTED_SCHEMA_VERSIONS)}",
         )
     if version not in SUPPORTED_SCHEMA_VERSIONS:
         raise ingest_error(

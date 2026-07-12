@@ -131,9 +131,7 @@ async def _load_pull_jobs(scheduler: AsyncIOScheduler) -> int:
             try:
                 trigger = CronTrigger.from_crontab(cron)
             except Exception as e:
-                logger.warning(
-                    "scheduler.pull.bad_cron", source=sc.name, cron=cron, error=str(e)
-                )
+                logger.warning("scheduler.pull.bad_cron", source=sc.name, cron=cron, error=str(e))
                 continue
             scheduler.add_job(
                 _pull_job,

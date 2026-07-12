@@ -143,8 +143,9 @@ async def test_sse_uses_positional_args_and_initialize():
     sse_client = MagicMock(return_value=_FakeACM(("READ", "WRITE")))
 
     src = MCPSource(transport="sse", server_url="https://x/mcp")
-    with patch("mcp.ClientSession", client_session_cls), patch(
-        "mcp.client.sse.sse_client", sse_client
+    with (
+        patch("mcp.ClientSession", client_session_cls),
+        patch("mcp.client.sse.sse_client", sse_client),
     ):
         async with src._session() as result:
             assert result is session

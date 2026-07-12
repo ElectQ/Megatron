@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):
 
     await init_db()
     from ..core.bootstrap import bootstrap
+
     await bootstrap(None)
 
     # After bootstrap: it mints and persists the session/admin/ingest secrets,

@@ -33,9 +33,7 @@ from .base import BaseSource, register_source
 
 logger = get_logger(__name__)
 
-DEFAULT_INDEX_URL = (
-    "https://raw.githubusercontent.com/ElectQ/Soundwave/master/bundles/index.json"
-)
+DEFAULT_INDEX_URL = "https://raw.githubusercontent.com/ElectQ/Soundwave/master/bundles/index.json"
 
 
 class BundleFetchError(RuntimeError):
@@ -71,7 +69,9 @@ class BundlePullSource(BaseSource):
             index = await self._get_json(client, self.index_url)
 
             days = index.get("days") or []
-            wanted = [d for d in days if str(d.get("date", "")) >= since_date] if since_date else days
+            wanted = (
+                [d for d in days if str(d.get("date", "")) >= since_date] if since_date else days
+            )
             wanted = sorted(wanted, key=lambda d: str(d.get("date", "")))[-self.max_days :]
 
             if not wanted:

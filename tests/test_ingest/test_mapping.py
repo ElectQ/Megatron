@@ -88,8 +88,10 @@ def test_map_payload_builds_items():
 def test_map_payload_skips_items_without_external_id():
     payload = {"hits": [{"objectID": "1"}, {"no_id": True}, {"objectID": ""}]}
     items = map_payload(
-        payload, MapSpec(items="$.hits", external_id="$.objectID"),
-        source_id="hn", collect_date="2026-07-12",
+        payload,
+        MapSpec(items="$.hits", external_id="$.objectID"),
+        source_id="hn",
+        collect_date="2026-07-12",
     )
     assert [i.id for i in items] == ["1"]
 
