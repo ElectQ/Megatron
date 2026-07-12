@@ -17,7 +17,7 @@
 #                          curl（见 docs/使用指南.md「源接入」）。
 
 source_id: twitter_security_list
-display_name: Twitter 安全 List
+display_name: 推特安全流
 kind: twitter_list
 adapter: bundle_pull
 audience: [personal]

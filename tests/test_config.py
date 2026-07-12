@@ -48,6 +48,56 @@ def test_ingest_auto_register_defaults_off(monkeypatch):
     assert IngestSettings().ingest_auto_register is False
 
 
+# ------------------------------------------------------------------- base_url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://0.0.0.0:8000",
+        "http://megatron.local",
+        "",
+    ],
+)
+def test_a_loopback_base_url_is_recognised_as_unreachable(monkeypatch, url):
+    from megatron.config import Settings
+
+    monkeypatch.setenv("MEGATRON_BASE_URL", url)
+    assert Settings().base_url_is_local
+
+
+@pytest.mark.parametrize(
+    "url", ["https://megatron.example.com", "http://203.0.113.10:8000", "https://x.y.z/megatron"]
+)
+def test_a_real_address_is_not(monkeypatch, url):
+    from megatron.config import Settings
+
+    monkeypatch.setenv("MEGATRON_BASE_URL", url)
+    assert not Settings().base_url_is_local
+
+
+def test_prod_refuses_to_start_with_a_link_nobody_can_open(monkeypatch):
+    """Every push ends in a day-page link. A loopback base_url means every brief
+    you send for the next week is a dead end — better to not start."""
+    import megatron.core.security as sec
+
+    monkeypatch.setattr(sec.settings, "env", "prod")
+    monkeypatch.setattr(sec.settings, "master_key", "k" * 32)
+    monkeypatch.setattr(sec.settings, "admin_password", "pw")
+    monkeypatch.setenv("MEGATRON_ADMIN_TOKEN", "strong-admin")
+    monkeypatch.setenv("MEGATRON_SESSION_SECRET", "strong-session")
+    monkeypatch.setenv("MEGATRON_INGEST_TOKEN", "strong-ingest")
+    monkeypatch.setattr(sec.settings, "base_url", "http://localhost:8000")
+
+    with pytest.raises(RuntimeError, match="MEGATRON_BASE_URL"):
+        sec.validate_runtime_settings()
+
+    monkeypatch.setattr(sec.settings, "base_url", "https://megatron.example.com")
+    sec.validate_runtime_settings()  # no raise
+
+
 @pytest.mark.asyncio
 async def test_ingest_auth_resolves_token_lazily(monkeypatch):
     """IngestAuth() with no pinned token must follow the env at request time."""

@@ -229,7 +229,9 @@ class ModuleRunner:
                 after=len(filtered),
             )
 
-            prompt_str, prompt_snapshot = await self._render_prompt(module, filtered)
+            prompt_str, prompt_snapshot = await self._render_prompt(
+                module, filtered, self._prompt_context(effective_fc)
+            )
 
             llm, provider_snapshot = await self._build_llm(module)
             run.prompt_snapshot = prompt_snapshot
@@ -243,7 +245,8 @@ class ModuleRunner:
 
             result = self._parse_result(content)
             if effective_fc.get("output_mode") == "day_bundle":
-                result = self._build_bundle(module, run, effective_fc, filtered, result)
+                names = await self._source_names(filtered)
+                result = self._build_bundle(module, run, effective_fc, filtered, result, names)
             if self._warnings:
                 result["warnings"] = self._warnings
             run.prompt_tokens = tokens_in
@@ -424,16 +427,42 @@ class ModuleRunner:
             sources=[a.source_id for a in missing],
         )
 
-    def _build_bundle(self, module, run, fc: dict, records, llm_output: dict) -> dict:
+    async def _source_names(self, records) -> dict[str, str]:
+        """source_id -> display name, so the digest is titled by its source
+        rather than by a string baked into the renderer."""
+        from sqlalchemy import select as sa_select
+
+        from ..core.models import SourceConfig
+
+        ids = {r.source for r in records}
+        if not ids:
+            return {}
+        rows = (
+            (await self.session.execute(sa_select(SourceConfig).where(SourceConfig.name.in_(ids))))
+            .scalars()
+            .all()
+        )
+        return {sc.name: (sc.display_name or sc.name) for sc in rows}
+
+    def _build_bundle(self, module, run, fc: dict, records, llm_output: dict, source_names) -> dict:
         """Turn the model's tiering into a day bundle, with the caps enforced here.
 
         Opt-in via filter_config.output_mode == "day_bundle" so tasks that predate
         this keep their old result shape.
         """
         from ..config import get_day_token, settings
-        from .bundle import DEFAULT_CAPS, build_day_bundle
+        from .bundle import build_day_bundle
         from .doorbell import render_doorbell
         from .validate import validate_output
+
+        # Production refuses to boot on a loopback base_url; a dev box does not, so
+        # say it on the run rather than let someone wonder why the link is dead.
+        if settings.base_url_is_local:
+            self._warn(
+                "base_url_not_reachable",
+                f"MEGATRON_BASE_URL={settings.base_url} — the 详情 link in the push only "
+                "opens on this machine. Set it to the address readers reach you at.",
+            )
 
         date = fc.get("target_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
         schema = (run.prompt_snapshot or {}).get("output_schema") or {}
@@ -450,11 +479,13 @@ class ModuleRunner:
             run_id=run.id,
             records=records,
             llm_output=llm_output,
-            caps={**DEFAULT_CAPS, **(fc.get("caps") or {})},
+            caps=self._effective_caps(fc),
             intent=fc.get("intent") or {},
             base_url=settings.base_url,
             day_token=get_day_token(),
             timezone=fc.get("timezone", "Asia/Shanghai"),
+            source_names=source_names,
+            title=fc.get("title", ""),
         )
         bundle["schema_errors"] = schema_errors
         # Channels already prefer report_markdown; handing them the doorbell text
@@ -671,7 +702,13 @@ class ModuleRunner:
 
     async def _apply_filters(self, module, records: list[ItemRecord]) -> list[ItemRecord]:
         cfg = module.filter_config.get("filters", [])
-        max_items = int(module.filter_config.get("max_items", 30))
+
+        # A day bundle is meant to be the day's complete view, so by default it
+        # sends everything to the model. Truncating the input to 30 would silently
+        # decide what the digest may contain before the model ever sees it — and
+        # a source can easily deliver 150 items a day.
+        default_max = 0 if module.filter_config.get("output_mode") == "day_bundle" else 30
+        max_items = int(module.filter_config.get("max_items", default_max))
 
         if not cfg:
             # No filters: honor max_items (0 = all)
@@ -692,7 +729,33 @@ class ModuleRunner:
 
         return [r for r in records if r.item_id in kept_ids]
 
-    async def _render_prompt(self, module, records: list[ItemRecord]) -> tuple[str, dict]:
+    def _effective_caps(self, fc: dict) -> dict:
+        """Caps actually applied: policy defaults + policy politics list, then the
+        task's own overrides. The product filtering policy comes from
+        config/policy.yaml — not from a framework constant."""
+        from ..profile.policy import default_caps, default_politics
+
+        base = default_caps()
+        base.setdefault("politics_blocklist", list(default_politics()))
+        return {**base, **(fc.get("caps") or {})}
+
+    def _prompt_context(self, fc: dict) -> dict:
+        """What the prompt gets to know about the run, beyond the items.
+
+        The caps go in so the prompt's stated limits and the limits
+        ``enforce_caps`` will actually apply are the same numbers. They are still
+        enforced server-side afterwards — telling the model the budget just stops
+        it from writing a digest that is guaranteed to be cut apart.
+        """
+        return {
+            "intent": fc.get("intent") or {},
+            "caps": self._effective_caps(fc),
+            "date": fc.get("target_date") or "",
+        }
+
+    async def _render_prompt(
+        self, module, records: list[ItemRecord], extra: dict | None = None
+    ) -> tuple[str, dict]:
         from ..core.engine_models import PromptTemplate
 
         tmpl = await self.session.get(PromptTemplate, module.prompt_template_id)
@@ -707,7 +770,7 @@ class ModuleRunner:
             "output_schema": tmpl.output_schema or {},
             "is_active": tmpl.is_active,
         }
-        return render_prompt(tmpl.template, items), snapshot
+        return render_prompt(tmpl.template, items, extra), snapshot
 
     async def _prompt_snapshot(self, module) -> dict:
         from ..core.engine_models import PromptTemplate
@@ -789,12 +852,16 @@ class ModuleRunner:
         from ..core.engine_models import ModuleChannel
 
         rows = (
-            await self.session.execute(
-                select(ModuleChannel.channel_id)
-                .where(ModuleChannel.module_id == module.id)
-                .order_by(ModuleChannel.position, ModuleChannel.channel_id)
+            (
+                await self.session.execute(
+                    select(ModuleChannel.channel_id)
+                    .where(ModuleChannel.module_id == module.id)
+                    .order_by(ModuleChannel.position, ModuleChannel.channel_id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         if rows:
             return [int(r) for r in rows]
         return [int(r) for r in (module.webhook_channel_ids or [])]

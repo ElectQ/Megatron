@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir uv \
 COPY src/ ./src/
 COPY mcp_servers/ ./mcp_servers/
 COPY migrations/ ./migrations/
-COPY sources/ ./sources/
+COPY config/ ./config/
 COPY alembic.ini ./
 
 ENV PYTHONPATH=/app:/app/src

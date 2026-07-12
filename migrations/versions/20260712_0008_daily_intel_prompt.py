@@ -11,11 +11,7 @@ Create Date: 2026-07-12 00:00:00+00:00
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
 
-import sqlalchemy as sa
-from alembic import op
 
 revision = "0008_daily_intel_prompt"
 down_revision = "0007_source_registry"
@@ -24,30 +20,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    from megatron.engine.builtin import (
-        DAILY_INTEL_V1,
-        DAILY_INTEL_V1_DISPLAY,
-        DAILY_INTEL_V1_NAME,
-        DAILY_INTEL_V1_SCHEMA,
-    )
-
-    op.execute(
-        sa.text(
-            """
-            INSERT INTO prompt_templates
-                (name, display_name, version, template, output_schema, is_active, created_at)
-            SELECT :name, :display, 1, :template, :schema, 1, :now
-            WHERE NOT EXISTS (SELECT 1 FROM prompt_templates WHERE name = :name)
-            """
-        ).bindparams(
-            name=DAILY_INTEL_V1_NAME,
-            display=DAILY_INTEL_V1_DISPLAY,
-            template=DAILY_INTEL_V1,
-            schema=json.dumps(DAILY_INTEL_V1_SCHEMA),
-            now=datetime.now(timezone.utc),
-        )
-    )
+    # No-op. Prompt seeding moved out of migrations into the file-based profile
+    # seeder (`megatron.profile.loader`, run at bootstrap, create-if-missing).
+    # Existing installs already have the row; fresh installs get it from
+    # config/prompts/. Kept as a revision so the migration chain is unbroken.
+    pass
 
 
 def downgrade() -> None:
-    op.execute("DELETE FROM prompt_templates WHERE name = 'daily_intel_v1'")
+    pass

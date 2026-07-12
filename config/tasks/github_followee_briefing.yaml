@@ -1,0 +1,22 @@
+# GitHub 关注流每日分级 —— 仅日刊页，不推送（channels 为空）。
+name: github_followee_briefing
+description: 每日 GitHub 关注流分级（仅日刊页，不推送）
+source: github_followee_feed
+prompt: github_radar_v1
+provider: deepseek
+schedule_cron: "0 23 * * *"     # 23:00 UTC = 07:00 北京，晚于 22:40 拉取
+channels: []                    # 仅页面：永不投递
+filter_config:
+  time_mode: today
+  output_mode: day_bundle
+  max_items: 0
+  title: GitHub 关注流
+  intent:
+    primary: [本地/自托管 AI Agent, 红队/攻防工具, 可复现的攻击手法]
+    secondary: [漏洞利用, 逆向/取证, 值得上手的开源安全项目]
+  caps:
+    lead_min: 0
+    must_see_min: 5
+    must_see_max: 10
+    recommend_max: 20
+    skim_max: 0

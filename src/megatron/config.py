@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -24,7 +25,9 @@ def get_admin_token() -> str:
 
 
 def get_session_secret() -> str:
-    return _read_secret("MEGATRON_SESSION_SECRET", ".session_secret", "dev-session-secret-change-me-for-prod")
+    return _read_secret(
+        "MEGATRON_SESSION_SECRET", ".session_secret", "dev-session-secret-change-me-for-prod"
+    )
 
 
 def get_ingest_token() -> str:
@@ -61,15 +64,47 @@ class Settings(BaseSettings):
     admin_password: str = ""
 
     database_url: str = "sqlite+aiosqlite:///./megatron.db"
+
+    # Where this install answers from, as seen by the person reading the push.
+    # Every message ends in a "查看今日详情" link built from this, so a loopback
+    # value means every push you send is a dead end on the reader's phone. The
+    # default is fine for a laptop and is refused in production — see
+    # `validate_runtime_settings`.
     base_url: str = "http://localhost:8000"
 
-    # Declarative source specs. This directory is the source of truth for every
-    # source it declares; source_configs rows are a projection of it.
-    sources_dir: str = "./sources"
+    # The product profile: our design as files, not baked into the framework.
+    #   config/sources/*.yaml  — source specs (authoritative; DB is a projection)
+    #   config/prompts/*.md     — prompt bodies (seeds; UI edits win after)
+    #   config/tasks/*.yaml     — analysis tasks (seeds)
+    #   config/policy.yaml      — filtering defaults (caps + politics blocklist)
+    config_dir: str = "./config"
 
     @property
     def secret_key_for_sessions(self) -> str:
         return get_session_secret()
+
+    @property
+    def sources_dir(self) -> str:
+        """Source specs live under the profile; fall back to the legacy top-level
+        ``./sources`` so an older deployment keeps working."""
+        import os
+
+        preferred = os.path.join(self.config_dir, "sources")
+        if os.path.isdir(preferred) or not os.path.isdir("./sources"):
+            return preferred
+        return "./sources"
+
+    @property
+    def policy_path(self) -> str:
+        import os
+
+        return os.path.join(self.config_dir, "policy.yaml")
+
+    @property
+    def base_url_is_local(self) -> bool:
+        """Would a link built from this open on someone else's phone? No."""
+        host = urlparse(self.base_url).hostname or ""
+        return host in {"localhost", "127.0.0.1", "::1", "0.0.0.0", ""} or host.endswith(".local")
 
 
 class IngestSettings(BaseSettings):

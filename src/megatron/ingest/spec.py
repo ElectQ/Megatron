@@ -154,6 +154,10 @@ class SourceSpec(BaseModel):
     audience: list[Literal["personal", "public"]] = Field(default_factory=lambda: ["personal"])
     enabled: bool = True
 
+    # Which day-page layout this source renders with. Data-driven so a new layout
+    # is a template + a mapping entry, not a hardcoded `if kind == ...` in the view.
+    page_layout: str = "digest"
+
     schedule: Schedule = Field(default_factory=Schedule)
     schedule_expect: ScheduleExpect = Field(default_factory=ScheduleExpect)
 
@@ -201,6 +205,7 @@ class SourceSpec(BaseModel):
             cfg["map"] = self.map.model_dump()
         if self.schedule.cron:
             cfg["cron"] = self.schedule.cron
+        cfg["page_layout"] = self.page_layout
         return cfg
 
 
