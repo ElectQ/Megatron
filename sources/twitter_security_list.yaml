@@ -1,27 +1,50 @@
-# Twitter 安全 List —— 由 Soundwave (Collector) 采集后 POST 进来。
+# Twitter 安全 List —— 由 Soundwave (Collector) 采集。
 #
-# Soundwave 只负责爬取和投递，不做分级/推送。它把统一信封 (schema_version: 1)
-# POST 到 /api/ingest/twitter_security_list，带 Bearer $MEGATRON_INGEST_TOKEN。
+# Soundwave 每天爬完会把一个「日包」提交到自己仓库的 bundles/YYYY-MM-DD.json，
+# 而那个文件本身就是一个 schema_version: 1 的统一信封（同样的 source_id、
+# 同样的 items[].external_id / metrics / flags）。所以这里不需要任何字段映射：
+# 拉下来直接就能进 ingest。
+#
+# Soundwave 的 README 明确：bundles/ 才是与 Megatron 的契约面；
+# data/ 是它的内部原始层，不该被直接消费。
+#
+# 两种接法，二选一：
+#
+#  A) bundle_pull（当前）—— Megatron 按 cron 去拉，Soundwave 零改动。
+#  B) http_push        —— Soundwave 在 Action 里把 bundle POST 过来，更实时。
+#                          切换方式：adapter 改成 http_push、删掉 schedule 和
+#                          config.index_url，然后在 Soundwave 的 crawl.yml 里加一步
+#                          curl（见 docs/使用指南.md「源接入」）。
 
 source_id: twitter_security_list
 display_name: Twitter 安全 List
 kind: twitter_list
-adapter: http_push
+adapter: bundle_pull
 audience: [personal]
 enabled: true
 
-# 期望到达时间，用于「今日源到达」健康检查（不是我们去拉的时间）
+# 我们去拉的时间。Soundwave 的 Action 在 21:13 UTC(05:13 北京)跑，
+# 留足余量后在 22:30 UTC(06:30 北京)来取。
+schedule:
+  cron: "30 22 * * *"
+
+# 期望到达时间，用于「今日源到达」健康检查
 schedule_expect:
   timezone: Asia/Shanghai
   collect_by: "06:00"
   sla_minutes: 90
 
 config:
+  index_url: https://raw.githubusercontent.com/ElectQ/Soundwave/master/bundles/index.json
+
+  # 一次最多回补几天（冷启动/停机后追赶用）
+  max_days: 7
+
+  # index.json 和 <date>.json 是 CDN 上两个独立对象，可能被读到不一致的版本。
+  # 校验摘要，对不上就跳过、等下一次轮询，而不是吃进一个残缺的日包。
+  verify_sha256: true
+
   external_repo: ElectQ/Soundwave
 
   # 老的 collector 还在 POST /api/ingest/soundwave；别名让它落到这个源而不是 404。
   legacy_aliases: [soundwave, twitter]
-
-  # 过渡期：当日库里 0 条时，允许日任务经 MCP 回补一次（MEGATRON_MCP_LIVE_FETCH=backfill）。
-  # Soundwave 改为 HTTP Push 之后，把 MEGATRON_MCP_LIVE_FETCH 设为 off，并删掉这一行。
-  fallback_mcp: true

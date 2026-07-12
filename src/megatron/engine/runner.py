@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.logging import get_logger
@@ -22,6 +23,31 @@ ACTIVE_RUN_STATUSES = ("queued", "running")
 
 _DEFAULT_SOUNDWAVE_REPO = "ElectQ/Soundwave"
 _DEFAULT_SOUNDWAVE_BRANCH = "master"
+
+# Adapters whose data arrives out of band (a collector pushes, or the scheduler
+# polls). A run reads the database; it never goes to the network for them.
+OUT_OF_BAND_ADAPTERS = ("http_push", "http_pull", "bundle_pull", "git_pull", "native")
+
+# Fallback for installs with no registry row yet, so behaviour is unchanged
+# until `megatron sources sync` runs.
+_LEGACY_KIND_ADAPTER = {
+    "twitter": "git_pull",
+    "http_pull": "http_pull",
+    "bundle_pull": "bundle_pull",
+    "soundwave": "mcp_query",
+    "mcp": "mcp_query",
+}
+
+
+@dataclass
+class SourceBinding:
+    """What a module's `source` string resolves to."""
+
+    source_id: str
+    adapter: str
+    kind: str | None
+    kwargs: dict
+    row: object | None = None  # SourceConfig | None
 
 
 def _default_soundwave_repo() -> tuple[str, str]:
@@ -164,6 +190,7 @@ class ModuleRunner:
 
     async def _execute_run(self, module, run) -> dict:
         started = time.time()
+        self._warnings: list[dict] = []
         try:
             run.module_snapshot = await self._module_snapshot(module)
             run.prompt_snapshot = await self._prompt_snapshot(module)
@@ -186,7 +213,7 @@ class ModuleRunner:
 
             if not items:
                 run.status = "completed"
-                run.result = {"briefing": "无数据", "items": []}
+                run.result = {"briefing": "无数据", "items": [], "warnings": self._warnings}
                 run.finished_at = datetime.now(timezone.utc)
                 run.duration_sec = time.time() - started
                 await self.session.commit()
@@ -213,6 +240,8 @@ class ModuleRunner:
             )
 
             result = self._parse_result(content)
+            if self._warnings:
+                result["warnings"] = self._warnings
             run.prompt_tokens = tokens_in
             run.completion_tokens = tokens_out
             run.total_cost_usd = round(cost, 6)
@@ -249,6 +278,43 @@ class ModuleRunner:
             await self.session.commit()
             logger.error("runner.failed", module_id=module.id, run_id=run.id, error=run.error)
             raise
+
+    async def _source_binding(self, module) -> SourceBinding:
+        """Resolve ``module.source`` to a registry row, an adapter and plugin kwargs.
+
+        The adapter — not the plugin class — decides whether a run fetches
+        anything. See ``_refresh_data``.
+        """
+        kind, kwargs = await self._resolve_source(module)
+
+        from sqlalchemy import select as sa_select
+
+        from ..core.models import SourceConfig
+
+        row = (
+            await self.session.execute(
+                sa_select(SourceConfig).where(SourceConfig.name == module.source)
+            )
+        ).scalar_one_or_none()
+
+        if row is not None and row.adapter:
+            adapter = row.adapter
+            if adapter in ("http_pull", "bundle_pull"):
+                # The plugin kind is implied by the adapter; the spec's fetch/map
+                # (or index_url) blocks live in config and are already in kwargs.
+                kind = adapter
+        else:
+            # No registry row: infer from the built-in kind so an install that
+            # has not run `sources sync` still behaves as it did before.
+            adapter = _LEGACY_KIND_ADAPTER.get(kind or "", "native")
+
+        return SourceBinding(
+            source_id=module.source,
+            adapter=adapter,
+            kind=kind,
+            kwargs=kwargs,
+            row=row,
+        )
 
     async def _resolve_source(self, module) -> tuple[str | None, dict]:
         """Resolve a module's data source to ``(source_kind, kwargs)``.
@@ -326,29 +392,95 @@ class ModuleRunner:
 
         return None, kwargs
 
-    async def _refresh_data(self, module, run) -> str | None:
-        """Fetch fresh data inline for live sources; return latest date fetched.
+    def _warn(self, code: str, message: str, **fields) -> None:
+        """Record a run-level warning. Surfaced in run.result['warnings']."""
+        self._warnings.append({"code": code, "message": message, **fields})
+        logger.warning(f"runner.{code}", **fields)
 
-        Pull-based sources (git/twitter, ``live_fetch=False``) are ingested
-        out-of-band by the scheduler, so this is a no-op for them. Live sources
-        (MCP) fetch on demand; any failure propagates so the run is marked
-        FAILED rather than silently "completed / 无数据".
+    async def _refresh_data(self, module, run) -> str | None:
+        """Bring the day's data in, if this source needs it. Returns the latest date.
+
+        The adapter decides:
+
+        * http_push / http_pull / git_pull / native — data arrives out of band
+          (a collector pushes, or the scheduler polls). A run reads the DB.
+        * mcp_query — the degraded path. Pulling a whole day over MCP inside the
+          run and analysing it is the thing the spec explicitly rejects, so it is
+          gated on MEGATRON_MCP_LIVE_FETCH:
+
+            off       never; the source is for querying, not for the daily job
+            backfill  only when the day has zero rows — top the DB up, then read
+                      the DB like everyone else (default, transitional)
+            always    the old behaviour; an escape hatch, not a destination
+
+        `backfill` is not "fetch a day and analyse it": it repairs the table and
+        the analysis still reads the table. It exists because today the only
+        working intake for this install *is* MCP, and turning it off before the
+        collector pushes would leave the daily brief empty.
         """
+        binding = await self._source_binding(module)
+
+        if binding.adapter in OUT_OF_BAND_ADAPTERS:
+            return None
+
+        if binding.adapter != "mcp_query":
+            logger.warning(
+                "runner.refresh.unknown_adapter",
+                source=binding.source_id,
+                adapter=binding.adapter,
+            )
+            return None
+
+        return await self._mcp_backfill(module, binding)
+
+    async def _mcp_backfill(self, module, binding: SourceBinding) -> str | None:
         from datetime import timedelta
 
+        from ..config import get_ingest_settings
         from ..core.db import insert_ignore
         from ..core.models import ItemRecord
         from ..ingest.watermark import advance_watermark, get_watermark
         from ..plugins.sources.base import source_registry
 
-        kind, source_kwargs = await self._resolve_source(module)
+        mode = (get_ingest_settings().mcp_live_fetch or "backfill").lower()
+
+        if mode == "off":
+            self._warn(
+                "mcp_live_fetch_disabled",
+                f"Source '{binding.source_id}' is adapter=mcp_query and "
+                "MEGATRON_MCP_LIVE_FETCH=off; its data must arrive via ingest.",
+                source=binding.source_id,
+            )
+            return None
+
+        if mode == "backfill":
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            existing = (
+                await self.session.execute(
+                    select(func.count())
+                    .select_from(ItemRecord)
+                    .where(
+                        ItemRecord.source == binding.source_id,
+                        ItemRecord.collect_date == today,
+                    )
+                )
+            ).scalar_one()
+            if existing:
+                # The collector already delivered; do not touch the network.
+                return None
+            self._warn(
+                "mcp_backfill",
+                f"No rows for {today} from '{binding.source_id}'; backfilling over MCP. "
+                "Switch the collector to HTTP push and set MEGATRON_MCP_LIVE_FETCH=off.",
+                source=binding.source_id,
+                date=today,
+            )
+
+        kind, source_kwargs = binding.kind, binding.kwargs
         if not kind or kind not in source_registry:
             logger.warning("runner.refresh.no_source", source=module.source)
             return None
         source_cls = source_registry.get(kind)
-        if not source_cls.live_fetch:
-            # Pull-based source: data arrives via the scheduler, not here.
-            return None
 
         # Incremental: fetch only dates strictly after our watermark.
         wm = await get_watermark(self.session, module.source)
@@ -420,9 +552,12 @@ class ModuleRunner:
         fc = fc if fc is not None else (module.filter_config or {})
         time_mode = fc.get("time_mode", "today")
 
+        # `sources` lets a day pipeline merge several collectors; unset keeps the
+        # historical single-source behaviour exactly.
+        sources = fc.get("sources") or [module.source]
         stmt = (
             select(ItemRecord)
-            .where(ItemRecord.source == module.source)
+            .where(ItemRecord.source.in_(sources))
             .order_by(ItemRecord.published_at.desc())
         )
         if module.source_ref:

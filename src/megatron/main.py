@@ -256,6 +256,26 @@ def sources_sync():
     asyncio.run(_run())
 
 
+@sources.command("pull")
+@click.argument("source_id")
+def sources_pull(source_id: str):
+    """Poll one source now (bundle_pull / http_pull / git_pull)."""
+    import asyncio
+
+    from .core.db import dispose_db, init_db
+    from .scheduler import poll_source
+
+    async def _run():
+        await init_db()
+        try:
+            ingested, duplicated = await poll_source(source_id)
+        finally:
+            await dispose_db()
+        click.echo(f"Pulled {source_id}: ingested={ingested} duplicated={duplicated}")
+
+    asyncio.run(_run())
+
+
 @sources.command("list")
 def sources_list():
     """Show the registered sources."""

@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "source_id": "twitter_security_list",
+  "collect_date": "2026-07-11",
+  "collect_window": {
+    "start": "2026-07-10T07:11:44.429075+00:00",
+    "end": "2026-07-11T07:11:44.429075+00:00",
+    "hours": 24
+  },
+  "producer": {
+    "name": "soundwave",
+    "version": "1.0.0",
+    "run_id": "",
+    "commit": ""
+  },
+  "stats": {
+    "total": 3,
+    "by_list": {
+      "sec_list": 3
+    },
+    "failed_lists": []
+  },
+  "items": [
+    {
+      "external_id": "2075834083335147974",
+      "url": "https://x.com/_RastaMouse/status/2075834083335147974",
+      "content": "That’s not what you want to see when you’re trying to get to @Steel_Con https://t.co/sZChkVPSMM",
+      "author": "_RastaMouse",
+      "author_name": "Rasta Mouse",
+      "published_at": "2026-07-11T06:46:27+00:00",
+      "collected_at": "2026-07-11T07:10:39.836912+00:00",
+      "tags": [
+        "list:sec_list"
+      ],
+      "hashtags": [],
+      "links": [],
+      "media": {
+        "photos": [
+          "https://pbs.twimg.com/media/HM7YF0YWMAALuhf.jpg"
+        ],
+        "videos": []
+      },
+      "metrics": {
+        "like_count": 0,
+        "retweet_count": 0,
+        "reply_count": 0,
+        "view_count": 256
+      },
+      "flags": {
+        "is_retweet": false,
+        "is_quote": false
+      }
+    },
+    {
+      "external_id": "2075830558878540275",
+      "url": "https://x.com/0x534c/status/2075830558878540275",
+      "content": "🤖𝗔𝗴𝗲𝗻𝘁𝟯𝟲𝟱 𝗔𝘂𝘁𝗼𝗝𝗮𝗰𝗸 𝗗𝗲𝘁𝗲𝗰𝘁𝗶𝗼𝗻\n\nThe Microsoft Defender Security Research Team recently published research on “𝘈𝘶𝘵𝘰𝘑𝘢𝘤𝘬” — a scenario where a local AI Agent, while performing browsing tasks, encounters untrusted web content that triggers a remote code execution (RCE) on the host running the agent.\n\nBuilding on that threat model, I developed the 𝗔𝗴𝗲𝗻𝘁𝟯𝟲𝟱 𝗔𝘂𝘁𝗼𝗝𝗮𝗰𝗸 𝗗𝗲𝘁𝗲𝗰𝘁𝗶𝗼𝗻 to empower defenders with visibility into this emerging risk. This detection covers 𝟯𝟱 𝗸𝗻𝗼𝘄𝗻 𝗮𝗴𝗲𝗻𝘁 𝘁𝘆𝗽𝗲𝘀 𝗶𝗱𝗲𝗻𝘁𝗶𝗳𝗶𝗲𝗱 𝗯𝘆 𝗔𝗴𝗲𝗻𝘁𝟯𝟲𝟱, enabling security teams to spot potential exploitation attempts and mitigate the risk of RCE stemming from compromised local AI agents.\n\nhttps://t.co/hQD9ObSonc\n\n#Cybersecurity #Agent365 #AutoJack #ThreatDetection",
+      "author": "0x534c",
+      "author_name": "Steven Lim",
+      "published_at": "2026-07-11T06:32:26+00:00",
+      "collected_at": "2026-07-11T07:10:39.837295+00:00",
+      "tags": [
+        "list:sec_list"
+      ],
+      "hashtags": [],
+      "links": [
+        "https://detections.ai/share/rule/k2lKGjDo"
+      ],
+      "media": {
+        "photos": [
+          "https://pbs.twimg.com/media/HM7UvvVacAAjD4l.jpg"
+        ],
+        "videos": []
+      },
+      "metrics": {
+        "like_count": 3,
+        "retweet_count": 1,
+        "reply_count": 0,
+        "view_count": 222
+      },
+      "flags": {
+        "is_retweet": false,
+        "is_quote": false
+      }
+    },
+    {
+      "external_id": "2075815201014759603",
+      "url": "https://x.com/NetAskari/status/2075815201014759603",
+      "content": "RT @ColinPClarke: How Terrorist Groups Are Using A.I. to Gain an Edge in Battle https://t.co/rUv9zaVlIK",
+      "author": "NetAskari",
+      "author_name": "NetAskari",
+      "published_at": "2026-07-11T05:31:25+00:00",
+      "collected_at": "2026-07-11T07:10:39.837853+00:00",
+      "tags": [
+        "list:sec_list"
+      ],
+      "hashtags": [],
+      "links": [
+        "https://www.nytimes.com/2026/07/10/us/politics/ai-terrorism-boko-haram-nigeria.html?smid=tw-share"
+      ],
+      "media": {
+        "photos": [],
+        "videos": []
+      },
+      "metrics": {
+        "like_count": 0,
+        "retweet_count": 6,
+        "reply_count": 0,
+        "view_count": 73
+      },
+      "flags": {
+        "is_retweet": true,
+        "is_quote": false
+      }
+    }
+  ]
+}

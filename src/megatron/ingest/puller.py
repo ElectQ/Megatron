@@ -47,12 +47,17 @@ class GitPuller:
         self,
         repo_url: str,
         source: str = "twitter",
+        plugin: str = "",
         mode: str = "auto",
         target_date: str = "",
         since_date: str = "",
     ):
         self.repo_url = repo_url
+        # The source_id items are filed under (and the watermark key).
         self.source = source
+        # The parser for the repo's on-disk layout. Decoupled from `source` so a
+        # source can be renamed without changing which plugin reads its files.
+        self.plugin = plugin or "twitter"
         self.mode = mode
         self.target_date = target_date
         self.since_date = since_date
@@ -166,12 +171,13 @@ class GitPuller:
             logger.warning("puller.no_data_dir", path=str(data_dir))
             return 0, 0, []
 
-        # Build source config with date filter
-        source_config: dict = {"data_dir": str(data_dir)}
+        # Build source config with date filter. `source_label` is what the items
+        # get filed under — the source_id, not the plugin name.
+        source_config: dict = {"data_dir": str(data_dir), "source_label": self.source}
         if dates_to_pull is not None:
             source_config["only_dates"] = set(dates_to_pull)
 
-        plugin = source_registry.create(self.source, **source_config)
+        plugin = source_registry.create(self.plugin, **source_config)
         items: list[Item] = await plugin.fetch()
         if not items:
             logger.info("puller.no_items", dates=dates_to_pull)

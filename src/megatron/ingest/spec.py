@@ -48,10 +48,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 SLUG_RE = re.compile(r"^[a-z][a-z0-9_-]{1,31}$")
 _ENV_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
-ADAPTERS = ("http_push", "http_pull", "git_pull", "mcp_query", "native")
+ADAPTERS = ("http_push", "http_pull", "bundle_pull", "git_pull", "mcp_query", "native")
 AUDIENCES = ("personal", "public")
 
-Adapter = Literal["http_push", "http_pull", "git_pull", "mcp_query", "native"]
+Adapter = Literal["http_push", "http_pull", "bundle_pull", "git_pull", "mcp_query", "native"]
+
+# Adapters Megatron polls itself, on `schedule.cron`.
+POLLED_ADAPTERS = ("http_pull", "bundle_pull", "git_pull")
 
 
 def expand_env(value: str) -> str:
@@ -176,6 +179,8 @@ class SourceSpec(BaseModel):
                 raise ValueError("adapter 'http_pull' requires a `fetch:` block")
             if self.map is None and self.fetch.format == "json":
                 raise ValueError("adapter 'http_pull' with format json requires a `map:` block")
+        if self.adapter == "bundle_pull" and not self.config.get("index_url"):
+            raise ValueError("adapter 'bundle_pull' requires config.index_url")
         if self.adapter == "git_pull" and not self.config.get("repo_url"):
             raise ValueError("adapter 'git_pull' requires config.repo_url")
         return self

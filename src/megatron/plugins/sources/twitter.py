@@ -109,7 +109,9 @@ class TwitterListSource(BaseSource):
         media = tweet.get("media") or {}
         return Item(
             id=str(tweet["id"]),
-            source="twitter",
+            # The source_id the items are filed under. Falls back to the plugin
+            # kind so pre-registry callers keep their old labels.
+            source=self.config.get("source_label") or self.name,
             source_ref=source_ref,
             content=tweet.get("content", ""),
             url=tweet.get("url", ""),
