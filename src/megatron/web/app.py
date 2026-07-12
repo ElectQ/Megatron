@@ -23,6 +23,7 @@ from . import (
     policy_api,
     prompts_api,
     providers_api,
+    public_api,
     runs_api,
     day_api,
     schedules_api,
@@ -112,11 +113,6 @@ async def redirect_to_login(request: Request, exc: RedirectLoginException):
     return RedirectResponse("/ui/login", status_code=303)
 
 
-@app.get("/")
-async def root():
-    return RedirectResponse("/ui/dashboard")
-
-
 @app.get("/health")
 async def health():
     from .core_health import registered_sources
@@ -127,3 +123,9 @@ async def health():
         "sources": await registered_sources(),
         "version": __version__,
     }
+
+
+# The public frontend owns `/` and the `/{lang}` catch-all, so it is mounted LAST —
+# after every specific route (/ui, /api, /day, /health, /r, /static) so its
+# single-segment `/{lang}` cannot shadow them.
+app.include_router(public_api.router)

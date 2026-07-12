@@ -85,6 +85,12 @@ output_schema: daily_intel_v1
   用小写英文或简短中文，**不要**用 `安全`/`重要`/`值得关注` 这种没有信息量的词。
 - `actionability`：`none` / `read` / `watch` / `try`
 - `scores`：`relevance`(0-3) `actionability`(0-3) `confidence`(0-1) `noise_risk`(0-1)
+- `public`：`true` / `false`（**默认 false**）。这条能不能放到**公开博客**上给陌生人看？
+  - `true` 只给**客观、已公开**的信息：已披露的 CVE / 漏洞、公开发布的工具或文章、公开的安全事件、官方公告。
+  - `false`（默认）给任何**涉及这个用户个人视角**的：内部/敏感、以及所有拿不准的。
+  - 注意：`why_for_me` 是「为什么和你有关」，本身是私人的；公开时系统会自动去掉它，
+    所以你标 `public: true` 只表示「这条**客观事实**可公开」，不代表连你的私人解读也公开。
+  - 宁可漏标 public，不可误标 —— 拿不准就 `false`。
 
 ## 输入
 共 {{ item_count }} 条：
@@ -107,7 +113,8 @@ content: {{ item.content }}
     {"external_id": "...", "source_id": "...", "tier": "must_see_push",
      "one_liner": "...", "why_for_me": "...",
      "actionability": "try", "topics": ["ai_agent", "rce", "poc"],
-     "scores": {"relevance": 3, "actionability": 3, "confidence": 0.8, "noise_risk": 0.1}},
+     "scores": {"relevance": 3, "actionability": 3, "confidence": 0.8, "noise_risk": 0.1},
+     "public": true},
     {"external_id": "...", "source_id": "...", "tier": "drop"}
   ],
   "push_item_ids": ["..."]

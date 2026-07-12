@@ -166,6 +166,19 @@ _ZH: dict[str, str] = {
     "Username": "用户名",
     "Password": "密码",
     "Invalid username or password": "用户名或密码错误",
+    # Public frontend
+    "Security Radar": "安全雷达",
+    "Admin": "后台",
+    "A daily digest of publicly notable security items — vulnerabilities, tools, events.": "每日公开安全速递 —— 漏洞、工具、事件。",
+    "Public daily security intelligence. Personal analysis stays private.": "公开的每日安全情报;个人化解读不对外。",
+    "Nothing published yet.": "还没有公开内容。",
+    "All digests": "全部",
+    "items": "条",
+    "source ↗": "原文 ↗",
+    "Top": "头条",
+    "Must-see": "必看",
+    "Recommended": "推荐",
+    "More": "更多",
 }
 
 _TABLES: dict[str, dict[str, str]] = {"zh": _ZH}

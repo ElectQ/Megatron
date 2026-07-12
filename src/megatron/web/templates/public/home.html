@@ -1,0 +1,29 @@
+{% extends "public/base.html" %}
+{% block title %}{{ t('Security Radar') }}{% endblock %}
+{% block content %}
+<div style="margin-bottom:2rem">
+  <h1 style="font-size:1.5rem;margin:0 0 .35rem;letter-spacing:-.01em">{{ t('Security Radar') }}</h1>
+  <p style="color:var(--muted);font-size:.9375rem;margin:0">{{ t('A daily digest of publicly notable security items — vulnerabilities, tools, events.') }}</p>
+</div>
+
+{% if not recent %}
+  <div style="text-align:center;color:var(--muted);padding:4rem 1rem">
+    <div style="font-size:2rem;margin-bottom:.5rem">🌙</div>
+    {{ t('Nothing published yet.') }}
+  </div>
+{% else %}
+  <div style="display:flex;flex-direction:column;gap:.75rem">
+    {% for p in recent %}
+    <a href="/{{ lang }}/{{ p.source_id }}/{{ p.date }}"
+       style="display:block;background:var(--surface);border:1px solid var(--border);border-radius:.75rem;
+              padding:1rem 1.15rem;text-decoration:none;box-shadow:var(--shadow)">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:.75rem">
+        <span style="font-weight:600;font-size:1.0625rem">{{ p.title }}</span>
+        <span style="color:var(--faint);font-size:.8125rem;font-variant-numeric:tabular-nums">{{ p.date }}</span>
+      </div>
+      <div style="color:var(--muted);font-size:.8125rem;margin-top:.35rem">{{ p.count }} {{ t('items') }}</div>
+    </a>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

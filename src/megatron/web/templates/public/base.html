@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>{% block title %}{{ t('Security Radar') }}{% endblock %}</title>
+{% block head %}{% endblock %}
+<style>
+  /* A blog, not the admin shell: public, indexable, self-contained, no CDN. */
+  :root {
+    --bg:#fbfbfc; --surface:#fff; --text:#1a1c1f; --muted:#5f6672; --faint:#98a0ad;
+    --border:#e7e9ee; --accent:#3b6ef5; --star:#c99700;
+    --shadow:0 1px 2px rgba(0,0,0,.04),0 2px 16px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0d0e11; --surface:#16181c; --text:#e9eaec; --muted:#9aa1ad; --faint:#6b7280;
+    --border:#24272e; --accent:#6b93ff; --star:#e3b341; --shadow:none;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  a{color:inherit}
+  .wrap{max-width:44rem;margin:0 auto;padding:0 1.25rem 5rem}
+  header.site{display:flex;align-items:center;justify-content:space-between;
+    padding:1.25rem 0;border-bottom:1px solid var(--border);margin-bottom:2rem;flex-wrap:wrap;gap:.5rem}
+  header.site .brand{font-weight:700;font-size:1.05rem;text-decoration:none;letter-spacing:-.01em}
+  header.site .right{display:flex;align-items:center;gap:.9rem;font-size:.8125rem}
+  header.site .right a{color:var(--muted);text-decoration:none}
+  header.site .right a:hover{color:var(--text)}
+  header.site .right a.on{color:var(--text);font-weight:600}
+  header.site .admin{color:var(--faint);border:1px solid var(--border);border-radius:999px;padding:.15rem .6rem}
+  footer.site{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);
+    color:var(--faint);font-size:.8125rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site">
+    <a class="brand" href="/{{ lang }}">⚡ {{ t('Security Radar') }}</a>
+    <div class="right">
+      <a href="/{{ other_lang }}{{ here_suffix or '' }}">{{ langs[other_lang] }}</a>
+      <a class="admin" href="/ui/login">{{ t('Admin') }}</a>
+    </div>
+  </header>
+
+  {% block content %}{% endblock %}
+
+  <footer class="site">{{ t('Public daily security intelligence. Personal analysis stays private.') }}</footer>
+</div>
+</body>
+</html>

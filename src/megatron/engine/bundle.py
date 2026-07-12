@@ -259,6 +259,9 @@ def build_day_bundle(
                 # Tags come from the model. Capped here so a chatty answer cannot
                 # turn one card into a wall of chips.
                 "topics": [str(t).strip() for t in (raw.get("topics") or []) if str(t).strip()][:4],
+                # May this item appear on the public blog? Default private — only
+                # what the model explicitly marks public is ever world-readable.
+                "public": bool(raw.get("public", False)),
                 "author": rec.author,
                 "author_name": rec.author_name,
                 "published_at": rec.published_at.isoformat() if rec.published_at else "",

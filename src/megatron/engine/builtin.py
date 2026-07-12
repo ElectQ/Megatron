@@ -100,6 +100,9 @@ DAILY_INTEL_V1_SCHEMA = {
                         "maxItems": 4,
                     },
                     "scores": {"type": "object"},
+                    # Whether this item may appear on the public blog. Default
+                    # false (private); only set true for已公开/客观 information.
+                    "public": {"type": "boolean"},
                 },
                 # What a card owes the reader scales with how prominently it is
                 # rendered. A skim line is a title and a chip; demanding a

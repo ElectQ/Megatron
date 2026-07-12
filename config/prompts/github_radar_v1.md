@@ -61,6 +61,9 @@ output_schema: github_radar_v1
 - `actionability`：`none` / `read` / `watch` / `try`（值得上手的工具给 `try`）。
 - `scores`：`relevance`(0-3) `actionability`(0-3) `confidence`(0-1) `noise_risk`(0-1)。
   推断仓库用途时 confidence 给低一点（0.3-0.6），别不懂装懂。
+- `public`：`true` / `false`（**默认 false**）。这个仓库值不值得放到**公开博客**上分享？
+  GitHub 仓库本身是公开的，所以只要是**客观有价值的安全项目/工具**就可以 `public: true`；
+  纯噪音、或你不确定的，留 `false`。（公开时系统会去掉个人 `why_for_me`。）
 
 ## 输入
 共 {{ item_count }} 条动作：
@@ -83,7 +86,8 @@ content: {{ item.content }}
     {"external_id": "...", "source_id": "...", "tier": "must_see_page",
      "one_liner": "owner/repo：一句话用途（N 人 star）", "why_for_me": "...",
      "actionability": "try", "topics": ["bof", "红队", "工具"],
-     "scores": {"relevance": 3, "actionability": 2, "confidence": 0.5, "noise_risk": 0.1}},
+     "scores": {"relevance": 3, "actionability": 2, "confidence": 0.5, "noise_risk": 0.1},
+     "public": true},
     {"external_id": "...", "source_id": "...", "tier": "drop"}
   ],
   "push_item_ids": []
