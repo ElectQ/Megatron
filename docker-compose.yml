@@ -3,10 +3,17 @@ services:
     build: .
     container_name: megatron
     environment:
-      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./app/data/megatron.db}
+      # Four slashes = absolute /app/data/megatron.db (on the mounted volume).
+      # Three slashes would be relative to WORKDIR=/app and land off-volume,
+      # so the database would be lost every time the container is recreated.
+      MEGATRON_DATABASE_URL: ${MEGATRON_DATABASE_URL:-sqlite+aiosqlite:////app/data/megatron.db}
       MEGATRON_SESSION_SECRET: ${MEGATRON_SESSION_SECRET:-}
       MEGATRON_ADMIN_TOKEN: ${MEGATRON_ADMIN_TOKEN:-}
       MEGATRON_ADMIN_PASSWORD: ${MEGATRON_ADMIN_PASSWORD:-}
+      MEGATRON_INGEST_TOKEN: ${MEGATRON_INGEST_TOKEN:-}
+      MEGATRON_BASE_URL: ${MEGATRON_BASE_URL:-http://localhost:8000}
+      MEGATRON_SOUNDWAVE_REPO_URL: ${MEGATRON_SOUNDWAVE_REPO_URL:-}
+      MEGATRON_MCP_LIVE_FETCH: ${MEGATRON_MCP_LIVE_FETCH:-backfill}
       MEGATRON_DEEPSEEK_API_KEY: ${MEGATRON_DEEPSEEK_API_KEY:-}
       MEGATRON_DINGTALK_URL: ${MEGATRON_DINGTALK_URL:-}
       MEGATRON_DINGTALK_SECRET: ${MEGATRON_DINGTALK_SECRET:-}

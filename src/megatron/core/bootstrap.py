@@ -219,9 +219,10 @@ async def bootstrap(db_session) -> None:
 
 
 async def _ensure_session_secret() -> None:
-    """Generate session secret and admin token if not already set."""
+    """Generate session secret, admin token and ingest token if not already set."""
     _persist_or_generate("MEGATRON_SESSION_SECRET", ".session_secret")
     _persist_or_generate("MEGATRON_ADMIN_TOKEN", ".admin_token")
+    _persist_or_generate("MEGATRON_INGEST_TOKEN", ".ingest_token")
 
 
 def _persist_or_generate(env_var: str, filename: str) -> None:

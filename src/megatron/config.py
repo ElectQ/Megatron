@@ -27,6 +27,15 @@ def get_session_secret() -> str:
     return _read_secret("MEGATRON_SESSION_SECRET", ".session_secret", "dev-session-secret-change-me-for-prod")
 
 
+def get_ingest_token() -> str:
+    """Resolve the ingest bearer token at call time.
+
+    Must not be cached: bootstrap generates and persists this token *after*
+    this module is imported, so a value snapshotted at import would be stale.
+    """
+    return _read_secret("MEGATRON_INGEST_TOKEN", ".ingest_token", "dev-ingest-token-change-me")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -50,10 +59,23 @@ class Settings(BaseSettings):
 
 
 class IngestSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="MEGATRON_",
+        extra="ignore",
+    )
 
     ingest_token: str = "dev-ingest-token-change-me"
     soundwave_repo_url: str = ""
+
+    # Reject pushes for source_ids that are not registered. When true, an
+    # unknown source_id still 404s but a disabled registry row is created so
+    # an operator can enable it from the UI instead of hand-writing SQL.
+    ingest_auto_register: bool = False
+
+    # off | backfill | always — see docs. `backfill` only touches MCP when the
+    # day has zero rows in `items`; the analysis layer always reads the DB.
+    mcp_live_fetch: str = "backfill"
 
 
 @lru_cache

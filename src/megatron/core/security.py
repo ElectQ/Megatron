@@ -158,9 +158,9 @@ def validate_runtime_settings() -> None:
         weak.append("MEGATRON_MASTER_KEY")
     if not settings.admin_password:
         weak.append("MEGATRON_ADMIN_PASSWORD")
-    from ..config import get_ingest_settings
+    from ..config import get_ingest_token
 
-    ingest_token = get_ingest_settings().ingest_token
+    ingest_token = get_ingest_token()
     if ingest_token == "dev-ingest-token-change-me" or ingest_token.startswith("change-me"):
         weak.append("MEGATRON_INGEST_TOKEN")
     if weak:
@@ -168,10 +168,23 @@ def validate_runtime_settings() -> None:
 
 
 class IngestAuth:
-    """Bearer token auth for ingest endpoints (Soundwave push)."""
+    """Bearer token auth for ingest endpoints (Soundwave push).
 
-    def __init__(self, expected: str):
+    ``expected=None`` resolves the token per request. Bootstrap generates and
+    persists the token after import time, so a value pinned at construction
+    would keep the stale default alive.
+    """
+
+    def __init__(self, expected: str | None = None):
         self._expected = expected
+
+    @property
+    def expected(self) -> str:
+        if self._expected is not None:
+            return self._expected
+        from ..config import get_ingest_token
+
+        return get_ingest_token()
 
     async def __call__(
         self,
@@ -183,7 +196,7 @@ class IngestAuth:
                 detail="Missing bearer token",
             )
         token = authorization.removeprefix("Bearer ").strip()
-        if not safe_eq(token, self._expected):
+        if not safe_eq(token, self.expected):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Invalid ingest token",

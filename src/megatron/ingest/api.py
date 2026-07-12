@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import ingest_settings
 from ..core.db import get_session
 from ..core.logging import get_logger
 from ..core.security import IngestAuth
@@ -15,7 +14,8 @@ from .service import IngestService
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
-_auth = IngestAuth(ingest_settings.ingest_token)
+# No pinned token: resolved per request, since bootstrap mints it after import.
+_auth = IngestAuth()
 
 
 class IngestResponse(BaseModel):

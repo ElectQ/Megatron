@@ -215,7 +215,7 @@ def gentoken():
     from .core.security import generate_token
 
     click.echo("MEGATRON_ADMIN_TOKEN=" + generate_token())
-    click.echo("INGEST_TOKEN=" + generate_token())
+    click.echo("MEGATRON_INGEST_TOKEN=" + generate_token())
 
 
 if __name__ == "__main__":

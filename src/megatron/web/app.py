@@ -33,7 +33,6 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging(level="INFO")
-    validate_runtime_settings()
     from ..engine import agent_loop as _agent  # noqa: F401  trigger registration
     from ..plugins import filters as _filters  # noqa: F401  trigger registration
     from ..plugins import sources as _sources  # noqa: F401  trigger registration
@@ -43,6 +42,10 @@ async def lifespan(app: FastAPI):
     await init_db()
     from ..core.bootstrap import bootstrap
     await bootstrap(None)
+
+    # After bootstrap: it mints and persists the session/admin/ingest secrets,
+    # so validating before it would flag freshly-generatable secrets as weak.
+    validate_runtime_settings()
 
     # Recover runs interrupted by the previous shutdown/crash so their modules
     # are not blocked forever by the active-run guard.

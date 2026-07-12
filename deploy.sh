@@ -49,10 +49,16 @@ _env() {
     if [ ! -f .env ]; then
         SESSION_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))" 2>/dev/null || openssl rand -base64 48)
         ADMIN_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(12))" 2>/dev/null || openssl rand -base64 12)
+        INGEST_TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))" 2>/dev/null || openssl rand -base64 48)
         cat > .env << EOF
-DATABASE_URL=sqlite+aiosqlite:///./app/data/megatron.db
+# Four slashes = absolute path. Three would resolve relative to WORKDIR (/app)
+# and land outside the mounted volume, so the DB would vanish on recreate.
+MEGATRON_DATABASE_URL=sqlite+aiosqlite:////app/data/megatron.db
 MEGATRON_SESSION_SECRET=${SESSION_SECRET}
 MEGATRON_ADMIN_PASSWORD=${ADMIN_PASS}
+MEGATRON_INGEST_TOKEN=${INGEST_TOKEN}
+# Absolute URL used to build links in pushed messages.
+MEGATRON_BASE_URL=http://localhost:8000
 MEGATRON_DEEPSEEK_API_KEY=
 MEGATRON_DINGTALK_URL=
 MEGATRON_DINGTALK_SECRET=
