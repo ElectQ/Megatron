@@ -216,6 +216,19 @@ async def bootstrap(db_session) -> None:
         await _ensure_llm_provider(session)
         await _ensure_webhook_channel(session)
         await _ensure_analysis_module(session)
+        await _sync_sources(session)
+
+
+async def _sync_sources(session) -> None:
+    """Project the YAML source specs onto source_configs. YAML is the truth."""
+    from ..config import settings
+    from ..ingest.registry import sync_from_dir
+
+    result = await sync_from_dir(session, settings.sources_dir)
+    if result["errors"]:
+        # Loud, but not fatal: one broken spec must not stop the other sources
+        # (or the whole app) from coming up.
+        logger.error("bootstrap.source_specs_invalid", errors=result["errors"])
 
 
 async def _ensure_session_secret() -> None:

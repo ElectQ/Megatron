@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./megatron.db"
     base_url: str = "http://localhost:8000"
 
+    # Declarative source specs. This directory is the source of truth for every
+    # source it declares; source_configs rows are a projection of it.
+    sources_dir: str = "./sources"
+
     @property
     def secret_key_for_sessions(self) -> str:
         return get_session_secret()

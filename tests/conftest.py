@@ -41,6 +41,9 @@ async def _reset_db():
             "users",
             "items",
             "ingest_logs",
+            "source_configs",
+            "mcp_servers",
+            "pull_state",
         ):
             await session.execute(text(f"DELETE FROM {table}"))
         await session.commit()

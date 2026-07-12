@@ -18,12 +18,14 @@ RUN pip install --no-cache-dir uv \
         "itsdangerous>=2.2.0" "bcrypt>=4.0.0" "cryptography>=42.0.0" \
         "structlog>=24.1.0" "python-multipart>=0.0.9" "mcp>=1.0.0" \
         "asyncpg>=0.29.0" \
-        "trafilatura>=1.12.0"
+        "trafilatura>=1.12.0" \
+        "pyyaml>=6.0" "feedparser>=6.0.0" "jsonschema>=4.21.0"
 
 # Copy application
 COPY src/ ./src/
 COPY mcp_servers/ ./mcp_servers/
 COPY migrations/ ./migrations/
+COPY sources/ ./sources/
 COPY alembic.ini ./
 
 ENV PYTHONPATH=/app:/app/src

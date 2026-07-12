@@ -23,6 +23,7 @@ from . import (
     providers_api,
     runs_api,
     schedules_api,
+    sources_api,
     stats_api,
     ui,
 )
@@ -93,6 +94,7 @@ app.include_router(runs_api.router)
 app.include_router(channels_api.router)
 app.include_router(schedules_api.router)
 app.include_router(stats_api.router)
+app.include_router(sources_api.router)
 app.include_router(ui.router)
 
 

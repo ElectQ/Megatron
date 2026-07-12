@@ -209,6 +209,79 @@ def pull(repo: str, mode: str, target_date: str, since_date: str, full_flag: boo
     asyncio.run(_run())
 
 
+@cli.group()
+def sources():
+    """Manage declarative source specs (sources/*.yaml)."""
+
+
+@sources.command("validate")
+def sources_validate():
+    """Parse every source spec and report problems. Touches no database."""
+    from .config import settings
+    from .ingest.registry import load_specs
+
+    specs, errors = load_specs(settings.sources_dir)
+    for spec in specs:
+        click.echo(f"  ok    {spec.source_id}  ({spec.adapter})")
+    for err in errors:
+        click.echo(f"  ERROR {err}", err=True)
+    click.echo(f"\n{len(specs)} valid, {len(errors)} invalid  [{settings.sources_dir}]")
+    if errors:
+        raise SystemExit(1)
+
+
+@sources.command("sync")
+def sources_sync():
+    """Project sources/*.yaml onto the source_configs table."""
+    import asyncio
+
+    from .config import settings
+    from .core.db import async_session_factory, dispose_db, init_db
+    from .ingest.registry import sync_from_dir
+
+    async def _run():
+        await init_db()
+        async with async_session_factory() as session:
+            result = await sync_from_dir(session, settings.sources_dir)
+        await dispose_db()
+        for err in result["errors"]:
+            click.echo(f"  ERROR {err}", err=True)
+        click.echo(
+            f"Synced: created={result['created']} updated={result['updated']} "
+            f"disabled={result['disabled']}"
+        )
+        if result["errors"]:
+            raise SystemExit(1)
+
+    asyncio.run(_run())
+
+
+@sources.command("list")
+def sources_list():
+    """Show the registered sources."""
+    import asyncio
+
+    from .core.db import async_session_factory, dispose_db, init_db
+    from .ingest.registry import list_sources
+
+    async def _run():
+        await init_db()
+        async with async_session_factory() as session:
+            rows = await list_sources(session, enabled_only=False)
+        await dispose_db()
+        if not rows:
+            click.echo("No sources registered. Add a sources/*.yaml and run `megatron sources sync`.")
+            return
+        click.echo(f"{'SOURCE_ID':<28} {'ADAPTER':<10} {'MANAGED':<8} {'ENABLED':<8} AUDIENCE")
+        for sc in rows:
+            click.echo(
+                f"{sc.name:<28} {sc.adapter:<10} {sc.managed_by:<8} "
+                f"{str(sc.enabled):<8} {sc.audience}"
+            )
+
+    asyncio.run(_run())
+
+
 @cli.command()
 def gentoken():
     """Generate a random admin/ingest token for .env."""

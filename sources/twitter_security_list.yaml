@@ -1,0 +1,27 @@
+# Twitter 安全 List —— 由 Soundwave (Collector) 采集后 POST 进来。
+#
+# Soundwave 只负责爬取和投递，不做分级/推送。它把统一信封 (schema_version: 1)
+# POST 到 /api/ingest/twitter_security_list，带 Bearer $MEGATRON_INGEST_TOKEN。
+
+source_id: twitter_security_list
+display_name: Twitter 安全 List
+kind: twitter_list
+adapter: http_push
+audience: [personal]
+enabled: true
+
+# 期望到达时间，用于「今日源到达」健康检查（不是我们去拉的时间）
+schedule_expect:
+  timezone: Asia/Shanghai
+  collect_by: "06:00"
+  sla_minutes: 90
+
+config:
+  external_repo: ElectQ/Soundwave
+
+  # 老的 collector 还在 POST /api/ingest/soundwave；别名让它落到这个源而不是 404。
+  legacy_aliases: [soundwave, twitter]
+
+  # 过渡期：当日库里 0 条时，允许日任务经 MCP 回补一次（MEGATRON_MCP_LIVE_FETCH=backfill）。
+  # Soundwave 改为 HTTP Push 之后，把 MEGATRON_MCP_LIVE_FETCH 设为 off，并删掉这一行。
+  fallback_mcp: true
