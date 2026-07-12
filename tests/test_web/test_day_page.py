@@ -8,6 +8,8 @@ from megatron.core.engine_models import AnalysisRun
 from megatron.engine.bundle import BUNDLE_SCHEMA
 
 TOKEN = "dev-day-token-change-me"  # the default, since bootstrap has not run
+SRC = "twitter_security_list"
+PAGE = f"/day/{SRC}/2026-07-12?k={TOKEN}"
 
 
 @pytest.fixture
@@ -17,46 +19,56 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+async def registered_source():
+    """The page is addressed by its source, so the source has to exist."""
+    from megatron.ingest.registry import sync_specs
+    from megatron.ingest.spec import SourceSpec
+
+    async with async_session_factory() as session:
+        await sync_specs(session, [SourceSpec(source_id=SRC, display_name="推特安全流")])
+
+
 def bundle(date: str = "2026-07-12") -> dict:
     return {
         "schema": BUNDLE_SCHEMA,
-        "bundle_id": f"day-{date}",
+        "bundle_id": f"day-{SRC}-{date}",
         "date": date,
         "timezone": "Asia/Shanghai",
         "run_id": 1,
+        "source_id": SRC,
+        "title": "推特安全流",
         "caps": {"must_see_push_max": 3, "must_see_push_actual": 1},
         "stats": {
             "ingest_total": 12,
-            "by_source": {"twitter_security_list": 12},
+            "by_source": {SRC: 12},
             "by_tier": {"must_see_push": 1, "skim": 1},
             "dropped_unmatched": 0,
         },
         "items": [
             {
                 "id": 1,
-                "source_id": "twitter_security_list",
+                "source_id": SRC,
                 "external_id": "e1",
                 "tier": "must_see_push",
                 "one_liner": "AutoJack 可远程接管本地 agent",
                 "why_for_me": "你在跑本地 agent",
-                "bullets": ["无需交互", "已有 PoC"],
                 "actionability": "try",
-                "topics": ["ai_agent"],
+                "topics": ["ai_agent", "rce"],
                 "author": "alice",
                 "url": "https://x.com/a/1",
-                "content": "full text",
+                "content": "原文全文在此，用来判断值不值得点开",
                 "metrics": {"like_count": 9},
             },
             {
                 "id": 2,
-                "source_id": "twitter_security_list",
+                "source_id": SRC,
                 "external_id": "e2",
                 "tier": "skim",
                 "one_liner": "某会议 CFP 开放",
                 "why_for_me": "",
-                "bullets": [],
                 "actionability": "none",
-                "topics": [],
+                "topics": ["议题"],
                 "author": "bob",
                 "url": "https://x.com/b/2",
                 "content": "cfp",
@@ -104,7 +116,7 @@ async def stored_run(module_id):
 
 @pytest.mark.asyncio
 async def test_page_renders_with_the_capability_token(client, stored_run):
-    r = client.get(f"/day/2026-07-12?k={TOKEN}")
+    r = client.get(PAGE)
     assert r.status_code == 200
     body = r.text
     assert "AutoJack 可远程接管本地 agent" in body
@@ -113,42 +125,73 @@ async def test_page_renders_with_the_capability_token(client, stored_run):
 
 
 @pytest.mark.asyncio
+async def test_page_is_titled_by_its_source(client, stored_run):
+    r = client.get(PAGE)
+    assert "推特安全流" in r.text
+
+
+@pytest.mark.asyncio
+async def test_page_shows_the_original_text_so_it_stands_alone(client, stored_run):
+    r = client.get(PAGE)
+    assert "原文全文在此，用来判断值不值得点开" in r.text
+
+
+@pytest.mark.asyncio
+async def test_tags_come_from_the_model(client, stored_run):
+    r = client.get(PAGE)
+    assert "ai_agent" in r.text
+    assert "rce" in r.text
+
+
+@pytest.mark.asyncio
 async def test_wrong_token_is_404_not_403(client, stored_run):
     """403 would confirm the date exists. 404 tells an unauthorized reader nothing."""
-    r = client.get("/day/2026-07-12?k=wrong")
+    r = client.get(f"/day/{SRC}/2026-07-12?k=wrong")
     assert r.status_code == 404
     assert "AutoJack" not in r.text
 
 
 @pytest.mark.asyncio
 async def test_missing_token_is_404(client, stored_run):
-    assert client.get("/day/2026-07-12").status_code == 404
+    assert client.get(f"/day/{SRC}/2026-07-12").status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_unknown_source_is_404(client, stored_run):
+    assert client.get(f"/day/no_such_source/2026-07-12?k={TOKEN}").status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_page_is_not_indexable(client, stored_run):
-    r = client.get(f"/day/2026-07-12?k={TOKEN}")
-    assert "noindex" in r.text
+    assert "noindex" in client.get(PAGE).text
 
 
 @pytest.mark.asyncio
 async def test_skim_items_do_not_show_personal_why(client, stored_run):
-    r = client.get(f"/day/2026-07-12?k={TOKEN}")
-    # Both items render, but only the top tiers get the "why this is for you" block.
+    r = client.get(PAGE)
+    # Both items render, but only the top tiers get the "why this is for you" line.
     assert "某会议 CFP 开放" in r.text
     assert r.text.count('class="why"') == 1
 
 
 @pytest.mark.asyncio
+async def test_legacy_sourceless_url_redirects_to_the_source_page(client, stored_run):
+    """Links already pushed to a chat must keep working."""
+    r = client.get(f"/day/2026-07-12?k={TOKEN}", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"] == f"/day/{SRC}/2026-07-12?k={TOKEN}"
+
+
+@pytest.mark.asyncio
 async def test_day_with_no_bundle_renders_an_empty_state(client):
-    r = client.get(f"/day/2026-01-01?k={TOKEN}")
+    r = client.get(f"/day/{SRC}/2026-01-01?k={TOKEN}")
     assert r.status_code == 200
     assert "还没有日刊" in r.text
 
 
 @pytest.mark.asyncio
 async def test_bad_date_is_404(client):
-    assert client.get(f"/day/not-a-date?k={TOKEN}").status_code == 404
+    assert client.get(f"/day/{SRC}/not-a-date?k={TOKEN}").status_code == 404
 
 
 @pytest.mark.asyncio
