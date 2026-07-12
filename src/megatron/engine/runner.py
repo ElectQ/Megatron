@@ -488,7 +488,10 @@ class ModuleRunner:
             title=fc.get("title", ""),
         )
         bundle["schema_errors"] = schema_errors
-        # Channels already prefer report_markdown; handing them the doorbell text
+        # The task picks the push template (like page_layout picks the day page):
+        # `digest` = tiered push, `feed` = link-only for page-only sources.
+        bundle["digest_style"] = fc.get("digest_style", "digest")
+        # Channels already prefer report_markdown; handing them the rendered push
         # means the webhook plugins need no changes at all.
         bundle["report_markdown"] = render_doorbell(bundle)
 

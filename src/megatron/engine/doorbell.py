@@ -1,21 +1,30 @@
 """The push message (§3.5).
 
-It carries 必看 and 推荐 — the day's verdict, with a way straight to each original
-post. 速览 stays on the page: it is the long tail, and dumping it into a chat
-window is the thing the day page exists to avoid.
+Split into two halves so the *content design* is not welded into the framework:
 
-No URL is ever printed. A column of
-`https://x.com/cr3ghost/status/2075659362732048802` is unreadable in a chat client,
-and the day link carries a capability token that has no business being visible in
-a group chat. Everything jumps through a label — 原文 / 详情 — and every channel we
-ship (DingTalk, Telegram, WeCom, Feishu) renders `[text](url)`.
+* The engine (here) prepares the data from the LLM-analysed bundle — which items
+  are 必看 / 推荐, their clipped titles and labelled links, the stats, the day-page
+  link — and owns the *mechanism*: the whole-item budget that trims 推荐 from the
+  tail to fit a channel's char limit (never a mid-sentence cut, and it says
+  "另有 N 条" when it does).
+* The template (`config/digests/<style>.md`, a Jinja/markdown file) owns the
+  *presentation*: labels, emojis, which sections appear, wording. Customising a
+  notification is editing a file, not writing a render function.
 
-The budget is a whole-item budget. If the message will not fit, 推荐 is trimmed
-from the tail and the message *says so* — it never cuts mid-sentence, and nothing
-is quietly lost, because the page still holds all of it.
+`digest_style` on the task selects the template, exactly the way `page_layout`
+selects the day-page template. `digest` is the tiered push (推特); `feed` is the
+link-only push for page-only sources (GitHub 关注流).
+
+No URL is ever printed raw: everything jumps through a label (原文 / 详情), because
+a chat client cannot read a bare status URL and the day link carries a capability
+token that has no business being visible in a group.
 """
 
 from __future__ import annotations
+
+import functools
+import re
+from pathlib import Path
 
 from .bundle import push_sections
 
@@ -27,53 +36,47 @@ MAX_DIGEST_CHARS = 3800
 MAX_ONE_LINER = 80
 MAX_WHY = 70
 
+DEFAULT_STYLE = "digest"
+
 
 def render_digest(bundle: dict, max_chars: int = MAX_DIGEST_CHARS) -> str:
-    date = bundle.get("date", "")
-    title = bundle.get("title") or "情报日刊"
-    stats = bundle.get("stats") or {}
-    day = bundle.get("day_url") or ""
+    """Render the push for this bundle using its `digest_style` template.
+
+    The engine trims whole 推荐 items until the rendered message fits; 必看 and the
+    day link are never trimmed. The template is re-rendered each iteration with a
+    shorter `recommend` list and the `trimmed` count.
+    """
+    style = bundle.get("digest_style") or DEFAULT_STYLE
+    template = _load_template(style)
 
     must_see, recommend = push_sections(bundle)
+    stats = bundle.get("stats") or {}
+    base = {
+        "title": bundle.get("title") or "情报日刊",
+        "date": bundle.get("date", ""),
+        "ingest_total": stats.get("ingest_total", 0),
+        "stats": stats,
+        "day_url": bundle.get("day_url") or "",
+        "must_see": [_ctx_item(i) for i in must_see],
+    }
+    rec_ctx = [_ctx_item(i) for i in recommend]
 
-    head = [
-        f"⚡ {title} · {date}",
-        f"入库 {stats.get('ingest_total', 0)} · 必看 {len(must_see)} · 推荐 {len(recommend)}",
-    ]
-    foot = ["——", f"[📖 查看今日详情 →]({day})"] if day else []
-
-    def render(trimmed: int) -> str:
-        lines = list(head)
-
-        if must_see:
-            lines += ["", "🔴 **必看**", ""]
-            for n, item in enumerate(must_see, 1):
-                lines.append(f"{n}. **{_title(item)}**")
-                why = _clip(item.get("why_for_me") or "", MAX_WHY)
-                if why:
-                    lines.append(f"   {why}")
-                lines.append(f"   {_origin(item)}")
-        else:
-            lines += ["", "今日无必看条目。"]
-
-        shown = recommend[: len(recommend) - trimmed] if trimmed else recommend
-        if shown:
-            lines += ["", "🟡 **推荐**", ""]
-            lines += [f"- {_title(item)} {_origin(item)}" for item in shown]
-        if trimmed:
-            lines.append(f"- …另有 {trimmed} 条，见详情")
-
-        return "\n".join(lines + ([""] + foot if foot else [])).strip()
-
-    # Drop whole 推荐 items until it fits. The header, 必看 and the day link are not
-    # negotiable — if even those overflow, the channel's own splitter takes over.
-    # With 必看 ≤ 8 and 推荐 ≤ 15 this should never trigger; it is the backstop for
-    # a task that raises its caps.
-    for trimmed in range(len(recommend) + 1):
-        text = render(trimmed)
+    text = ""
+    for trimmed in range(len(rec_ctx) + 1):
+        ctx = {**base, "recommend": rec_ctx[: len(rec_ctx) - trimmed], "trimmed": trimmed}
+        text = _tidy(template.render(**ctx))
         if len(text) <= max_chars:
             return text
-    return render(len(recommend))
+    return text
+
+
+def _ctx_item(item: dict) -> dict:
+    """One item, reduced to what a template lays out: clipped title, why, link."""
+    return {
+        "title": _title(item),
+        "why": _clip(item.get("why_for_me") or "", MAX_WHY),
+        "url": item.get("url") or item.get("original_url") or "",
+    }
 
 
 def _title(item: dict) -> str:
@@ -81,17 +84,42 @@ def _title(item: dict) -> str:
     return text.replace("[", "(").replace("]", ")")  # no bracket nesting next to links
 
 
-def _origin(item: dict) -> str:
-    """The jump to the post, behind a label — never the raw URL."""
-    url = item.get("url") or item.get("original_url") or ""
-    return f"[原文 ↗]({url})" if url else ""
-
-
 def _clip(text: str, limit: int) -> str:
     text = " ".join((text or "").split())
     if len(text) <= limit:
         return text
     return text[: limit - 1].rstrip() + "…"
+
+
+def _tidy(text: str) -> str:
+    """Collapse the blank-line runs Jinja block tags leave behind."""
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+@functools.lru_cache(maxsize=16)
+def _load_template(style: str):
+    """Compile `config/digests/<style>.md` (falls back to the default style).
+
+    Cached: the template file is read once per process, like a page template.
+    """
+    from jinja2 import StrictUndefined
+    from jinja2.sandbox import SandboxedEnvironment
+
+    from ..config import settings
+
+    root = Path(settings.config_dir) / "digests"
+    path = root / f"{style}.md"
+    if not path.is_file():
+        path = root / f"{DEFAULT_STYLE}.md"
+
+    env = SandboxedEnvironment(
+        undefined=StrictUndefined,
+        trim_blocks=True,
+        lstrip_blocks=True,
+        autoescape=False,  # markdown for a chat client, not HTML
+        keep_trailing_newline=False,
+    )
+    return env.from_string(path.read_text())
 
 
 # The old names. It stopped being a doorbell when it grew a 推荐 section.

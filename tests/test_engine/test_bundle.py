@@ -325,6 +325,29 @@ def test_the_biggest_contributor_is_the_primary_source():
 # ---------------------------------------------------------------------- digest
 
 
+def test_the_feed_style_is_link_only_no_tiered_list():
+    """A page-only source pushes a link, not 推特's 必看/推荐 detail."""
+    bundle = _bundle({"must_see_push": 3, "recommend": 5, "skim": 40})
+    bundle["digest_style"] = "feed"
+    text = render_digest(bundle)
+
+    assert "🔴" not in text and "🟡" not in text, "no tiered sections"
+    assert "[原文 ↗]" not in text, "no per-item links"
+    assert "[📖 查看今日详情 →](https://m.test/day/src_a/2026-07-12?k=tok)" in text
+    assert text.startswith("⚡ 推特安全流 · 2026-07-12")
+
+
+def test_the_style_defaults_to_the_tiered_digest():
+    bundle = _bundle({"must_see_push": 1})  # no digest_style set
+    assert "🔴 **必看**" in render_digest(bundle)
+
+
+def test_an_unknown_style_falls_back_to_the_default_template():
+    bundle = _bundle({"must_see_push": 1})
+    bundle["digest_style"] = "does-not-exist"
+    assert "🔴 **必看**" in render_digest(bundle)
+
+
 def _bundle(spec: dict, *, day: bool = True) -> dict:
     """spec: {tier: n}."""
     n = 0
