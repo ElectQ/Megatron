@@ -1,58 +1,90 @@
-"""The doorbell: the thin push (§3.5).
+"""The push message (§3.5).
 
-A notification is an interruption. Its job is to say *whether* you should stop
-what you are doing, and nothing more — the reading happens on the day page. So
-this renders at most `must_see_push_max` items and stays under ~1200 characters;
-everything else in the day is one link away.
+It carries 必看 and 推荐 — the day's verdict, with a way straight to each original
+post. 速览 stays on the page: it is the long tail, and dumping it into a chat
+window is the thing the day page exists to avoid.
 
-This is what replaced dumping twenty full summaries into a chat webhook.
+No URL is ever printed. A column of
+`https://x.com/cr3ghost/status/2075659362732048802` is unreadable in a chat client,
+and the day link carries a capability token that has no business being visible in
+a group chat. Everything jumps through a label — 原文 / 详情 — and every channel we
+ship (DingTalk, Telegram, WeCom, Feishu) renders `[text](url)`.
+
+The budget is a whole-item budget. If the message will not fit, 推荐 is trimmed
+from the tail and the message *says so* — it never cuts mid-sentence, and nothing
+is quietly lost, because the page still holds all of it.
 """
 
 from __future__ import annotations
 
-from .bundle import push_items
+from .bundle import push_sections
 
-MAX_DOORBELL_CHARS = 1200
+# DingTalk's is the tightest limit of the shipped channels (~4500 chars, beyond
+# which it splits into several messages). Stay under it, with room for the header
+# and the footer.
+MAX_DIGEST_CHARS = 3800
 
-_TIER_ICON = "🔴"
+MAX_ONE_LINER = 80
+MAX_WHY = 70
 
 
-def render_doorbell(bundle: dict) -> str:
+def render_digest(bundle: dict, max_chars: int = MAX_DIGEST_CHARS) -> str:
     date = bundle.get("date", "")
+    title = bundle.get("title") or "情报日刊"
     stats = bundle.get("stats") or {}
-    ingest_total = stats.get("ingest_total", 0)
-    url = bundle.get("day_url") or ""
+    day = bundle.get("day_url") or ""
 
-    items = push_items(bundle)
-    n = len(items)
+    must_see, recommend = push_sections(bundle)
 
-    lines = [f"⚡ 安全雷达 · {date}"]
-    header = f"入库 {ingest_total} · 强推 {n}"
-    lines.append(header)
-    lines.append("")
+    head = [
+        f"⚡ {title} · {date}",
+        f"入库 {stats.get('ingest_total', 0)} · 必看 {len(must_see)} · 推荐 {len(recommend)}",
+    ]
+    foot = ["——", f"[📖 查看今日详情 →]({day})"] if day else []
 
-    if not items:
-        lines.append("今日无必看条目。")
-    else:
-        for i, item in enumerate(items, 1):
-            one_liner = _clip(item.get("one_liner") or item.get("content") or "", 90)
-            lines.append(f"{_TIER_ICON} {i}/{n}  {one_liner}")
-            why = _clip(item.get("why_for_me") or "", 80)
-            if why:
-                lines.append(why)
-            link = item.get("url") or item.get("original_url") or ""
-            if link:
-                lines.append(link)
-            lines.append("")
+    def render(trimmed: int) -> str:
+        lines = list(head)
 
-    if url:
-        lines.append("——")
-        lines.append(f"全日刊：{url}")
+        if must_see:
+            lines += ["", "🔴 **必看**", ""]
+            for n, item in enumerate(must_see, 1):
+                lines.append(f"{n}. **{_title(item)}**")
+                why = _clip(item.get("why_for_me") or "", MAX_WHY)
+                if why:
+                    lines.append(f"   {why}")
+                lines.append(f"   {_origin(item)}")
+        else:
+            lines += ["", "今日无必看条目。"]
 
-    text = "\n".join(lines).strip()
-    if len(text) > MAX_DOORBELL_CHARS:
-        text = text[: MAX_DOORBELL_CHARS - 1].rstrip() + "…"
-    return text
+        shown = recommend[: len(recommend) - trimmed] if trimmed else recommend
+        if shown:
+            lines += ["", "🟡 **推荐**", ""]
+            lines += [f"- {_title(item)} {_origin(item)}" for item in shown]
+        if trimmed:
+            lines.append(f"- …另有 {trimmed} 条，见详情")
+
+        return "\n".join(lines + ([""] + foot if foot else [])).strip()
+
+    # Drop whole 推荐 items until it fits. The header, 必看 and the day link are not
+    # negotiable — if even those overflow, the channel's own splitter takes over.
+    # With 必看 ≤ 8 and 推荐 ≤ 15 this should never trigger; it is the backstop for
+    # a task that raises its caps.
+    for trimmed in range(len(recommend) + 1):
+        text = render(trimmed)
+        if len(text) <= max_chars:
+            return text
+    return render(len(recommend))
+
+
+def _title(item: dict) -> str:
+    text = _clip(item.get("one_liner") or item.get("content") or "", MAX_ONE_LINER)
+    return text.replace("[", "(").replace("]", ")")  # no bracket nesting next to links
+
+
+def _origin(item: dict) -> str:
+    """The jump to the post, behind a label — never the raw URL."""
+    url = item.get("url") or item.get("original_url") or ""
+    return f"[原文 ↗]({url})" if url else ""
 
 
 def _clip(text: str, limit: int) -> str:
@@ -62,4 +94,8 @@ def _clip(text: str, limit: int) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
-__all__ = ["MAX_DOORBELL_CHARS", "render_doorbell"]
+# The old names. It stopped being a doorbell when it grew a 推荐 section.
+render_doorbell = render_digest
+MAX_DOORBELL_CHARS = MAX_DIGEST_CHARS
+
+__all__ = ["MAX_DIGEST_CHARS", "MAX_DOORBELL_CHARS", "render_digest", "render_doorbell"]

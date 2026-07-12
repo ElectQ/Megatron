@@ -50,6 +50,19 @@ _env() {
         SESSION_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))" 2>/dev/null || openssl rand -base64 48)
         ADMIN_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(12))" 2>/dev/null || openssl rand -base64 12)
         INGEST_TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))" 2>/dev/null || openssl rand -base64 48)
+
+        # Asked, not defaulted: every pushed message ends in a link to the day
+        # page built from this. A localhost default would send briefs whose only
+        # way in is dead on the reader's phone — and prod now refuses to boot on
+        # one rather than let that happen quietly.
+        printf "Public address of this install (e.g. https://megatron.example.com): "
+        read -r BASE_URL
+        while [ -z "${BASE_URL}" ] || echo "${BASE_URL}" | grep -qE '://(localhost|127\.0\.0\.1|0\.0\.0\.0)'; do
+            warn "Links in the push must open from a phone — a loopback address will not."
+            printf "Public address (scheme + host, e.g. https://megatron.example.com): "
+            read -r BASE_URL
+        done
+
         cat > .env << EOF
 # Four slashes = absolute path. Three would resolve relative to WORKDIR (/app)
 # and land outside the mounted volume, so the DB would vanish on recreate.
@@ -57,17 +70,24 @@ MEGATRON_DATABASE_URL=sqlite+aiosqlite:////app/data/megatron.db
 MEGATRON_SESSION_SECRET=${SESSION_SECRET}
 MEGATRON_ADMIN_PASSWORD=${ADMIN_PASS}
 MEGATRON_INGEST_TOKEN=${INGEST_TOKEN}
-# Absolute URL used to build links in pushed messages.
-MEGATRON_BASE_URL=http://localhost:8000
+# Where readers reach this install. Every "查看今日详情" link is built from it,
+# so it must be an address that resolves from outside this box.
+MEGATRON_BASE_URL=${BASE_URL}
 MEGATRON_DEEPSEEK_API_KEY=
 MEGATRON_DINGTALK_URL=
 MEGATRON_DINGTALK_SECRET=
 PORT=8000
 EOF
         log "Admin password: ${ADMIN_PASS} (save this!)"
+        log "Base URL: ${BASE_URL}"
         warn "Fill in MEGATRON_DEEPSEEK_API_KEY and DINGTALK_* in .env"
     else
         log ".env exists"
+        if grep -qE '^MEGATRON_BASE_URL=.*(localhost|127\.0\.0\.1)' .env; then
+            warn "MEGATRON_BASE_URL is a loopback address — the day-page link in every"
+            warn "pushed message will be dead on the reader's phone, and MEGATRON_ENV=prod"
+            warn "will refuse to start. Point it at the address readers actually use."
+        fi
     fi
 }
 

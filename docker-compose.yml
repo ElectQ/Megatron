@@ -11,7 +11,10 @@ services:
       MEGATRON_ADMIN_TOKEN: ${MEGATRON_ADMIN_TOKEN:-}
       MEGATRON_ADMIN_PASSWORD: ${MEGATRON_ADMIN_PASSWORD:-}
       MEGATRON_INGEST_TOKEN: ${MEGATRON_INGEST_TOKEN:-}
-      MEGATRON_BASE_URL: ${MEGATRON_BASE_URL:-http://localhost:8000}
+      # No default on purpose: every pushed message ends in a link to the day page
+      # built from this, and a localhost fallback would make that link dead on the
+      # reader's phone. MEGATRON_ENV=prod refuses to start without a real one.
+      MEGATRON_BASE_URL: ${MEGATRON_BASE_URL:?set it to the address readers reach this install at, e.g. https://megatron.example.com}
       MEGATRON_SOUNDWAVE_REPO_URL: ${MEGATRON_SOUNDWAVE_REPO_URL:-}
       MEGATRON_MCP_LIVE_FETCH: ${MEGATRON_MCP_LIVE_FETCH:-backfill}
       MEGATRON_DEEPSEEK_API_KEY: ${MEGATRON_DEEPSEEK_API_KEY:-}

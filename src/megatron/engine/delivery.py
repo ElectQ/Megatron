@@ -64,12 +64,16 @@ class DeliveryService:
 
     async def _channel_ids(self, module) -> list[int]:
         rows = (
-            await self.session.execute(
-                select(ModuleChannel.channel_id)
-                .where(ModuleChannel.module_id == module.id)
-                .order_by(ModuleChannel.position, ModuleChannel.channel_id)
+            (
+                await self.session.execute(
+                    select(ModuleChannel.channel_id)
+                    .where(ModuleChannel.module_id == module.id)
+                    .order_by(ModuleChannel.position, ModuleChannel.channel_id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         if rows:
             return [int(r) for r in rows]
         return [int(r) for r in (module.webhook_channel_ids or [])]

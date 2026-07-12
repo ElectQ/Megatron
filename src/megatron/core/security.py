@@ -166,6 +166,17 @@ def validate_runtime_settings() -> None:
     if weak:
         raise RuntimeError("Unsafe production configuration: " + ", ".join(weak))
 
+    # Not a secret, but it breaks the product just as completely: every push ends
+    # in a link to the day page, and a loopback base_url makes that link dead on
+    # the reader's phone. Better to refuse to start than to send broken briefs for
+    # a week before anyone tries the link.
+    if settings.base_url_is_local:
+        raise RuntimeError(
+            f"MEGATRON_BASE_URL is {settings.base_url!r} — links in the push would only "
+            "resolve on the server itself. Set it to the address readers actually "
+            "reach this install at (e.g. https://megatron.example.com)."
+        )
+
 
 class IngestAuth:
     """Bearer token auth for ingest endpoints (Soundwave push).
