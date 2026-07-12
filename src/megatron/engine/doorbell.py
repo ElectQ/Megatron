@@ -39,15 +39,18 @@ MAX_WHY = 70
 DEFAULT_STYLE = "digest"
 
 
-def render_digest(bundle: dict, max_chars: int = MAX_DIGEST_CHARS) -> str:
+def render_digest(bundle: dict, max_chars: int = MAX_DIGEST_CHARS, body: str | None = None) -> str:
     """Render the push for this bundle using its `digest_style` template.
 
+    `body` is the template source, resolved by the caller (DB row → file). When
+    omitted, the file for `digest_style` is used — the runner passes the DB body so
+    admin-UI edits take effect; tests and ad-hoc callers get the file.
+
     The engine trims whole 推荐 items until the rendered message fits; 必看 and the
-    day link are never trimmed. The template is re-rendered each iteration with a
-    shorter `recommend` list and the `trimmed` count.
+    day link are never trimmed.
     """
     style = bundle.get("digest_style") or DEFAULT_STYLE
-    template = _load_template(style)
+    template = _compile(body) if body is not None else _load_template(style)
 
     must_see, recommend = push_sections(bundle)
     stats = bundle.get("stats") or {}
@@ -96,30 +99,37 @@ def _tidy(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
-@functools.lru_cache(maxsize=16)
-def _load_template(style: str):
-    """Compile `config/digests/<style>.md` (falls back to the default style).
-
-    Cached: the template file is read once per process, like a page template.
-    """
+@functools.lru_cache(maxsize=8)
+def _env():
     from jinja2 import StrictUndefined
     from jinja2.sandbox import SandboxedEnvironment
 
-    from ..config import settings
-
-    root = Path(settings.config_dir) / "digests"
-    path = root / f"{style}.md"
-    if not path.is_file():
-        path = root / f"{DEFAULT_STYLE}.md"
-
-    env = SandboxedEnvironment(
+    return SandboxedEnvironment(
         undefined=StrictUndefined,
         trim_blocks=True,
         lstrip_blocks=True,
         autoescape=False,  # markdown for a chat client, not HTML
         keep_trailing_newline=False,
     )
-    return env.from_string(path.read_text())
+
+
+def _compile(body: str):
+    return _env().from_string(body)
+
+
+@functools.lru_cache(maxsize=16)
+def _load_template(style: str):
+    """Compile `config/digests/<style>.md` (falls back to the default style).
+
+    The file fallback for callers that don't resolve from the DB (tests, previews).
+    """
+    from ..config import settings
+
+    root = Path(settings.config_dir) / "digests"
+    path = root / f"{style}.md"
+    if not path.is_file():
+        path = root / f"{DEFAULT_STYLE}.md"
+    return _compile(path.read_text())
 
 
 # The old names. It stopped being a doorbell when it grew a 推荐 section.

@@ -200,8 +200,80 @@ async def seed_tasks(session: AsyncSession, specs: list[TaskSpec]) -> dict:
     return {"seeded": seeded, "skipped": skipped, "unresolved": warned}
 
 
+async def resolve_digest_body(session: AsyncSession, style: str, config_dir: str | Path) -> str:
+    """The digest template body: the editable DB row if present, else the file.
+
+    Mirrors resolve_policy — DB is truth after seeding, file is the seed/fallback.
+    An unknown style falls back to the default `digest` template.
+    """
+    from ..core.engine_models import DigestTemplate
+
+    row = (
+        (await session.execute(select(DigestTemplate).where(DigestTemplate.style == style)))
+        .scalars()
+        .first()
+    )
+    if row is not None:
+        return row.body
+
+    root = Path(config_dir) / "digests"
+    for name in (f"{style}.md", "digest.md"):
+        path = root / name
+        if path.is_file():
+            return path.read_text()
+    return "⚡ {{ title }} · {{ date }}\n{% if day_url %}[详情]({{ day_url }}){% endif %}"
+
+
+async def seed_digests(session: AsyncSession, digests_dir: str | Path) -> dict:
+    """Create a DigestTemplate for each config/digests/<style>.md with no row yet."""
+    from ..core.engine_models import DigestTemplate
+
+    root = Path(digests_dir)
+    if not root.is_dir():
+        return {"seeded": [], "skipped": []}
+    seeded, skipped = [], []
+    for path in sorted(root.glob("*.md")):
+        style = path.stem
+        exists = (
+            (await session.execute(select(DigestTemplate).where(DigestTemplate.style == style)))
+            .scalars()
+            .first()
+        )
+        if exists:
+            skipped.append(style)
+            continue
+        session.add(
+            DigestTemplate(
+                style=style,
+                display_name={"digest": "分档推送", "feed": "仅链接推送"}.get(style, style),
+                body=path.read_text(),
+                is_active=True,
+            )
+        )
+        seeded.append(style)
+    if seeded:
+        await session.commit()
+    logger.info("digests.seeded", seeded=seeded, skipped=len(skipped))
+    return {"seeded": seeded, "skipped": skipped}
+
+
+async def seed_policy(session: AsyncSession, policy_path: str | Path) -> dict:
+    """Seed the single Policy row from config/policy.yaml if the table is empty."""
+    from ..core.engine_models import Policy
+    from .policy import load_policy
+
+    exists = (await session.execute(select(Policy))).scalars().first()
+    if exists:
+        return {"seeded": False}
+    pol = load_policy(str(policy_path))
+    session.add(Policy(caps=pol["caps"], politics_blocklist=pol["politics_blocklist"]))
+    await session.commit()
+    logger.info("policy.seeded", caps=pol["caps"], terms=len(pol["politics_blocklist"]))
+    return {"seeded": True}
+
+
 async def seed_profile(session: AsyncSession, config_dir: str | Path) -> dict:
-    """Load + seed prompts then tasks from a profile directory. Idempotent."""
+    """Load + seed prompts, tasks, digests and policy from a profile dir. Idempotent."""
     root = Path(config_dir)
     p_specs, p_err = load_prompt_specs(root / "prompts")
     for e in p_err:
@@ -213,4 +285,13 @@ async def seed_profile(session: AsyncSession, config_dir: str | Path) -> dict:
         logger.error("tasks.spec_invalid", error=str(e))
     tasks = await seed_tasks(session, t_specs)
 
-    return {"prompts": prompts, "tasks": tasks, "errors": [str(e) for e in (p_err + t_err)]}
+    digests = await seed_digests(session, root / "digests")
+    policy = await seed_policy(session, root / "policy.yaml")
+
+    return {
+        "prompts": prompts,
+        "tasks": tasks,
+        "digests": digests,
+        "policy": policy,
+        "errors": [str(e) for e in (p_err + t_err)],
+    }

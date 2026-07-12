@@ -78,9 +78,10 @@ def test_a_real_address_is_not(monkeypatch, url):
     assert not Settings().base_url_is_local
 
 
-def test_prod_refuses_to_start_with_a_link_nobody_can_open(monkeypatch):
-    """Every push ends in a day-page link. A loopback base_url means every brief
-    you send for the next week is a dead end — better to not start."""
+def test_prod_boots_on_a_loopback_base_url_but_warns(monkeypatch):
+    """base_url is a UI setting now (系统设置 → 域名), so refusing to boot would
+    trap the operator out of the very page where they'd fix it. It warns instead
+    and lets the app come up."""
     import megatron.core.security as sec
 
     monkeypatch.setattr(sec.settings, "env", "prod")
@@ -91,11 +92,12 @@ def test_prod_refuses_to_start_with_a_link_nobody_can_open(monkeypatch):
     monkeypatch.setenv("MEGATRON_INGEST_TOKEN", "strong-ingest")
     monkeypatch.setattr(sec.settings, "base_url", "http://localhost:8000")
 
-    with pytest.raises(RuntimeError, match="MEGATRON_BASE_URL"):
-        sec.validate_runtime_settings()
+    sec.validate_runtime_settings()  # loopback base_url no longer raises
 
-    monkeypatch.setattr(sec.settings, "base_url", "https://megatron.example.com")
-    sec.validate_runtime_settings()  # no raise
+    # A genuinely weak secret still refuses.
+    monkeypatch.setattr(sec.settings, "admin_password", "")
+    with pytest.raises(RuntimeError):
+        sec.validate_runtime_settings()
 
 
 @pytest.mark.asyncio

@@ -68,3 +68,22 @@ def default_caps() -> dict:
 
 def default_politics() -> tuple[str, ...]:
     return tuple(load_policy()["politics_blocklist"])
+
+
+async def resolve_policy(session) -> dict:
+    """The operative policy: the editable DB row if present, else the file.
+
+    DB is the truth after seeding (so admin-UI edits win); the file is the seed
+    and the fallback for an un-seeded/older install.
+    """
+    from sqlalchemy import select
+
+    from ..core.engine_models import Policy
+
+    row = (await session.execute(select(Policy))).scalars().first()
+    if row is not None:
+        return {
+            "caps": dict(row.caps or {}),
+            "politics_blocklist": list(row.politics_blocklist or []),
+        }
+    return load_policy()

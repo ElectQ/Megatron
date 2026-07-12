@@ -30,6 +30,9 @@ async def bootstrap(db_session) -> None:
         # can resolve them by name.
         await _seed_profile(session)
         await _sync_sources(session)
+        from .sysconfig import seed_system_settings
+
+        await seed_system_settings(session)
 
 
 async def _seed_profile(session) -> None:

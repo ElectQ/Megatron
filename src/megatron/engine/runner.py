@@ -191,6 +191,11 @@ class ModuleRunner:
     async def _execute_run(self, module, run) -> dict:
         started = time.time()
         self._warnings: list[dict] = []
+        # The operative filtering policy (caps + politics), DB row → file fallback.
+        # Fetched once so the sync _effective_caps helper can read it.
+        from ..profile.policy import resolve_policy
+
+        self._policy = await resolve_policy(self.session)
         try:
             run.module_snapshot = await self._module_snapshot(module)
             run.prompt_snapshot = await self._prompt_snapshot(module)
@@ -246,7 +251,9 @@ class ModuleRunner:
             result = self._parse_result(content)
             if effective_fc.get("output_mode") == "day_bundle":
                 names = await self._source_names(filtered)
-                result = self._build_bundle(module, run, effective_fc, filtered, result, names)
+                result = await self._build_bundle(
+                    module, run, effective_fc, filtered, result, names
+                )
             if self._warnings:
                 result["warnings"] = self._warnings
             run.prompt_tokens = tokens_in
@@ -444,24 +451,29 @@ class ModuleRunner:
         )
         return {sc.name: (sc.display_name or sc.name) for sc in rows}
 
-    def _build_bundle(self, module, run, fc: dict, records, llm_output: dict, source_names) -> dict:
+    async def _build_bundle(
+        self, module, run, fc: dict, records, llm_output: dict, source_names
+    ) -> dict:
         """Turn the model's tiering into a day bundle, with the caps enforced here.
 
         Opt-in via filter_config.output_mode == "day_bundle" so tasks that predate
         this keep their old result shape.
         """
-        from ..config import get_day_token, settings
+        from ..config import get_day_token
+        from ..core.sysconfig import is_local_base_url, resolve_base_url
         from .bundle import build_day_bundle
         from .doorbell import render_doorbell
         from .validate import validate_output
 
-        # Production refuses to boot on a loopback base_url; a dev box does not, so
-        # say it on the run rather than let someone wonder why the link is dead.
-        if settings.base_url_is_local:
+        # base_url is a system setting (set in the UI, DB → env fallback). A
+        # loopback value means the push link is dead on the reader's phone — say
+        # so on the run rather than let someone wonder why.
+        base_url = await resolve_base_url(self.session)
+        if is_local_base_url(base_url):
             self._warn(
                 "base_url_not_reachable",
-                f"MEGATRON_BASE_URL={settings.base_url} — the 详情 link in the push only "
-                "opens on this machine. Set it to the address readers reach you at.",
+                f"base_url={base_url} — the 详情 link in the push only opens on this "
+                "machine. Set your domain in 系统设置 (System settings).",
             )
 
         date = fc.get("target_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -481,7 +493,7 @@ class ModuleRunner:
             llm_output=llm_output,
             caps=self._effective_caps(fc),
             intent=fc.get("intent") or {},
-            base_url=settings.base_url,
+            base_url=base_url,
             day_token=get_day_token(),
             timezone=fc.get("timezone", "Asia/Shanghai"),
             source_names=source_names,
@@ -489,11 +501,18 @@ class ModuleRunner:
         )
         bundle["schema_errors"] = schema_errors
         # The task picks the push template (like page_layout picks the day page):
-        # `digest` = tiered push, `feed` = link-only for page-only sources.
-        bundle["digest_style"] = fc.get("digest_style", "digest")
+        # `digest` = tiered push, `feed` = link-only for page-only sources. The
+        # template body comes from the DB (editable in the admin UI), falling back
+        # to config/digests/*.md.
+        from ..config import settings as _settings
+        from ..profile.loader import resolve_digest_body
+
+        style = fc.get("digest_style", "digest")
+        bundle["digest_style"] = style
+        body = await resolve_digest_body(self.session, style, _settings.config_dir)
         # Channels already prefer report_markdown; handing them the rendered push
         # means the webhook plugins need no changes at all.
-        bundle["report_markdown"] = render_doorbell(bundle)
+        bundle["report_markdown"] = render_doorbell(bundle, body=body)
 
         logger.info(
             "runner.bundle",
@@ -733,13 +752,16 @@ class ModuleRunner:
         return [r for r in records if r.item_id in kept_ids]
 
     def _effective_caps(self, fc: dict) -> dict:
-        """Caps actually applied: policy defaults + policy politics list, then the
-        task's own overrides. The product filtering policy comes from
-        config/policy.yaml — not from a framework constant."""
-        from ..profile.policy import default_caps, default_politics
+        """Caps actually applied: policy (DB row → config/policy.yaml) then the
+        task's own overrides. The product filtering policy is never a framework
+        constant."""
+        policy = getattr(self, "_policy", None)
+        if policy is None:
+            from ..profile.policy import load_policy
 
-        base = default_caps()
-        base.setdefault("politics_blocklist", list(default_politics()))
+            policy = load_policy()
+        base = dict(policy.get("caps") or {})
+        base.setdefault("politics_blocklist", list(policy.get("politics_blocklist") or []))
         return {**base, **(fc.get("caps") or {})}
 
     def _prompt_context(self, fc: dict) -> dict:

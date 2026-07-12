@@ -12,6 +12,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_admin_token, get_session_secret, settings
+from .logging import get_logger
+
+logger = get_logger(__name__)
 
 
 ENC_PREFIX = "enc:v1:"
@@ -166,15 +169,16 @@ def validate_runtime_settings() -> None:
     if weak:
         raise RuntimeError("Unsafe production configuration: " + ", ".join(weak))
 
-    # Not a secret, but it breaks the product just as completely: every push ends
-    # in a link to the day page, and a loopback base_url makes that link dead on
-    # the reader's phone. Better to refuse to start than to send broken briefs for
-    # a week before anyone tries the link.
+    # base_url used to be a hard boot requirement, but it is now a UI setting
+    # (系统设置 → 域名, DB-backed, seeded from env). Refusing to boot would trap the
+    # operator out of the very UI where they'd fix it. So: warn loudly instead, and
+    # the run-time warning + the UI banner carry the rest.
     if settings.base_url_is_local:
-        raise RuntimeError(
-            f"MEGATRON_BASE_URL is {settings.base_url!r} — links in the push would only "
-            "resolve on the server itself. Set it to the address readers actually "
-            "reach this install at (e.g. https://megatron.example.com)."
+        logger.warning(
+            "config.base_url_local",
+            base_url=settings.base_url,
+            hint="Set your public domain in 系统设置 (System settings); push links "
+            "won't open on a phone until you do.",
         )
 
 

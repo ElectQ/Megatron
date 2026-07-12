@@ -1,10 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Integrations · Megatron{% endblock %}
 {% block content %}
-<div class="mb-8">
+<div class="mb-6">
     <div class="crumb"><b>{{ t('Data') }}</b> › {{ t('Sources') }}</div>
     <h2 class="text-2xl font-semibold tracking-tight">{{ t('Sources') }}</h2>
-    <p class="text-sm text-muted mt-1">{{ t('All data sources connect via the MCP protocol. Add an MCP server to start ingesting data.') }}</p>
+    <p class="text-sm text-muted mt-1">{{ t('源由 config/sources/*.yaml 声明（文件为准），Collector 把数据推/拉进来，Megatron 负责入库、分级、推送。MCP 是降级的查询辅路，不是日更主路径。') }}</p>
+</div>
+
+<!-- 采集来源说明 -->
+<div class="card mb-8">
+    <div class="card-body text-sm">
+        <h3 class="card-title text-base">{{ t('采集来源说明') }}</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-xs text-muted mt-1">
+            <div><b class="text-secondary">adapter</b> — 数据怎么进来：</div><div></div>
+            <div><code>http_push</code> — Collector 主动 POST 推进来（主路径）</div>
+            <div><code>bundle_pull</code> — Megatron 按 cron 去拉日包（Soundwave / Sentinel-gh）</div>
+            <div><code>http_pull</code> — 定时拉 HTTP + 字段映射</div>
+            <div><code>mcp_query</code> — MCP 查询（降级，默认不走）</div>
+            <div class="mt-1"><b class="text-secondary">page_layout</b> — 日刊页长啥样：</div><div class="mt-1"></div>
+            <div><code>digest</code> — 按 tier 分档卡片（推特）</div>
+            <div><code>feed</code> — 仓库聚合页（GitHub：热门/按人/时间线）</div>
+            <div class="mt-1"><b class="text-secondary">digest_style</b> — 推送文案模板（见「通知模板」）：</div><div class="mt-1"></div>
+            <div><code>digest</code> — 必看+推荐列表</div>
+            <div><code>feed</code> — 仅链接</div>
+        </div>
+    </div>
 </div>
 
 <!-- Add MCP Server -->

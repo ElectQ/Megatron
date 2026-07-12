@@ -114,6 +114,29 @@ async def logout(request: Request):
     return RedirectResponse("/ui/login", status_code=303)
 
 
+@router.post("/system/password", dependencies=[Depends(admin_auth)])
+async def change_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+):
+    """Change the logged-in user's password. Verifies the current one first."""
+    from ..core.db import async_session_factory
+    from ..core.security import authenticate_user, hash_password
+
+    user_sess = request.session.get("user", {})
+    username = user_sess.get("username", "")
+    if len(new_password) < 6:
+        return RedirectResponse("/ui/system?pw=short", status_code=303)
+    async with async_session_factory() as session:
+        user = await authenticate_user(session, username, current_password)
+        if not user:
+            return RedirectResponse("/ui/system?pw=wrong", status_code=303)
+        user.password_hash = hash_password(new_password)
+        await session.commit()
+    return RedirectResponse("/ui/system?pw=ok", status_code=303)
+
+
 @router.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
 async def dashboard(request: Request):
     items, providers, modules, channels, runs, sources = await asyncio.gather(
@@ -223,6 +246,24 @@ async def modules_redirect():
 async def prompts_page(request: Request):
     prompts = await _api_get(request, "/api/admin/prompts")
     return _render(request, "prompts.html", "prompts", prompts=prompts)
+
+
+@router.get("/digests", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def digests_page(request: Request):
+    digests = await _api_get(request, "/api/admin/digests")
+    return _render(request, "digests.html", "digests", digests=digests)
+
+
+@router.get("/system", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def system_page(request: Request):
+    policy = await _api_get(request, "/api/admin/settings")
+    return _render(request, "system.html", "system", policy=policy)
+
+
+@router.get("/policy", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def policy_page(request: Request):
+    policy = await _api_get(request, "/api/admin/policy")
+    return _render(request, "policy.html", "policy", policy=policy)
 
 
 @router.get("/providers", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])

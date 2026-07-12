@@ -17,13 +17,16 @@ from ..scheduler import shutdown_scheduler, start_scheduler
 from . import (
     channels_api,
     data_api,
+    digests_api,
     mcp_api,
     modules_api,
+    policy_api,
     prompts_api,
     providers_api,
     runs_api,
     day_api,
     schedules_api,
+    settings_api,
     sources_api,
     stats_api,
     ui,
@@ -97,6 +100,9 @@ app.include_router(channels_api.router)
 app.include_router(schedules_api.router)
 app.include_router(stats_api.router)
 app.include_router(sources_api.router)
+app.include_router(digests_api.router)
+app.include_router(policy_api.router)
+app.include_router(settings_api.router)
 app.include_router(day_api.router)
 app.include_router(ui.router)
 

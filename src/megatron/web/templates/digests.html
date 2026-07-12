@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Notify Templates · Megatron{% endblock %}
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Notify Templates') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('Jinja/markdown templates for the webhook push. A task picks one via digest_style; edit here, no redeploy.') }}</p>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body text-sm text-muted">
+        <div class="font-medium text-secondary mb-1">{{ t('Available variables (from the LLM-analysed bundle)') }}</div>
+        <code class="text-xs">title · date · ingest_total · stats · day_url · must_see[] · recommend[] · trimmed</code>
+        <div class="text-xs mt-1">{{ t('must_see / recommend items expose: title, why, url.') }}</div>
+    </div>
+</div>
+
+{% for d in digests %}
+<div class="card mb-6" data-style="{{ d.style }}">
+    <div class="card-body">
+        <div class="flex items-center justify-between mb-2">
+            <div>
+                <span class="font-medium">{{ d.display_name or d.style }}</span>
+                <span class="font-mono text-xs text-muted ml-2">digest_style: {{ d.style }}</span>
+            </div>
+            <div class="text-xs text-muted">
+                {% if d.used_by %}{{ t('used by') }}: {{ d.used_by|join(', ') }}{% else %}<span class="opacity-60">{{ t('not used by any task') }}</span>{% endif %}
+            </div>
+        </div>
+        <textarea rows="14" class="textarea textarea-bordered font-mono text-xs w-full js-body">{{ d.body }}</textarea>
+        <div class="flex gap-2 mt-3">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="previewDigest('{{ d.style }}')">{{ t('Preview') }}</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="saveDigest('{{ d.style }}', '{{ d.display_name }}')">{{ t('Save') }}</button>
+            <span class="js-result text-xs self-center"></span>
+        </div>
+        <pre class="js-preview hidden bg-[var(--bg-body)] border border-white/[0.08] rounded p-3 mt-3 text-xs overflow-x-auto whitespace-pre-wrap"></pre>
+    </div>
+</div>
+{% endfor %}
+{% if not digests %}<div class="empty-state">No templates. Run bootstrap to seed from config/digests/.</div>{% endif %}
+
+<script>
+function _card(style){ return document.querySelector('.card[data-style="'+style+'"]'); }
+
+async function previewDigest(style){
+    const card = _card(style);
+    const body = card.querySelector('.js-body').value;
+    const r = await MG.apiSend('/api/admin/digests/preview', 'POST', {body, style});
+    const d = await r.json().catch(()=>({}));
+    const pre = card.querySelector('.js-preview');
+    pre.classList.remove('hidden');
+    pre.textContent = d.rendered || (d.detail || 'Preview failed');
+}
+
+async function saveDigest(style, display){
+    const card = _card(style);
+    const body = card.querySelector('.js-body').value;
+    const res = card.querySelector('.js-result');
+    const r = await MG.apiSend('/api/admin/digests/'+style, 'PUT', {body, display_name: display, is_active: true});
+    if (r.ok) { res.textContent = '✓ ' + (window.MG_T_SAVED || 'saved'); res.className='js-result text-xs self-center text-success'; }
+    else { const t = await MG.errorText(r); res.textContent = '✕ ' + t; res.className='js-result text-xs self-center text-error'; }
+}
+</script>
+{% endblock %}
