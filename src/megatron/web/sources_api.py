@@ -40,6 +40,19 @@ async def reload_specs(session: AsyncSession = Depends(get_session)):
     return result
 
 
+@router.get("/arrivals")
+async def arrivals(date: str = "", session: AsyncSession = Depends(get_session)):
+    """Which sources showed up today — ok / late / missing / pending / disabled."""
+    from ..ingest.health import today_arrivals
+
+    rows = await today_arrivals(session, date or None)
+    return {
+        "date": date or None,
+        "arrivals": [a.to_api() for a in rows],
+        "missing": [a.source_id for a in rows if a.status == "missing"],
+    }
+
+
 @router.get("/{source_id}")
 async def get_one(source_id: str, session: AsyncSession = Depends(get_session)):
     sc = await get_source(session, source_id)

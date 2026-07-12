@@ -112,9 +112,11 @@ async def root():
 
 @app.get("/health")
 async def health():
+    from .core_health import registered_sources
+
     return {
         "status": "ok",
         "service": "megatron",
-        "sources": ["twitter"],
+        "sources": await registered_sources(),
         "version": __version__,
     }

@@ -206,6 +206,8 @@ class ModuleRunner:
             if latest_date and effective_fc.get("time_mode") in (None, "today", "date"):
                 effective_fc = {**effective_fc, "time_mode": "date", "target_date": latest_date}
 
+            await self._check_arrivals(module, effective_fc)
+
             items = await self._select_items(module, effective_fc)
             run.input_count = len(items)
             run.input_item_ids = [it.id for it in items]
@@ -393,6 +395,34 @@ class ModuleRunner:
             return source_name, kwargs
 
         return None, kwargs
+
+    async def _check_arrivals(self, module, fc: dict) -> None:
+        """Warn about sources that never showed up. Do not stop the run.
+
+        Waiting for a full house means one dead collector costs you the whole
+        day's brief. Publish with what arrived and say what did not — unless the
+        task explicitly asks to fail instead.
+        """
+        from ..ingest.health import missing_sources, today_arrivals
+
+        date = fc.get("target_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        wanted = set(fc.get("sources") or [module.source])
+
+        arrivals = await today_arrivals(self.session, date)
+        missing = [a for a in missing_sources(arrivals) if a.source_id in wanted]
+        if not missing:
+            return
+
+        names = ", ".join(a.source_id for a in missing)
+        if fc.get("fail_on_missing_source"):
+            raise RuntimeError(f"No data for {date} from: {names}")
+
+        self._warn(
+            "source_missing",
+            f"No data for {date} from: {names}",
+            date=date,
+            sources=[a.source_id for a in missing],
+        )
 
     def _build_bundle(self, module, run, fc: dict, records, llm_output: dict) -> dict:
         """Turn the model's tiering into a day bundle, with the caps enforced here.
