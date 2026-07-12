@@ -25,6 +25,11 @@ def _format_item(item: Item, content_limit: int = 500) -> dict:
     return {
         "id": item.id,
         "source": item.source,
+        # The dedup key, under the names the ingest contract uses. A tiering
+        # prompt must echo these back so its answers can be resolved to rows.
+        "external_id": item.id,
+        "source_id": item.source,
+        "collect_date": item.collect_date,
         "author": item.author,
         "author_name": item.author_name,
         "title": item.title,

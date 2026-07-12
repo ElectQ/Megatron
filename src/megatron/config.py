@@ -36,6 +36,16 @@ def get_ingest_token() -> str:
     return _read_secret("MEGATRON_INGEST_TOKEN", ".ingest_token", "dev-ingest-token-change-me")
 
 
+def get_day_token() -> str:
+    """Unguessable key for the daily digest page.
+
+    The page carries personal analysis ("why this matters to you"), so it is not
+    world-readable — but it must open from a phone, straight out of a chat
+    message, without a login. A capability URL buys both.
+    """
+    return _read_secret("MEGATRON_DAY_TOKEN", ".day_token", "dev-day-token-change-me")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -236,6 +236,7 @@ async def _ensure_session_secret() -> None:
     _persist_or_generate("MEGATRON_SESSION_SECRET", ".session_secret")
     _persist_or_generate("MEGATRON_ADMIN_TOKEN", ".admin_token")
     _persist_or_generate("MEGATRON_INGEST_TOKEN", ".ingest_token")
+    _persist_or_generate("MEGATRON_DAY_TOKEN", ".day_token")
 
 
 def _persist_or_generate(env_var: str, filename: str) -> None:
@@ -302,26 +303,42 @@ async def _ensure_admin_user(session) -> None:
 
 
 async def _ensure_prompt_template(session) -> None:
-    """Create default prompt template if none exists."""
+    """Create the built-in prompt templates if they are missing. Idempotent."""
+    from ..engine.builtin import (
+        DAILY_INTEL_V1,
+        DAILY_INTEL_V1_DISPLAY,
+        DAILY_INTEL_V1_NAME,
+        DAILY_INTEL_V1_SCHEMA,
+    )
     from .engine_models import PromptTemplate
 
-    result = await session.execute(
-        select(PromptTemplate).where(PromptTemplate.name == DEFAULT_PROMPT_NAME)
+    wanted = (
+        (DEFAULT_PROMPT_NAME, DEFAULT_PROMPT_DISPLAY, DEFAULT_PROMPT_TEMPLATE, {}),
+        (DAILY_INTEL_V1_NAME, DAILY_INTEL_V1_DISPLAY, DAILY_INTEL_V1, DAILY_INTEL_V1_SCHEMA),
     )
-    if result.scalar_one_or_none():
-        return
 
-    tmpl = PromptTemplate(
-        name=DEFAULT_PROMPT_NAME,
-        display_name=DEFAULT_PROMPT_DISPLAY,
-        version=1,
-        template=DEFAULT_PROMPT_TEMPLATE,
-        output_schema={},
-        is_active=True,
-    )
-    session.add(tmpl)
-    await session.commit()
-    logger.info("bootstrap.prompt_template_created")
+    created = []
+    for name, display, template, schema in wanted:
+        exists = (
+            await session.execute(select(PromptTemplate).where(PromptTemplate.name == name))
+        ).scalar_one_or_none()
+        if exists:
+            continue
+        session.add(
+            PromptTemplate(
+                name=name,
+                display_name=display,
+                version=1,
+                template=template,
+                output_schema=schema,
+                is_active=True,
+            )
+        )
+        created.append(name)
+
+    if created:
+        await session.commit()
+        logger.info("bootstrap.prompt_templates_created", names=created)
 
 
 async def _ensure_llm_provider(session) -> None:

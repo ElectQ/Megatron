@@ -240,6 +240,8 @@ class ModuleRunner:
             )
 
             result = self._parse_result(content)
+            if effective_fc.get("output_mode") == "day_bundle":
+                result = self._build_bundle(module, run, effective_fc, filtered, result)
             if self._warnings:
                 result["warnings"] = self._warnings
             run.prompt_tokens = tokens_in
@@ -391,6 +393,54 @@ class ModuleRunner:
             return source_name, kwargs
 
         return None, kwargs
+
+    def _build_bundle(self, module, run, fc: dict, records, llm_output: dict) -> dict:
+        """Turn the model's tiering into a day bundle, with the caps enforced here.
+
+        Opt-in via filter_config.output_mode == "day_bundle" so tasks that predate
+        this keep their old result shape.
+        """
+        from ..config import get_day_token, settings
+        from .bundle import DEFAULT_CAPS, build_day_bundle
+        from .doorbell import render_doorbell
+        from .validate import validate_output
+
+        date = fc.get("target_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        schema = (run.prompt_snapshot or {}).get("output_schema") or {}
+        schema_errors = validate_output(llm_output, schema)
+        if schema_errors:
+            self._warn(
+                "schema_errors",
+                f"LLM output did not match the prompt's output_schema ({len(schema_errors)})",
+                errors=schema_errors[:3],
+            )
+
+        bundle = build_day_bundle(
+            date=date,
+            run_id=run.id,
+            records=records,
+            llm_output=llm_output,
+            caps={**DEFAULT_CAPS, **(fc.get("caps") or {})},
+            intent=fc.get("intent") or {},
+            base_url=settings.base_url,
+            day_token=get_day_token(),
+            timezone=fc.get("timezone", "Asia/Shanghai"),
+        )
+        bundle["schema_errors"] = schema_errors
+        # Channels already prefer report_markdown; handing them the doorbell text
+        # means the webhook plugins need no changes at all.
+        bundle["report_markdown"] = render_doorbell(bundle)
+
+        logger.info(
+            "runner.bundle",
+            run_id=run.id,
+            date=date,
+            items=len(bundle["items"]),
+            push=len(bundle["push_item_ids"]),
+            unmatched=bundle["stats"]["dropped_unmatched"],
+            schema_errors=len(schema_errors),
+        )
+        return bundle
 
     def _warn(self, code: str, message: str, **fields) -> None:
         """Record a run-level warning. Surfaced in run.result['warnings']."""
@@ -759,13 +809,22 @@ class ModuleRunner:
         )
 
     async def _deliver(self, module, run, result: dict) -> list[dict]:
-        """Push result to the module's configured webhook channels."""
-        from .delivery import DeliveryService
+        """Push to the module's channels.
+
+        For a day bundle the channels only ever see the capped push subset and
+        the doorbell text — the rest of the day lives on the day page. The
+        webhook plugins are unchanged: they already prefer `report_markdown`.
+        """
         from ..plugins.webhooks.base import AnalysisResult
+        from .bundle import BUNDLE_SCHEMA, push_items
+        from .delivery import DeliveryService
+
+        is_bundle = result.get("schema") == BUNDLE_SCHEMA
+        items = push_items(result) if is_bundle else result.get("items", [])
 
         ar = AnalysisResult(
             briefing=result.get("briefing", ""),
-            items=result.get("items", []),
+            items=items,
             raw=result,
             run_id=run.id,
             module_name=module.name,

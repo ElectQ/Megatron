@@ -225,30 +225,157 @@ DEFAULT_OUTPUT_SCHEMA = {
 }
 
 
+DAILY_INTEL_V1_NAME = "daily_intel_v1"
+DAILY_INTEL_V1_DISPLAY = "每日情报分级（门铃 / 日刊）"
+
+DAILY_INTEL_V1 = """你是"个人安全情报雷达"的分级引擎。今天是 {{ now }}。
+
+你的产出不是简报，而是**分级**：决定每条情报值不值得打断用户、值不值得读。
+真正的稿件由系统渲染，你只负责判断和一句话说清。
+
+## 关注意图（判断"关不关我事"的唯一标准）
+{% if ctx.intent %}
+- 首要：{{ ctx.intent.primary | join('、') }}
+- 次要：{{ ctx.intent.secondary | join('、') }}
+{% else %}
+- 首要：本地/自托管 AI Agent 的安全问题
+- 次要：高危可利用漏洞、可复现的攻击手法、值得上手的开源工具
+{% endif %}
+
+## 分级（tier，严格用这五个值）
+- `must_see_push` —— **今天必须打断用户**。最多 {{ ctx.caps.must_see_push_max | default(3) }} 条，**宁缺毋滥，0 条也完全可以接受**。
+  只有满足"和首要意图直接相关"且"今天不知道会有实际损失"才给。
+- `must_see_page` —— 重要，但不值得打断；日刊里放最前面。
+- `recommend`    —— 值得读。
+- `skim`         —— 扫一眼就够。
+- `drop`         —— 不该占用户时间。**大胆用它。**
+
+## 必须 drop 的（黑名单）
+- 八卦、骂战、人身攻击、纯情绪输出
+- 招聘、广告、会议宣传、抽奖、涨粉
+- 纯转发无增量观点、标题党无实质内容
+- 与意图完全无关的泛科技新闻
+
+## 每条必须回填的字段
+- `external_id` 和 `source_id`：**原样照抄输入里的值，一个字符都不要改**。
+  这两个是系统用来回查原文的键，编造或改写会导致这条被直接丢弃。
+- `one_liner`：一句话说清**发生了什么**（≤40 字，不要复述标题，不要"某某发文称"）。
+- `why_for_me`：一句话说清**为什么和这个用户有关**（≤35 字）。必须扣住上面的意图，
+  不能写成泛泛的"值得关注"。写不出具体关系的，说明它不该是高档位。
+- `actionability`：`none` / `read` / `watch` / `try`
+- `scores`：`relevance`(0-3) `actionability`(0-3) `confidence`(0-1) `noise_risk`(0-1)
+
+## 输入
+共 {{ item_count }} 条：
+
+{% for item in items %}
+---
+external_id: {{ item.external_id }}
+source_id: {{ item.source_id }}
+author: {{ item.author }}{% if item.author_name %} ({{ item.author_name }}){% endif %}
+metrics: {{ item.metrics }}
+content: {{ item.content }}
+{% if item.links %}links: {{ item.links | join(' ') }}{% endif %}
+{% endfor %}
+
+## 输出
+只输出一个 JSON 对象，第一个字符必须是 `{`。不要用 ``` 包裹，不要有任何解释文字。
+
+{
+  "items": [
+    {"external_id": "...", "source_id": "...", "tier": "must_see_push",
+     "one_liner": "...", "why_for_me": "...", "bullets": ["..."],
+     "actionability": "try", "topics": ["ai_agent", "rce"],
+     "scores": {"relevance": 3, "actionability": 3, "confidence": 0.8, "noise_risk": 0.1}}
+  ],
+  "push_item_ids": ["..."]
+}
+
+`push_item_ids` 填你认为最该打断用户的那几条的 external_id（按重要性排序）。
+注意：系统会自己按 tier 重新计算真正推送哪几条并强制截断，你填的只作为排序参考——
+所以**不要**为了让某条被推送而虚报它的 tier。
+"""
+
+DAILY_INTEL_V1_SCHEMA = {
+    "type": "object",
+    "required": ["items"],
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["external_id", "source_id", "tier", "one_liner"],
+                "properties": {
+                    "external_id": {"type": "string"},
+                    "source_id": {"type": "string"},
+                    "tier": {
+                        "type": "string",
+                        "enum": [
+                            "must_see_push",
+                            "must_see_page",
+                            "recommend",
+                            "skim",
+                            "drop",
+                        ],
+                    },
+                    "one_liner": {"type": "string"},
+                    "why_for_me": {"type": "string"},
+                    "bullets": {"type": "array", "items": {"type": "string"}},
+                    "actionability": {
+                        "type": "string",
+                        "enum": ["none", "read", "watch", "try"],
+                    },
+                    "topics": {"type": "array", "items": {"type": "string"}},
+                    "scores": {"type": "object"},
+                },
+            },
+        },
+        "push_item_ids": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+
+_SEEDS = (
+    ("daily_security_briefing", "推特安全信息流简报", DAILY_SECURITY_BRIEFING, DEFAULT_OUTPUT_SCHEMA),
+    (DAILY_INTEL_V1_NAME, DAILY_INTEL_V1_DISPLAY, DAILY_INTEL_V1, DAILY_INTEL_V1_SCHEMA),
+)
+
+
 async def seed_defaults(session) -> dict:
-    """Create default prompt template if none exists. Returns summary."""
+    """Create the built-in prompt templates. Idempotent."""
     from sqlalchemy import select
 
     from ..core.engine_models import PromptTemplate
 
-    result = await session.execute(
-        select(PromptTemplate).where(PromptTemplate.name == "daily_security_briefing")
-    )
-    existing = result.scalars().all()
-    if existing:
-        return {"seeded": False, "reason": "already exists", "id": existing[0].id}
+    seeded, skipped = [], []
+    for name, display, template, schema in _SEEDS:
+        existing = (
+            await session.execute(select(PromptTemplate).where(PromptTemplate.name == name))
+        ).scalars().all()
+        if existing:
+            skipped.append(name)
+            continue
+        session.add(
+            PromptTemplate(
+                name=name,
+                display_name=display,
+                version=1,
+                template=template,
+                output_schema=schema,
+                is_active=True,
+            )
+        )
+        seeded.append(name)
 
-    tmpl = PromptTemplate(
-        name="daily_security_briefing",
-        version=1,
-        template=DAILY_SECURITY_BRIEFING,
-        output_schema=DEFAULT_OUTPUT_SCHEMA,
-        is_active=True,
-    )
-    session.add(tmpl)
     await session.commit()
-    await session.refresh(tmpl)
-    return {"seeded": True, "id": tmpl.id, "name": tmpl.name}
+    return {"seeded": seeded, "skipped": skipped}
 
 
-__all__ = ["seed_defaults", "DAILY_SECURITY_BRIEFING", "DEFAULT_OUTPUT_SCHEMA"]
+__all__ = [
+    "DAILY_INTEL_V1",
+    "DAILY_INTEL_V1_NAME",
+    "DAILY_INTEL_V1_SCHEMA",
+    "DAILY_SECURITY_BRIEFING",
+    "DEFAULT_OUTPUT_SCHEMA",
+    "seed_defaults",
+]

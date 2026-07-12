@@ -302,6 +302,67 @@ def sources_list():
     asyncio.run(_run())
 
 
+@cli.command("use-day-bundle")
+@click.option("--module", "module_name", required=True, help="Analysis module name")
+@click.option("--push-max", default=3, show_default=True, help="Max items that may interrupt")
+@click.option("--revert", is_flag=True, help="Switch back to the previous briefing mode")
+def use_day_bundle(module_name: str, push_max: int, revert: bool):
+    """Switch a task to the tiered doorbell + day-page output.
+
+    Not done by a migration: repointing a task that is running in production is
+    an operator decision. Idempotent, and prints before/after so it can be undone.
+    """
+    import asyncio
+
+    from sqlalchemy import select
+
+    from .core.db import async_session_factory, dispose_db, init_db
+    from .core.engine_models import AnalysisModule, PromptTemplate
+    from .engine.builtin import DAILY_INTEL_V1_NAME
+
+    async def _run():
+        await init_db()
+        async with async_session_factory() as session:
+            module = (
+                await session.execute(
+                    select(AnalysisModule).where(AnalysisModule.name == module_name)
+                )
+            ).scalar_one_or_none()
+            if not module:
+                raise click.ClickException(f"No module named '{module_name}'")
+
+            before = dict(module.filter_config or {})
+            click.echo(f"before: prompt_id={module.prompt_template_id} filter_config={before}")
+
+            fc = dict(before)
+            if revert:
+                fc.pop("output_mode", None)
+                fc.pop("caps", None)
+            else:
+                tmpl = (
+                    await session.execute(
+                        select(PromptTemplate)
+                        .where(PromptTemplate.name == DAILY_INTEL_V1_NAME)
+                        .order_by(PromptTemplate.version.desc())
+                    )
+                ).scalars().first()
+                if not tmpl:
+                    raise click.ClickException(
+                        f"Prompt '{DAILY_INTEL_V1_NAME}' is missing; run `megatron migrate`"
+                    )
+                module.prompt_template_id = tmpl.id
+                fc["output_mode"] = "day_bundle"
+                fc["caps"] = {**(fc.get("caps") or {}), "must_see_push_max": push_max}
+
+            # JSON columns are not change-tracked: rebind, do not mutate in place.
+            module.filter_config = fc
+            await session.commit()
+            click.echo(f"after:  prompt_id={module.prompt_template_id} filter_config={fc}")
+        await dispose_db()
+
+    asyncio.run(_run())
+
+
 @cli.command()
 def gentoken():
     """Generate a random admin/ingest token for .env."""
