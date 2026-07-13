@@ -18,6 +18,36 @@
   .post-head .byline .d{width:3px;height:3px;border-radius:50%;background:var(--line-strong)}
 
   .content{max-width:var(--measure)}
+
+  /* ---- tier filter (no JS) ----
+     Hidden radios drive the filtering; the labels are the visible tabs. Every
+     item stays in the DOM — this hides, it does not remove — so the page is the
+     same one a crawler sees, and a browser without :has() simply shows all
+     sections, which is exactly the old behaviour. */
+  .tabs{display:flex;gap:.4rem;overflow-x:auto;margin:1.5rem 0 .5rem;
+    padding-bottom:.35rem;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+  .tabs label{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;cursor:pointer;
+    padding:.4rem .75rem;border-radius:999px;border:1px solid var(--line);background:var(--surface);
+    font-size:.8rem;font-weight:700;color:var(--muted);transition:color .15s,border-color .15s,background .15s}
+  .tabs label:hover{color:var(--ink);border-color:var(--line-strong)}
+  .tabs label b{font-variant-numeric:tabular-nums;color:var(--faint);font-weight:700}
+  .tabs .tierdot{background:var(--c,var(--t-more))}
+  /* Keyboard users get the ring on the tab, not on the invisible input. */
+  .tabs input:focus-visible + label{outline:2px solid var(--accent);outline-offset:2px}
+
+  .content:has(#tf-all:checked) label[for="tf-all"]{color:var(--ink);border-color:var(--ink);background:var(--surface-2)}
+  {% for tier in tier_order %}
+  .content:has(#tf-{{ tier }}:checked) .grp:not(.g-{{ tier }}){display:none}
+  /* With one tier on screen, its own section header is just repeating the tab. */
+  .content:has(#tf-{{ tier }}:checked) .grp.g-{{ tier }} > .tier{display:none}
+  .content:has(#tf-{{ tier }}:checked) .grp.g-{{ tier }}{margin-top:1.25rem}
+  .content:has(#tf-{{ tier }}:checked) label[for="tf-{{ tier }}"]{color:var(--ink);
+    border-color:var(--c);background:var(--surface-2)}
+  .content:has(#tf-{{ tier }}:checked) label[for="tf-{{ tier }}"] b{color:var(--c)}
+  {% endfor %}
+
   .tier{display:flex;align-items:center;gap:.6rem;margin:2.5rem 0 1.1rem}
   .tier .lbl{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--c,var(--t-more))}
   .tier .count{font-size:.72rem;font-weight:600;color:var(--faint)}
@@ -58,15 +88,26 @@
 </header>
 
 <div class="content">
-{% set tier_color = {'must_see_push':'var(--t-top)','must_see_page':'var(--t-must)','recommend':'var(--t-rec)','skim':'var(--t-more)'} %}
+<nav class="tabs" aria-label="{{ t('Filter by tier') }}">
+  <input type="radio" name="tf" id="tf-all" checked>
+  <label for="tf-all">{{ t('All') }} <b>{{ view.count }}</b></label>
+  {% for tier in tier_order %}{% set items = view.grouped.get(tier) or [] %}{% if items %}
+  <input type="radio" name="tf" id="tf-{{ tier }}">
+  <label for="tf-{{ tier }}" style="--c:{{ tier_color[tier] }}">
+    <i class="tierdot"></i>{{ t(tier_label.get(tier, tier)) }} <b>{{ items|length }}</b>
+  </label>
+  {% endif %}{% endfor %}
+</nav>
+
 {% for tier in tier_order %}
   {% set items = view.grouped.get(tier) or [] %}
   {% if items %}
-    <div class="tier" style="--c:{{ tier_color.get(tier,'var(--t-more)') }}">
+  <section class="grp g-{{ tier }}" style="--c:{{ tier_color[tier] }}">
+    <div class="tier">
       <span class="lbl">{{ t(tier_label.get(tier, tier)) }}</span><span class="count">{{ items|length }}</span>
     </div>
     {% for it in items %}
-    <article class="item" style="--c:{{ tier_color.get(tier,'var(--t-more)') }}">
+    <article class="item">
       <div class="head">
         <span class="dot"></span>
         <p class="one-liner">{{ it.one_liner or (it.content | truncate(90)) }}</p>
@@ -81,6 +122,7 @@
       </div>
     </article>
     {% endfor %}
+  </section>
   {% endif %}
 {% endfor %}
 </div>

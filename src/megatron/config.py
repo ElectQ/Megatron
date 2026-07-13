@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     #   config/policy.yaml      — filtering defaults (caps + politics blocklist)
     config_dir: str = "./config"
 
+    # Cached upstream images for the public blog (see web/media_proxy).
+    # Lives under /app/data because that is the persistent named volume — a
+    # cache in the image layer would be wiped by every redeploy, and we would
+    # re-fetch every picture from Twitter on each deploy.
+    media_cache_dir: str = "/app/data/imgcache"
+    media_cache_max_mb: int = 2048
+
     @property
     def secret_key_for_sessions(self) -> str:
         return get_session_secret()

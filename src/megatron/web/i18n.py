@@ -214,6 +214,8 @@ _ZH: dict[str, str] = {
     "Must-see": "必看",
     "Recommended": "推荐",
     "More": "更多",
+    "All": "全部",
+    "Filter by tier": "按分档筛选",
     # Hero + pipeline strip
     "Daily briefing": "每日简报",
     "Security intelligence, curated daily.": "每日精选的安全情报。",

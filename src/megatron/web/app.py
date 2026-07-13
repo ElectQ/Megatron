@@ -19,6 +19,7 @@ from . import (
     data_api,
     digests_api,
     mcp_api,
+    media_proxy,
     modules_api,
     policy_api,
     prompts_api,
@@ -107,6 +108,7 @@ app.include_router(policy_api.router)
 app.include_router(settings_api.router)
 app.include_router(publish_api.router)
 app.include_router(day_api.router)
+app.include_router(media_proxy.router)
 app.include_router(ui.router)
 
 

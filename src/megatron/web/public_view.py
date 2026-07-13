@@ -40,8 +40,9 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.engine_models import AnalysisRun, PublicationOverride
-from ..core.models import SourceConfig
+from ..core.models import ItemRecord, SourceConfig
 from ..engine.bundle import BUNDLE_SCHEMA
+from .media_proxy import proxied
 
 # Removed on the way out. `scores` is the model's internal bookkeeping
 # (relevance/confidence/noise_risk) — meaningless to a reader and a needless
@@ -51,6 +52,10 @@ _STRIP = ("scores",)
 
 # Tier priority — lower is more prominent. Used to pick a day's headline teaser.
 _TIER_RANK = {"must_see_push": 0, "must_see_page": 1, "recommend": 2, "skim": 3}
+
+# How far down a day's ranked items we will look for a card picture. A card shows
+# one image; going deeper only widens the media query for a picture nobody sees.
+_IMAGE_CANDIDATES = 12
 
 
 @dataclass
@@ -204,29 +209,96 @@ async def latest_bundles(session: AsyncSession, limit_runs: int = 300) -> list[d
     return out
 
 
+async def load_media(
+    session: AsyncSession, keys: set[tuple[str, str]]
+) -> dict[tuple[str, str], str]:
+    """(source_id, external_id) → that item's first photo URL, for items that have one.
+
+    Read from `items` at render time rather than from the bundle, because the
+    bundle does not carry media and the already-published days would otherwise
+    stay picture-less forever. Keeping it out of the bundle is deliberate: the
+    bundle is also what gets POSTed to every webhook, and image URLs are of no
+    use to a chat message.
+
+    One query for every key, not one per item: the WHERE is the cross-product of
+    the sources and the ids, which the `ux_items_unique` index serves, and the
+    rows that pair up wrongly are dropped below.
+    """
+    if not keys:
+        return {}
+    rows = (
+        await session.execute(
+            select(ItemRecord.source, ItemRecord.item_id, ItemRecord.media).where(
+                ItemRecord.source.in_({s for s, _ in keys}),
+                ItemRecord.item_id.in_({e for _, e in keys}),
+            )
+        )
+    ).all()
+
+    out: dict[tuple[str, str], str] = {}
+    for source, item_id, media in rows:
+        key = (source, item_id)
+        if key not in keys:  # a cross-product pairing we did not ask for
+            continue
+        photos = (media or {}).get("photos") or []
+        if photos:
+            out[key] = str(photos[0])
+    return out
+
+
 async def public_recent(session: AsyncSession, limit: int = 40) -> list[dict]:
     """Recent day bundles with at least one effectively-public item, newest first."""
     policy = await load_policy(session)
-    out: list[dict] = []
+    entries: list[dict] = []
+    wanted: set[tuple[str, str]] = set()
+
     for result in await latest_bundles(session):
         pubs = public_items(result, policy)
         if not pubs:
             continue
-        # The day's headline item (highest tier) gives the card its teaser + tags.
-        lead = min(pubs, key=lambda i: _TIER_RANK.get(i.get("tier", "skim"), 9))
-        out.append(
+        source_id = result.get("source_id", "")
+        # Highest tier first: the lead gives the card its teaser and tags, and is
+        # also the first item we would like a picture from.
+        ranked = sorted(pubs, key=lambda i: _TIER_RANK.get(i.get("tier", "skim"), 9))
+        lead = ranked[0]
+
+        # Only the top few are candidates for the card image — a card needs one
+        # picture, and loading media for every item of every day to find it would
+        # be a query the size of the whole blog.
+        candidates = [str(i.get("external_id") or "") for i in ranked[:_IMAGE_CANDIDATES]]
+        candidates = [c for c in candidates if c]
+        wanted.update((source_id, c) for c in candidates)
+
+        counts: dict[str, int] = {}
+        for it in pubs:
+            tier = it.get("tier", "skim")
+            counts[tier] = counts.get(tier, 0) + 1
+
+        entries.append(
             {
-                "source_id": result.get("source_id", ""),
+                "source_id": source_id,
                 "date": result.get("date", ""),
                 "title": result.get("title") or result.get("source_id", ""),
                 "count": len(pubs),
+                "by_tier": counts,
                 "teaser": lead.get("one_liner") or "",
                 "tags": [t for t in (lead.get("topics") or [])][:3],
+                "_candidates": candidates,
             }
         )
-        if len(out) >= limit:
+        if len(entries) >= limit:
             break
-    return out
+
+    media = await load_media(session, wanted)
+    for entry in entries:
+        source_id = entry["source_id"]
+        entry["image"] = ""
+        for external_id in entry.pop("_candidates"):
+            url = proxied(media.get((source_id, external_id), ""))
+            if url:
+                entry["image"] = url
+                break
+    return entries
 
 
 async def public_days(session: AsyncSession, limit_days: int = 30) -> list[dict]:
@@ -254,6 +326,7 @@ __all__ = [
     "has_public",
     "is_public",
     "latest_bundles",
+    "load_media",
     "load_policy",
     "public_days",
     "public_items",
