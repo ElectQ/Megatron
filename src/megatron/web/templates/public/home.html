@@ -36,10 +36,20 @@
 
   /* ---- post rows (flat, editorial, Cloudflare-like) ---- */
   .posts{display:flex;flex-direction:column}
-  a.post{display:grid;grid-template-columns:1fr;gap:.55rem;padding:1.4rem 0;
-    border-bottom:1px solid var(--line);transition:background .15s}
+  /* Two columns: the story, then its picture. The image column is `auto`, so a
+     card with no picture collapses back to the single-column layout on its own —
+     no conditional CSS, no placeholder box. */
+  a.post{display:grid;grid-template-columns:1fr auto;column-gap:1.6rem;row-gap:.55rem;
+    padding:1.4rem 0;border-bottom:1px solid var(--line);transition:background .15s}
+  a.post > :not(.p-thumb){grid-column:1}
   a.post:hover{background:linear-gradient(90deg,var(--surface-2),transparent 85%)}
   a.post:hover .p-title{color:var(--accent-ink)}
+  a.post .p-thumb{grid-column:2;grid-row:1/-1;align-self:center;width:11rem;height:7rem;
+    border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2)}
+  a.post .p-thumb img{width:100%;height:100%;object-fit:cover;display:block;
+    transition:transform .3s cubic-bezier(.2,.7,.2,1)}
+  a.post:hover .p-thumb img{transform:scale(1.04)}
+  @media (prefers-reduced-motion:reduce){a.post .p-thumb img{transition:none}}
   a.post .p-cat{display:inline-flex;align-items:center;gap:.4rem;justify-self:start}
   a.post .p-cat .pill svg{color:var(--muted)}
   a.post .p-title{font-size:1.4rem;line-height:1.25;font-weight:800;letter-spacing:-.02em;
@@ -49,11 +59,22 @@
   a.post .p-meta{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;
     font-size:.76rem;color:var(--faint);margin-top:.1rem}
   a.post .p-meta .n b{color:var(--accent-ink);font-weight:800}
+  /* Per-tier breakdown — "5 top, 12 must-see" says more about a day than "48". */
+  a.post .p-meta .tb{display:inline-flex;align-items:center;gap:.3rem;font-weight:600;
+    color:var(--muted)}
+  a.post .p-meta .tb .tierdot{background:var(--c,var(--t-more))}
+  a.post .p-meta .tb b{color:var(--c,var(--ink));font-weight:800;font-variant-numeric:tabular-nums}
+  a.post .p-meta .sep{width:1px;height:.7rem;background:var(--line-strong)}
   a.post .p-meta .tag{padding:.14rem .5rem;border-radius:6px;background:var(--surface-2);
     border:1px solid var(--line);color:var(--muted);font-weight:600}
   a.post .p-meta .go{margin-left:auto;color:var(--faint);font-weight:700;letter-spacing:.02em;
     display:inline-flex;align-items:center;gap:.25rem}
   a.post:hover .p-meta .go{color:var(--accent-ink)}
+
+  @media (max-width:40rem){
+    a.post{grid-template-columns:1fr}
+    a.post .p-thumb{display:none}   /* the story, not its illustration, is the point */
+  }
 
   .empty{text-align:center;color:var(--muted);padding:4.5rem 1rem;
     border:1px dashed var(--line-strong);border-radius:14px;margin-top:1rem}
@@ -92,9 +113,20 @@
         <h2 class="p-title">{{ s.teaser or s.title }}</h2>
         <div class="p-meta">
           <span class="n"><b>{{ s.count }}</b> {{ t('items') }}</span>
+          <span class="sep"></span>
+          {% for tier in tier_order %}{% if s.by_tier.get(tier) %}
+          <span class="tb" style="--c:{{ tier_color[tier] }}">
+            <i class="tierdot"></i>{{ t(tier_label.get(tier, tier)) }} <b>{{ s.by_tier[tier] }}</b>
+          </span>
+          {% endif %}{% endfor %}
           {% for tg in s.tags or [] %}<span class="tag">{{ tg }}</span>{% endfor %}
           <span class="go">{{ t('Read') }} <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
         </div>
+        {% if s.image %}
+        {# Decorative: the headline already carries the meaning, so alt is empty
+           rather than a restatement a screen reader would have to sit through. #}
+        <span class="p-thumb"><img src="{{ s.image }}" alt="" loading="lazy" decoding="async"></span>
+        {% endif %}
       </a>
       {% endfor %}
     </div>

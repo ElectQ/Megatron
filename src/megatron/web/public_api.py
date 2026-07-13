@@ -29,6 +29,15 @@ TIER_LABEL = {
     "recommend": "Recommended",
     "skim": "More",
 }
+# The hue each tier carries. Lives here, not in a template, because both the post
+# page (section headers, filter tabs) and the home page (the per-tier breakdown on
+# a card) colour by tier and must agree.
+TIER_COLOR = {
+    "must_see_push": "var(--t-top)",
+    "must_see_page": "var(--t-must)",
+    "recommend": "var(--t-rec)",
+    "skim": "var(--t-more)",
+}
 
 
 def _render(request: Request, lang: str, name: str, here_suffix: str = "", **ctx) -> HTMLResponse:
@@ -44,6 +53,7 @@ def _render(request: Request, lang: str, name: str, here_suffix: str = "", **ctx
             "langs": SUPPORTED_LANGS,
             "tier_order": TIER_ORDER,
             "tier_label": TIER_LABEL,
+            "tier_color": TIER_COLOR,
             **ctx,
         },
     )

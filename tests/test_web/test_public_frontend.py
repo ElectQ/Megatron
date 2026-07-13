@@ -11,6 +11,8 @@ internal bookkeeping, stays behind.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
@@ -26,6 +28,7 @@ PRIVATE_LINE = "PRIVATE-INTERNAL-THING"
 PUBLIC_TAKE = "TAKE-ON-THE-PUBLIC-ONE"
 PRIVATE_TAKE = "TAKE-ON-THE-PRIVATE-ONE"
 SECRET_SCORE = 0.123456
+PHOTO = "https://pbs.twimg.com/media/TESTPHOTO.jpg"
 
 
 @pytest.fixture
@@ -149,6 +152,72 @@ def test_the_post_carries_the_models_take_but_not_its_scores(client, a_public_da
 def test_a_day_with_no_public_content_is_404(client):
     # No bundle seeded → nothing public → 404 (not 403).
     assert client.get(f"/zh/{SRC}/2026-01-01").status_code == 404
+
+
+# --- tier filter (CSS-only) -------------------------------------------------
+
+
+def test_the_post_offers_a_tab_per_tier_it_actually_has(client, a_public_day):
+    r = client.get(f"/zh/{SRC}/{DATE}")
+    assert 'id="tf-all"' in r.text
+    # The bundle's only public item is must_see_page, so that is the only tier tab.
+    assert 'id="tf-must_see_page"' in r.text
+    assert 'id="tf-recommend"' not in r.text, "no tab for a tier with nothing in it"
+
+
+def test_filtering_hides_with_css_and_never_drops_items_from_the_page(client, a_public_day):
+    """The tabs must not be a server-side filter: a crawler (and a reader with no
+    :has() support) has to see the whole day in one document."""
+    r = client.get(f"/zh/{SRC}/{DATE}")
+    assert PUBLIC_LINE in r.text, "every public item is in the DOM regardless of tab"
+    assert ":has(#tf-must_see_page:checked)" in r.text, "switching is pure CSS"
+    assert "<script" not in r.text, "the public pages stay JS-free"
+
+
+# --- home card: tier breakdown + picture -------------------------------------
+
+
+@pytest_asyncio.fixture
+async def a_photo_for_the_lead(a_public_day):
+    """The `items` row the render-time media lookup reads. The bundle has no media
+    of its own — that is the whole point of looking it up at render time."""
+    from megatron.core.models import ItemRecord
+
+    now = datetime.now(timezone.utc)
+    async with async_session_factory() as s:
+        s.add(
+            ItemRecord(
+                item_id="e1",  # the public item's external_id
+                source=SRC,
+                url="https://x.com/a/1",
+                content="public tweet body",
+                published_at=now,
+                collected_at=now,
+                media={"photos": [PHOTO], "videos": []},
+            )
+        )
+        await s.commit()
+
+
+def test_the_home_card_breaks_the_count_down_by_tier(client, a_public_day):
+    r = client.get("/zh")
+    assert "必看" in r.text and "tierdot" in r.text
+
+
+def test_the_home_card_shows_a_proxied_picture_never_a_hotlink(client, a_photo_for_the_lead):
+    """Hotlinking pbs.twimg.com would be a broken image for the blog's readers and
+    would hand their IP to Twitter. The src must point at our own origin."""
+    r = client.get("/zh")
+    assert 'src="/img/' in r.text
+    assert "pbs.twimg.com" not in r.text
+
+
+def test_a_day_whose_items_have_no_photo_renders_no_image(client, a_public_day):
+    """No media row → no <img> at all. The grid's `auto` column collapses and the
+    card is the text-only one it was before."""
+    r = client.get("/zh")
+    assert '<span class="p-thumb">' not in r.text  # the markup; the CSS class always exists
+    assert "<img" not in r.text
 
 
 def test_both_languages_render(client, a_public_day):
