@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.db import get_session
 from .day_api import _latest_bundle
 from .i18n import SUPPORTED_LANGS, make_translator
-from .public_view import has_public, public_recent, public_view
+from .public_view import has_public, public_days, public_view
 
 router = APIRouter(tags=["public"])
 templates = Jinja2Templates(directory="src/megatron/web/templates")
@@ -71,8 +71,8 @@ async def public_root(request: Request):
 @router.get("/{lang}", response_class=HTMLResponse)
 async def public_home(lang: str, request: Request, session: AsyncSession = Depends(get_session)):
     _lang_or_404(lang)
-    recent = await public_recent(session)
-    return _render(request, lang, "public/home.html", recent=recent)
+    days = await public_days(session)
+    return _render(request, lang, "public/home.html", days=days)
 
 
 @router.get("/{lang}/{source_id}/{date}", response_class=HTMLResponse)

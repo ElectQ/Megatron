@@ -1,29 +1,78 @@
 {% extends "public/base.html" %}
-{% block title %}{{ t('Security Radar') }}{% endblock %}
+{% block title %}Megatron LLM Hub{% endblock %}
+{% block head %}
+<style>
+  /* Hero data-flow diagram: 采集源 → LLM 分析 → 产出. Flexbox so it is responsive
+     and theme-aware; stacks vertically on a phone. */
+  .flow{display:flex;align-items:stretch;gap:.5rem;margin:1.25rem 0 2.5rem;flex-wrap:wrap}
+  .flow .stage{flex:1 1 9rem;min-width:8.5rem;background:var(--surface);border:1px solid var(--border);
+    border-radius:.75rem;padding:.85rem .9rem;box-shadow:var(--shadow)}
+  .flow .stage .cap{font-size:.6875rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:.4rem}
+  .flow .stage .rows{display:flex;flex-direction:column;gap:.3rem;font-size:.8125rem}
+  .flow .stage .rows span{display:flex;align-items:center;gap:.4rem}
+  .flow .stage.brainy{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset,var(--shadow)}
+  .flow .arrow{align-self:center;color:var(--faint);font-size:1.1rem;flex:0 0 auto}
+  @media (max-width:34rem){
+    .flow{flex-direction:column}
+    .flow .arrow{transform:rotate(90deg);align-self:flex-start;margin-left:1.5rem}
+  }
+  .lede h1{font-size:1.55rem;margin:0 0 .35rem;letter-spacing:-.015em}
+  .lede p{color:var(--muted);font-size:.9375rem;margin:0}
+
+  .day{margin-top:2.5rem}
+  .day .date{display:flex;align-items:center;gap:.6rem;font-variant-numeric:tabular-nums;
+    font-weight:700;font-size:1.05rem;margin-bottom:.75rem}
+  .day .date::after{content:"";flex:1;height:1px;background:var(--border)}
+  .streams{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))}
+  a.stream{display:block;background:var(--surface);border:1px solid var(--border);border-radius:.75rem;
+    padding:.9rem 1rem;text-decoration:none;box-shadow:var(--shadow)}
+  a.stream:hover{border-color:var(--faint)}
+  a.stream .name{font-weight:600;font-size:1rem}
+  a.stream .n{color:var(--muted);font-size:.8125rem;margin-top:.3rem}
+</style>
+{% endblock %}
 {% block content %}
-<div style="margin-bottom:2rem">
-  <h1 style="font-size:1.5rem;margin:0 0 .35rem;letter-spacing:-.01em">{{ t('Security Radar') }}</h1>
-  <p style="color:var(--muted);font-size:.9375rem;margin:0">{{ t('A daily digest of publicly notable security items — vulnerabilities, tools, events.') }}</p>
+
+<div class="lede">
+  <h1>Megatron LLM Hub</h1>
+  <p>{{ t('A daily digest of publicly notable security items — vulnerabilities, tools, events.') }}</p>
 </div>
 
-{% if not recent %}
-  <div style="text-align:center;color:var(--muted);padding:4rem 1rem">
+<div class="flow" aria-label="data flow">
+  <div class="stage">
+    <div class="cap">{{ t('Sources') }}</div>
+    <div class="rows"><span>🐦 Twitter</span><span>🐙 GitHub</span><span>🌐 RSS / HTTP</span></div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="stage brainy">
+    <div class="cap">{{ t('LLM analysis') }}</div>
+    <div class="rows"><span>🧭 {{ t('tier & tag') }}</span><span>🏷️ {{ t('mark public') }}</span></div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="stage">
+    <div class="cap">{{ t('Output') }}</div>
+    <div class="rows"><span>📣 {{ t('push') }}</span><span>🌐 {{ t('public blog') }}</span><span>🔒 {{ t('private') }}</span></div>
+  </div>
+</div>
+
+{% if not days %}
+  <div style="text-align:center;color:var(--muted);padding:3rem 1rem">
     <div style="font-size:2rem;margin-bottom:.5rem">🌙</div>
     {{ t('Nothing published yet.') }}
   </div>
 {% else %}
-  <div style="display:flex;flex-direction:column;gap:.75rem">
-    {% for p in recent %}
-    <a href="/{{ lang }}/{{ p.source_id }}/{{ p.date }}"
-       style="display:block;background:var(--surface);border:1px solid var(--border);border-radius:.75rem;
-              padding:1rem 1.15rem;text-decoration:none;box-shadow:var(--shadow)">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:.75rem">
-        <span style="font-weight:600;font-size:1.0625rem">{{ p.title }}</span>
-        <span style="color:var(--faint);font-size:.8125rem;font-variant-numeric:tabular-nums">{{ p.date }}</span>
-      </div>
-      <div style="color:var(--muted);font-size:.8125rem;margin-top:.35rem">{{ p.count }} {{ t('items') }}</div>
-    </a>
-    {% endfor %}
-  </div>
+  {% for d in days %}
+  <section class="day">
+    <div class="date">{{ d.date }}</div>
+    <div class="streams">
+      {% for s in d.streams %}
+      <a class="stream" href="/{{ lang }}/{{ s.source_id }}/{{ d.date }}">
+        <div class="name">{{ s.title }}</div>
+        <div class="n">{{ s.count }} {{ t('items') }}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
 {% endif %}
 {% endblock %}

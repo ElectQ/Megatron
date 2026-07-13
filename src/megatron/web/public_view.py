@@ -98,4 +98,22 @@ async def public_recent(session: AsyncSession, limit: int = 40) -> list[dict]:
     return out
 
 
-__all__ = ["has_public", "public_items", "public_recent", "public_view"]
+async def public_days(session: AsyncSession, limit_days: int = 30) -> list[dict]:
+    """Public digests grouped by date (newest first) — the blog's day-at-a-glance.
+
+    Each day lists every source (安全推送流) that published something that day, so
+    a reader can browse the whole day across streams.
+    """
+    flat = await public_recent(session, limit=200)
+    by_date: dict[str, list[dict]] = {}
+    for entry in flat:
+        by_date.setdefault(entry["date"], []).append(entry)
+    days = [
+        {"date": date, "streams": sorted(streams, key=lambda s: s["source_id"])}
+        for date, streams in by_date.items()
+    ]
+    days.sort(key=lambda d: d["date"], reverse=True)
+    return days[:limit_days]
+
+
+__all__ = ["has_public", "public_days", "public_items", "public_recent", "public_view"]

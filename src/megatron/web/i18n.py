@@ -179,6 +179,14 @@ _ZH: dict[str, str] = {
     "Must-see": "必看",
     "Recommended": "推荐",
     "More": "更多",
+    # Hero data-flow diagram
+    "LLM analysis": "LLM 分析",
+    "tier & tag": "分级 · 打标",
+    "mark public": "判定公开",
+    "Output": "产出",
+    "push": "推送",
+    "public blog": "公开博客",
+    "private": "个人私有",
 }
 
 _TABLES: dict[str, dict[str, str]] = {"zh": _ZH}
