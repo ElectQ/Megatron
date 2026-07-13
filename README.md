@@ -59,3 +59,4 @@ map:
 
 - [快速上手](docs/快速上手.md) — 接一个源并跑通一次
 - [使用指南](docs/使用指南.md) — 完整配置与运维
+- [部署](docs/部署.md) — VPS + Docker 部署、HTTPS(Caddy)、数据备份/恢复

@@ -20,8 +20,10 @@ services:
       MEGATRON_DEEPSEEK_API_KEY: ${MEGATRON_DEEPSEEK_API_KEY:-}
       MEGATRON_DINGTALK_URL: ${MEGATRON_DINGTALK_URL:-}
       MEGATRON_DINGTALK_SECRET: ${MEGATRON_DINGTALK_SECRET:-}
+    # Host 8010 → container 8000 (uvicorn). Host port moved off 8000 so a local
+    # Python service can use 8000; override with PORT in .env if needed.
     ports:
-      - "${PORT:-8000}:8000"
+      - "${PORT:-8010}:8000"
     volumes:
       - megatron_data:/app/data
     restart: unless-stopped
