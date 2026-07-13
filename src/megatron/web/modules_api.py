@@ -17,12 +17,23 @@ from ..plugins.tools.base import tool_registry
 router = APIRouter(prefix="/api/admin/modules", tags=["modules"])
 
 
-async def _execute_run_background(run_id: int) -> None:
+async def _execute_run_background(run_id: int, module_id: int) -> None:
     from ..core.db import async_session_factory
     from ..core.logging import get_logger
     from ..engine.runner import ModuleRunner
+    from ..scheduler import pull_module_source
 
     logger = get_logger(__name__)
+    # Fetch the source before analysing. Analysis reads the DB, and a polled
+    # source's day may not have landed there yet — without this, clicking Run on a
+    # fresh day truthfully reports "no data" while the data sits one request away.
+    # One attempt only: a human is waiting on the click (the scheduled path is the
+    # one that retries for hours).
+    try:
+        await pull_module_source(module_id)
+    except Exception as e:
+        logger.error("module.pre_run_pull_failed", module_id=module_id, error=str(e))
+
     async with async_session_factory() as session:
         runner = ModuleRunner(session)
         try:
@@ -245,7 +256,7 @@ async def run_module(
     runner = ModuleRunner(session)
     try:
         summary = await runner.create_run(module_id, triggered_by="manual")
-        background_tasks.add_task(_execute_run_background, summary["run_id"])
+        background_tasks.add_task(_execute_run_background, summary["run_id"], module_id)
         return summary
     except ActiveRunExists as e:
         raise HTTPException(409, str(e))

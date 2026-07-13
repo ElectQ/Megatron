@@ -224,3 +224,83 @@ async def test_acquire_plan_retries_only_for_polled_today_source():
     assert await sched._acquire_plan(polled_date) == (False, "src_poll")
     assert await sched._acquire_plan(native_today) == (False, "src_native")
     assert await sched._acquire_plan(999999) is None
+
+
+# --- Manual Run pulls before analysing -------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_manual_pull_fetches_a_polled_source():
+    """Clicking Run must fetch first — analysis reads the DB, and a polled source's
+    day may not be there yet."""
+    from megatron.core.db import async_session_factory
+
+    async with async_session_factory() as s:
+        await _seed_source(s, "src_manual", "bundle_pull")
+        mid = await _seed_module(s, "mod_manual", "src_manual", {"time_mode": "today"})
+
+    pulled = []
+
+    async def fake_poll(source_id):
+        pulled.append(source_id)
+        return (3, 0)
+
+    import pytest as _pytest  # noqa: F401
+
+    orig = sched.poll_source
+    sched.poll_source = fake_poll
+    try:
+        got = await sched.pull_module_source(mid)
+    finally:
+        sched.poll_source = orig
+
+    assert got == "src_manual"
+    assert pulled == ["src_manual"]
+
+
+@pytest.mark.asyncio
+async def test_manual_pull_skips_a_pushed_source():
+    """Nothing to fetch for a source that pushes to us — don't hit the network."""
+    from megatron.core.db import async_session_factory
+
+    async with async_session_factory() as s:
+        await _seed_source(s, "src_push", "http_push")
+        mid = await _seed_module(s, "mod_push", "src_push", {"time_mode": "today"})
+
+    pulled = []
+
+    async def fake_poll(source_id):
+        pulled.append(source_id)
+        return (0, 0)
+
+    orig = sched.poll_source
+    sched.poll_source = fake_poll
+    try:
+        got = await sched.pull_module_source(mid)
+    finally:
+        sched.poll_source = orig
+
+    assert got == ""
+    assert pulled == []
+
+
+@pytest.mark.asyncio
+async def test_manual_pull_failure_does_not_sink_the_run():
+    """A dead collector must not stop the analysis — run on whatever we have."""
+    from megatron.core.db import async_session_factory
+
+    async with async_session_factory() as s:
+        await _seed_source(s, "src_dead", "bundle_pull")
+        mid = await _seed_module(s, "mod_dead", "src_dead", {"time_mode": "today"})
+
+    async def boom(_source_id):
+        raise RuntimeError("collector down")
+
+    orig = sched.poll_source
+    sched.poll_source = boom
+    try:
+        got = await sched.pull_module_source(mid)  # must not raise
+    finally:
+        sched.poll_source = orig
+
+    assert got == "src_dead"

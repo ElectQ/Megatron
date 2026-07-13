@@ -486,6 +486,12 @@ class ModuleRunner:
                 errors=schema_errors[:3],
             )
 
+        # Whether this source may reach the public blog at all. The gate is the
+        # source's `audience`, not the model's per-item call: what a stream reveals
+        # (the GitHub feed exposes *who you follow*) is a property of the stream,
+        # and that decision belongs in the source config, not in a prompt.
+        publishable = await self._source_publishable(module)
+
         bundle = build_day_bundle(
             date=date,
             run_id=run.id,
@@ -498,6 +504,7 @@ class ModuleRunner:
             timezone=fc.get("timezone", "Asia/Shanghai"),
             source_names=source_names,
             title=fc.get("title", ""),
+            publishable=publishable,
         )
         bundle["schema_errors"] = schema_errors
         # The task picks the push template (like page_layout picks the day page):
@@ -721,6 +728,18 @@ class ModuleRunner:
 
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def _source_publishable(self, module) -> bool:
+        """May this module's source appear on the public blog?
+
+        `audience: personal` is a hard lock — no item from that source is ever
+        world-readable, however the model marked it. Its day page stays reachable
+        only through the capability token.
+        """
+        from ..ingest.registry import get_source
+
+        sc = await get_source(self.session, module.source)
+        return bool(sc) and (sc.audience or "personal") != "personal"
 
     async def _apply_filters(self, module, records: list[ItemRecord]) -> list[ItemRecord]:
         cfg = module.filter_config.get("filters", [])

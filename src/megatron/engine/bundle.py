@@ -231,6 +231,7 @@ def build_day_bundle(
     warnings: list[dict] | None = None,
     source_names: dict[str, str] | None = None,
     title: str = "",
+    publishable: bool = False,
 ) -> dict:
     caps = {**DEFAULT_CAPS, **(caps or {})}
     source_names = source_names or {}
@@ -272,9 +273,12 @@ def build_day_bundle(
                 # Tags come from the model. Capped here so a chatty answer cannot
                 # turn one card into a wall of chips.
                 "topics": [str(t).strip() for t in (raw.get("topics") or []) if str(t).strip()][:4],
-                # May this item appear on the public blog? Default private — only
-                # what the model explicitly marks public is ever world-readable.
-                "public": bool(raw.get("public", False)),
+                # May this item appear on the public blog? Deliberately tri-state:
+                # True/False are the model's explicit calls, None means it did not
+                # say. What None *means* is not the model's business — it is the
+                # source's policy (a public stream defaults to publishing, a
+                # personal one never publishes at all). See web/public_view.
+                "public": raw.get("public") if isinstance(raw.get("public"), bool) else None,
                 "author": rec.author,
                 "author_name": rec.author_name,
                 "published_at": rec.published_at.isoformat() if rec.published_at else "",
@@ -337,12 +341,20 @@ def build_day_bundle(
         "items": items,
         "push_item_ids": push_item_ids,
         "day_url": day_url(base_url, date, primary, day_token) if base_url else "",
-        # The public blog link, given only when the day has something public to
-        # show — otherwise "" so a push template falls back to the token day_url
-        # instead of pointing at a page that 404s.
+        # The public blog link, given only when the day will actually have a
+        # public page — otherwise "" so a push template falls back to the token
+        # day_url instead of pointing at a page that 404s.
+        #
+        # Two conditions, and the source's is the hard one: a `personal` source
+        # never has a public page at all (so its push always links to the token
+        # page), and within a publishable source a day needs something that
+        # survives the item gate — where absent (None) means publish, and only an
+        # explicit False from the model holds an item back.
         "public_url": (
             public_url(base_url, date, primary)
-            if base_url and any(i.get("public") for i in items)
+            if base_url
+            and publishable
+            and any(i.get("public") is not False for i in items)
             else ""
         ),
         "warnings": warnings or [],

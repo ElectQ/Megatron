@@ -156,7 +156,7 @@ _ZH: dict[str, str] = {
         "分析发到公开站点的内容 —— 以及你推翻它的决定权。",
     "How publishing is decided": "发布规则",
     "The analysis marks each item public or private (default: private). You can overrule it here — take a whole day down, or drop a single item. Your decision is stored separately, so the run still records what the model actually said.":
-        "分析会逐条判定公开或私有(默认私有)。你可以在这里推翻它 —— 撤下一整天,或摘掉某一条。你的决定单独存储,所以运行记录里仍保留模型当初的判断。",
+        "谁能公开,先看**源**:私有源(如 GitHub 关注流)永远不上博客——它泄露的是「你关注了谁」,这是整条流的属性,不是某一条的。公开源里,条目默认公开(个人解读自动剥离),分析只把确实敏感的按下不发,而你在这里说了算。你的决定单独存储,运行记录仍保留模型当初的判断。",
     "Personal notes (why_for_me, scores) are never published, even for public items.":
         "个人解读(why_for_me、评分)永远不会公开,即便该条是公开的。",
     "live": "已公开",
@@ -177,6 +177,16 @@ _ZH: dict[str, str] = {
     "Model said": "模型判定",
     "Link": "链接",
     "overruled": "已推翻",
+    "private source": "私有源",
+    "— (default)": "— (默认)",
+    "held back": "已按下",
+    "The model did not flag this — inside a public source that means publish.":
+        "模型没有标记这条 —— 在公开源里,这意味着「发布」。",
+    "The model judged this one sensitive and held it back.":
+        "模型判定这条确实敏感,主动按下不发。",
+    "Private source — locked.": "私有源 —— 已锁定。",
+    "This source is private — it never reaches the public blog, whatever its items say. Its day page is reachable only with the capability token. To change that, set the source's audience to public in its config.":
+        "这个源是私有的 —— 无论条目怎么标,它永远不会出现在公开博客上;日刊页只能凭令牌链接访问。要改变这一点,需要在源的配置里把 audience 设为 public。",
     "No analysed days yet. Run a task first — anything it marks public shows up here.":
         "还没有已分析的日子。先跑一次任务 —— 它标为公开的内容会出现在这里。",
     # Card titles

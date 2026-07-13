@@ -1,21 +1,27 @@
 """The public projection — what a day bundle looks like on the world-readable blog.
 
-The gate is per-item: only items marked public are ever shown, and even those are
-stripped of the personal framing (`why_for_me`, scores) — the blog carries
-objective facts (a disclosed CVE, a released tool), never the "why this matters to
-*you*". Everything else stays behind the capability token.
+Three decisions, in strict order of authority:
 
-Default private: an item with no `public` flag is treated as private, so a bundle
-with nothing public simply does not exist as far as the frontend is concerned.
+    1. the source's `audience`   — hard gate; `personal` never publishes, at all
+    2. the operator's override   — within a publishable source, the operator wins
+    3. the model's `public` flag — absent means publish; False means hold back
 
-Two voices decide "public", and the operator's wins:
+The primary gate is the *source*, not the item, because that is where the risk
+actually lives. The items are not the secret: a tweet and a GitHub star are
+already world-readable. What a stream leaks is its *curation* — the GitHub feed's
+every event is public, yet publishing it exposes who you follow. That is a
+property of the stream, so it is settled in the source config (a deliberate edit),
+where no mis-marked item and no stray click in the admin can undo it.
 
-    effective_public(item) = operator override, if any, else the analysis's flag
+Inside a publishable source the default is to publish: the content is already
+public and the personal framing (`why_for_me`, scores) is stripped on the way out
+regardless, so a `False` from the model is it saying "this specific one is
+sensitive" rather than the blog's only line of defence.
 
-Overrides live in `publication_overrides` (see the model), never by rewriting the
-run — the run is the record of what the model actually said, and that record is
-what tells you the prompt needs fixing. A day-level override (`item_id == ""`) set
-to false takes the whole day off the blog regardless of its items.
+Overrides live in `publication_overrides`, never by rewriting the run — the run is
+the record of what the model actually said, and that record is what tells you the
+prompt needs fixing. A day-level override (`item_id == ""`) set to false takes the
+whole day off the blog regardless of its items.
 """
 
 from __future__ import annotations
@@ -26,6 +32,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.engine_models import AnalysisRun, PublicationOverride
+from ..core.models import SourceConfig
 from ..engine.bundle import BUNDLE_SCHEMA
 
 # Personal fields removed on the way out. `content` (the original public post/
@@ -53,53 +60,92 @@ class Overrides:
         return self.items.get((source_id, date), {}).get(item_id)
 
 
-EMPTY = Overrides()
+@dataclass
+class Policy:
+    """Who may publish, and who has the final say within them.
+
+    `audience` is the hard gate and it is deliberately *not* overridable: what a
+    stream reveals is a property of the stream, not of any one item. The GitHub
+    feed's items are individually public GitHub events, yet publishing them
+    exposes *who you follow* — so the whole source stays personal, and no
+    mis-marked item and no stray click in the admin can leak it. Changing that
+    means editing the source's config, which is the deliberate act it should be.
+    """
+
+    # source_id -> personal | public | both
+    audience: dict[str, str] = field(default_factory=dict)
+    overrides: Overrides = field(default_factory=Overrides)
+
+    def source_public(self, source_id: str) -> bool:
+        return self.audience.get(source_id, "personal") != "personal"
 
 
-async def load_overrides(session: AsyncSession) -> Overrides:
-    """Load every operator override. Small table (one row per decision), so it is
-    read whole rather than joined per bundle."""
-    rows = (await session.execute(select(PublicationOverride))).scalars().all()
+EMPTY = Policy()
+
+
+async def load_policy(session: AsyncSession) -> Policy:
+    """Load the source audiences and every operator override (both are small
+    tables, read whole rather than joined per bundle)."""
+    audience = {
+        sc.name: (sc.audience or "personal")
+        for sc in (await session.execute(select(SourceConfig))).scalars().all()
+    }
     ov = Overrides()
-    for r in rows:
+    for r in (await session.execute(select(PublicationOverride))).scalars().all():
         key = (r.source_id, r.date)
         if r.item_id:
             ov.items.setdefault(key, {})[r.item_id] = r.published
         else:
             ov.days[key] = r.published
-    return ov
+    return Policy(audience=audience, overrides=ov)
 
 
 def _public_item(item: dict) -> dict:
     return {k: v for k, v in item.items() if k not in _STRIP and not k.startswith("_")}
 
 
-def is_public(item: dict, source_id: str, date: str, ov: Overrides = EMPTY) -> bool:
-    """The effective decision for one item: the operator's, else the analysis's."""
-    override = ov.item(source_id, date, str(item.get("id", "")))
-    return item.get("public") is True if override is None else override
+def is_public(item: dict, source_id: str, date: str, policy: Policy = EMPTY) -> bool:
+    """The effective decision for one item.
+
+        source is personal   → never (hard gate, beats the operator)
+        operator overrode it → the operator
+        otherwise            → publish, unless the model explicitly held it back
+
+    Note the default inside a publishable source: `public` absent (None) means
+    publish. The content is already-public security news and the personal framing
+    is stripped on the way out, so the blog should carry the day by default; an
+    explicit `False` is the model saying "this one is genuinely sensitive".
+    """
+    if not policy.source_public(source_id):
+        return False
+    override = policy.overrides.item(source_id, date, str(item.get("id", "")))
+    if override is not None:
+        return override
+    return item.get("public") is not False
 
 
-def public_items(bundle: dict, ov: Overrides = EMPTY) -> list[dict]:
+def public_items(bundle: dict, policy: Policy = EMPTY) -> list[dict]:
     """The public, personal-stripped items of a bundle, in the bundle's order."""
     source_id = bundle.get("source_id", "")
     date = bundle.get("date", "")
-    if ov.day_hidden(source_id, date):
+    if not policy.source_public(source_id):
+        return []
+    if policy.overrides.day_hidden(source_id, date):
         return []
     return [
         _public_item(i)
         for i in (bundle.get("items") or [])
-        if is_public(i, source_id, date, ov)
+        if is_public(i, source_id, date, policy)
     ]
 
 
-def has_public(bundle: dict, ov: Overrides = EMPTY) -> bool:
-    return bool(public_items(bundle, ov))
+def has_public(bundle: dict, policy: Policy = EMPTY) -> bool:
+    return bool(public_items(bundle, policy))
 
 
-def public_view(bundle: dict, ov: Overrides = EMPTY) -> dict:
+def public_view(bundle: dict, policy: Policy = EMPTY) -> dict:
     """A bundle reduced to its public, stripped items — grouped by tier for render."""
-    items = public_items(bundle, ov)
+    items = public_items(bundle, policy)
     grouped: dict[str, list[dict]] = {}
     for it in items:
         grouped.setdefault(it.get("tier", "skim"), []).append(it)
@@ -151,10 +197,10 @@ async def latest_bundles(session: AsyncSession, limit_runs: int = 300) -> list[d
 
 async def public_recent(session: AsyncSession, limit: int = 40) -> list[dict]:
     """Recent day bundles with at least one effectively-public item, newest first."""
-    ov = await load_overrides(session)
+    policy = await load_policy(session)
     out: list[dict] = []
     for result in await latest_bundles(session):
-        pubs = public_items(result, ov)
+        pubs = public_items(result, policy)
         if not pubs:
             continue
         # The day's headline item (highest tier) gives the card its teaser + tags.
@@ -195,10 +241,11 @@ async def public_days(session: AsyncSession, limit_days: int = 30) -> list[dict]
 __all__ = [
     "EMPTY",
     "Overrides",
+    "Policy",
     "has_public",
     "is_public",
     "latest_bundles",
-    "load_overrides",
+    "load_policy",
     "public_days",
     "public_items",
     "public_recent",
