@@ -36,43 +36,53 @@
 
   /* ---- post rows (flat, editorial, Cloudflare-like) ---- */
   .posts{display:flex;flex-direction:column}
-  /* Two columns: the story, then its picture. The image column is `auto`, so a
-     card with no picture collapses back to the single-column layout on its own —
-     no conditional CSS, no placeholder box. */
-  a.post{display:grid;grid-template-columns:1fr auto;column-gap:1.6rem;row-gap:.55rem;
-    padding:1.4rem 0;border-bottom:1px solid var(--line);transition:background .15s}
-  a.post > :not(.p-thumb){grid-column:1}
+  /* The story, then its picture — a flex row, not a grid. A grid whose image
+     spans the rows stretches them to its height, which pushes the pill and the
+     title apart and leaves the text drifting in whitespace. Here the text is one
+     block, centred against the picture, and a card with no picture is simply the
+     block on its own. */
+  a.post{display:flex;align-items:center;gap:1.35rem;padding:1.05rem 0;
+    border-bottom:1px solid var(--line);transition:background .15s}
   a.post:hover{background:linear-gradient(90deg,var(--surface-2),transparent 85%)}
   a.post:hover .p-title{color:var(--accent-ink)}
-  a.post .p-thumb{grid-column:2;grid-row:1/-1;align-self:center;width:11rem;height:7rem;
-    border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2)}
+  a.post .p-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:.4rem}
+  a.post .p-thumb{flex:0 0 auto;width:9.5rem;height:6rem;
+    border-radius:9px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2)}
   a.post .p-thumb img{width:100%;height:100%;object-fit:cover;display:block;
     transition:transform .3s cubic-bezier(.2,.7,.2,1)}
   a.post:hover .p-thumb img{transform:scale(1.04)}
   @media (prefers-reduced-motion:reduce){a.post .p-thumb img{transition:none}}
-  a.post .p-cat{display:inline-flex;align-items:center;gap:.4rem;justify-self:start}
+  a.post .p-cat{display:inline-flex;align-items:center;gap:.4rem;align-self:flex-start}
   a.post .p-cat .pill svg{color:var(--muted)}
-  a.post .p-title{font-size:1.4rem;line-height:1.25;font-weight:800;letter-spacing:-.02em;
-    color:var(--ink);transition:color .15s;text-wrap:balance;margin:0}
-  a.post .p-teaser{color:var(--muted);font-size:.95rem;line-height:1.55;margin:0;
+  /* Clamped: a headline is a teaser lifted from a tweet, and one rambling tweet
+     must not be allowed to set the height of every row below it. */
+  a.post .p-title{font-size:1.16rem;line-height:1.35;font-weight:800;letter-spacing:-.02em;
+    color:var(--ink);transition:color .15s;margin:0;
     display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
   a.post .p-meta{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;
-    font-size:.76rem;color:var(--faint);margin-top:.1rem}
+    font-size:.76rem;color:var(--faint)}
   a.post .p-meta .n b{color:var(--accent-ink);font-weight:800}
-  /* Per-tier breakdown — "5 top, 12 must-see" says more about a day than "48". */
-  a.post .p-meta .tb{display:inline-flex;align-items:center;gap:.3rem;font-weight:600;
+  /* One number a reader acts on — how much of today they actually have to read.
+     The full four-way split lives on the post page's tabs, where it is useful. */
+  a.post .p-meta .must{display:inline-flex;align-items:center;gap:.3rem;font-weight:600;
     color:var(--muted)}
-  a.post .p-meta .tb .tierdot{background:var(--c,var(--t-more))}
-  a.post .p-meta .tb b{color:var(--c,var(--ink));font-weight:800;font-variant-numeric:tabular-nums}
+  a.post .p-meta .must .tierdot{background:var(--t-must)}
+  a.post .p-meta .must b{color:var(--t-must);font-weight:800;font-variant-numeric:tabular-nums}
   a.post .p-meta .sep{width:1px;height:.7rem;background:var(--line-strong)}
   a.post .p-meta .tag{padding:.14rem .5rem;border-radius:6px;background:var(--surface-2);
     border:1px solid var(--line);color:var(--muted);font-weight:600}
-  a.post .p-meta .go{margin-left:auto;color:var(--faint);font-weight:700;letter-spacing:.02em;
-    display:inline-flex;align-items:center;gap:.25rem}
+  /* Sits with the rest of the metadata, not pushed to the far edge. `margin-left:
+     auto` shoved it up against the thumbnail — where it read as a caption for the
+     picture, with a lake of whitespace behind it. The whole row is already the
+     link; this is a cue, not a target of its own. */
+  a.post .p-meta .go{color:var(--faint);font-weight:700;letter-spacing:.02em;
+    display:inline-flex;align-items:center;gap:.25rem;white-space:nowrap;margin-left:.15rem}
+  a.post .p-meta .go svg{transition:transform .2s cubic-bezier(.2,.7,.2,1)}
   a.post:hover .p-meta .go{color:var(--accent-ink)}
+  a.post:hover .p-meta .go svg{transform:translateX(2px)}
+  @media (prefers-reduced-motion:reduce){a.post .p-meta .go svg{transition:none}}
 
   @media (max-width:40rem){
-    a.post{grid-template-columns:1fr}
     a.post .p-thumb{display:none}   /* the story, not its illustration, is the point */
   }
 
@@ -109,18 +119,18 @@
     <div class="posts">
       {% for s in d.streams %}
       <a class="post" href="/{{ lang }}/{{ s.source_id }}/{{ d.date }}">
-        <span class="p-cat"><span class="pill">{{ source_mark(s.source_id) }}{{ s.title }}</span></span>
-        <h2 class="p-title">{{ s.teaser or s.title }}</h2>
-        <div class="p-meta">
-          <span class="n"><b>{{ s.count }}</b> {{ t('items') }}</span>
-          <span class="sep"></span>
-          {% for tier in tier_order %}{% if s.by_tier.get(tier) %}
-          <span class="tb" style="--c:{{ tier_color[tier] }}">
-            <i class="tierdot"></i>{{ t(tier_label.get(tier, tier)) }} <b>{{ s.by_tier[tier] }}</b>
-          </span>
-          {% endif %}{% endfor %}
-          {% for tg in s.tags or [] %}<span class="tag">{{ tg }}</span>{% endfor %}
-          <span class="go">{{ t('Read') }} <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        <div class="p-body">
+          <span class="p-cat"><span class="pill">{{ source_mark(s.source_id) }}{{ s.title }}</span></span>
+          <h2 class="p-title">{{ s.teaser or s.title }}</h2>
+          <div class="p-meta">
+            <span class="n"><b>{{ s.count }}</b> {{ t('items') }}</span>
+            {% if s.must_see %}
+            <span class="sep"></span>
+            <span class="must"><i class="tierdot"></i>{{ t('Must-see') }} <b>{{ s.must_see }}</b></span>
+            {% endif %}
+            {% for tg in s.tags or [] %}<span class="tag">{{ tg }}</span>{% endfor %}
+            <span class="go">{{ t('Read') }} <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          </div>
         </div>
         {% if s.image %}
         {# Decorative: the headline already carries the meaning, so alt is empty

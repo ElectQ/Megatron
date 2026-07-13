@@ -154,6 +154,15 @@ class SourceSpec(BaseModel):
     audience: list[Literal["personal", "public"]] = Field(default_factory=lambda: ["personal"])
     enabled: bool = True
 
+    # Publish the *what*, redact the *who*. Set for a stream whose items name a
+    # person the reader curates — the GitHub follow feed's "odzhan starred X"
+    # leaks who you follow even though each event is itself public. When true, the
+    # public projection drops `author` and the raw `content` (which embeds the
+    # name), keeping the model's `one_liner`/`why_for_me` — which the prompt is
+    # written to phrase without names. No effect on the token-gated day page,
+    # which is the owner's own full-detail view.
+    public_redact: bool = False
+
     # Which day-page layout this source renders with. Data-driven so a new layout
     # is a template + a mapping entry, not a hardcoded `if kind == ...` in the view.
     page_layout: str = "digest"

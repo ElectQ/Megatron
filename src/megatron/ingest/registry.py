@@ -107,6 +107,7 @@ async def sync_specs(session: AsyncSession, specs: list[SourceSpec]) -> dict[str
                     source_type=_source_type_for(spec.adapter),
                     adapter=spec.adapter,
                     audience=spec.audience_scalar,
+                    public_redact=spec.public_redact,
                     config=spec.db_config(),
                     schedule_expect=spec.schedule_expect.model_dump(),
                     managed_by="yaml",
@@ -122,6 +123,7 @@ async def sync_specs(session: AsyncSession, specs: list[SourceSpec]) -> dict[str
         sc.source_type = _source_type_for(spec.adapter)
         sc.adapter = spec.adapter
         sc.audience = spec.audience_scalar
+        sc.public_redact = spec.public_redact
         sc.config = spec.db_config()
         sc.schedule_expect = spec.schedule_expect.model_dump()
         sc.managed_by = "yaml"
