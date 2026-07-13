@@ -383,3 +383,30 @@ details.card[open] > summary .disclose { transform: rotate(180deg); }
   .lg\:p-8{padding:2rem}
   .lg\:hidden{display:none}
 }
+
+/* ---- classes the templates reference that were not yet implemented ---------
+   The admin UI is self-contained (no Tailwind/daisyui at runtime), so every
+   utility/component class a template uses must live here. These were used in
+   markup but missing, so their intent (a border, a color) silently no-op'd. */
+
+/* daisyui *-bordered variants: .input/.select/.textarea already carry the
+   border; these are aliases so the class is honored rather than dead. */
+.input-bordered, .select-bordered, .textarea-bordered { border-color: var(--border-strong); }
+
+/* a collapsible <details>/summary marker used in run cards & prompts */
+.collapse-arrow > summary::after,
+summary.collapse-arrow::after { content: "▾"; margin-left: auto; color: var(--text-muted);
+  transition: transform .15s; }
+.collapse-arrow[open] > summary::after,
+details[open] > summary.collapse-arrow::after { transform: rotate(180deg); }
+
+/* Tailwind arbitrary-value classes present in the templates. A hand-rolled
+   stylesheet can't generate these on the fly, so declare the exact selectors. */
+.bg-\[var\(--bg-body\)\]    { background-color: var(--bg-body); }
+.bg-\[var\(--bg-surface\)\] { background-color: var(--bg-surface); }
+.text-\[var\(--error\)\]    { color: var(--error); }
+.text-\[var\(--success\)\]  { color: var(--success); }
+.text-\[var\(--accent\)\]   { color: var(--accent); }
+.text-\[var\(--info\)\]     { color: var(--info); }
+.text-\[\#525252\]          { color: #7c8694; }
+.border-white\/\[0\.08\]    { border-color: var(--border); }

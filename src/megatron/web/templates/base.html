@@ -6,10 +6,10 @@
     <title>{% block title %}Megatron{% endblock %}</title>
     <!-- Apply the saved theme before first paint to avoid a flash. -->
     <script>(function(){try{var t=localStorage.getItem('mg-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
-    <link href="/static/theme.css" rel="stylesheet">
+    <link href="/static/theme.css?v={{ static_v }}" rel="stylesheet">
     <script defer src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
     <script defer src="/static/vendor/purify.min.js"></script>
-    <script defer src="/static/app.js"></script>
+    <script defer src="/static/app.js?v={{ static_v }}"></script>
 </head>
 <body>
     <input type="checkbox" id="nav" class="nav-cb" aria-hidden="true">

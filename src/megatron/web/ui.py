@@ -18,6 +18,29 @@ templates = Jinja2Templates(
 )
 
 
+def _asset_version() -> str:
+    """Short content hash of the static assets, appended to their URLs as ?v=…
+
+    Busts the browser cache whenever theme.css or app.js changes — without it a
+    stale cached stylesheet gets applied to freshly-changed markup and the page
+    renders broken (missing classes) until a manual hard-refresh.
+    """
+    import hashlib
+    import pathlib
+
+    static = pathlib.Path(__file__).parent / "static"
+    digest = hashlib.sha256()
+    for name in ("theme.css", "app.js"):
+        try:
+            digest.update((static / name).read_bytes())
+        except OSError:
+            pass
+    return digest.hexdigest()[:10]
+
+
+templates.env.globals["static_v"] = _asset_version()
+
+
 def _internal_client(request: Request) -> httpx.AsyncClient:
     """Client that dispatches to our own app in-process via ASGITransport.
 
