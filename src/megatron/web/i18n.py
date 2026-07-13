@@ -179,9 +179,16 @@ _ZH: dict[str, str] = {
     "Must-see": "必看",
     "Recommended": "推荐",
     "More": "更多",
-    # Hero data-flow diagram
+    # Hero + pipeline strip
+    "Daily briefing": "每日简报",
+    "Security intelligence, curated daily.": "每日精选的安全情报。",
+    "An LLM reads the day across every source, ranks what matters, and publishes the public signal — vulnerabilities, tools, events.":
+        "由大模型通读当天全部来源,分级筛出要点,并公开可披露的信号 —— 漏洞、工具、事件。",
+    "How it works": "工作流程",
+    "streams": "条推送流",
+    "Read": "阅读",
     "LLM analysis": "LLM 分析",
-    "tier & tag": "分级 · 打标",
+    "tier & tag": "分级打标",
     "mark public": "判定公开",
     "Output": "产出",
     "push": "推送",

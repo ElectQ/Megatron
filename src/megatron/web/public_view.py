@@ -22,6 +22,9 @@ from ..engine.bundle import BUNDLE_SCHEMA
 # rationale and the private scores do not.
 _STRIP = ("why_for_me", "scores")
 
+# Tier priority — lower is more prominent. Used to pick a day's headline teaser.
+_TIER_RANK = {"must_see_push": 0, "must_see_page": 1, "recommend": 2, "skim": 3}
+
 
 def _public_item(item: dict) -> dict:
     return {k: v for k, v in item.items() if k not in _STRIP and not k.startswith("_")}
@@ -81,16 +84,24 @@ async def public_recent(session: AsyncSession, limit: int = 40) -> list[dict]:
         key = (source_id, date)
         if not source_id or not date or key in seen:
             continue
-        n = sum(1 for i in (result.get("items") or []) if i.get("public") is True)
-        if n == 0:
-            continue
+        # The newest run for a (source, date) is authoritative — same one the post
+        # page renders via _latest_bundle. Claim the key now so an older run can't
+        # resurrect a stream the latest run no longer publishes (else home would
+        # list a day the article page 404s).
         seen.add(key)
+        pubs = [i for i in (result.get("items") or []) if i.get("public") is True]
+        if not pubs:
+            continue
+        # The day's headline item (highest tier) gives the card its teaser + tags.
+        lead = min(pubs, key=lambda i: _TIER_RANK.get(i.get("tier", "skim"), 9))
         out.append(
             {
                 "source_id": source_id,
                 "date": date,
                 "title": result.get("title") or source_id,
-                "count": n,
+                "count": len(pubs),
+                "teaser": lead.get("one_liner") or "",
+                "tags": [t for t in (lead.get("topics") or [])][:3],
             }
         )
         if len(out) >= limit:

@@ -7,95 +7,108 @@
 <title>{% block title %}Megatron LLM Hub{% endblock %}</title>
 {% block head %}{% endblock %}
 <style>
-  /* A blog, not the admin shell: public, indexable, self-contained, no CDN.
-     One editorial design system — light & dark, soft depth, one confident accent,
-     per-tier colors for scannability. */
+  /* ============================================================
+     Megatron LLM Hub — public blog.  "The Signal Desk": a formal
+     security-intelligence briefing. Cool near-black ink on a crisp
+     ground, one restrained warm accent, flat editorial layout with
+     hairline rules and generous whitespace. Self-contained, no CDN.
+     ============================================================ */
   :root{
-    --bg:#f7f7f9; --bg-tint:#eef1fb;
-    --surface:#ffffff; --surface-2:#fbfbfd;
-    --text:#15181d; --muted:#5b6472; --faint:#98a0ad;
-    --border:#e8eaf0; --border-strong:#d9dce4;
-    --accent:#4f6ef7; --accent-soft:#eef1fe; --accent-ink:#2f45c9;
-    --star:#c99700;
-    /* tier accents */
-    --t-top:#e0533d; --t-must:#4f6ef7; --t-rec:#12a150; --t-more:#8a92a0;
-    --shadow-sm:0 1px 2px rgba(20,24,40,.05);
-    --shadow:0 2px 6px rgba(20,24,40,.05),0 8px 28px rgba(20,24,40,.06);
-    --shadow-lg:0 6px 16px rgba(20,24,40,.08),0 18px 48px rgba(20,24,40,.10);
-    --radius:14px;
+    --bg:#f4f5f7; --surface:#ffffff; --surface-2:#f8f9fb;
+    --ink:#10131a; --muted:#57606a; --faint:#8b95a1;
+    --line:#e6e8ec; --line-strong:#d5d9df;
+    --accent:#f6821f; --accent-ink:#b45309; --accent-wash:#fdf1e5;
+    /* semantic tier hues — distinct from the brand accent */
+    --t-top:#e11d48; --t-must:#2563eb; --t-rec:#059669; --t-more:#8b95a1;
+    --shadow:0 1px 2px rgba(16,19,26,.04),0 10px 30px rgba(16,19,26,.05);
+    --measure:44rem;
   }
   @media (prefers-color-scheme:dark){:root{
-    --bg:#0b0c0f; --bg-tint:#12141c;
-    --surface:#15171c; --surface-2:#1a1d23;
-    --text:#e9eaee; --muted:#9aa1ad; --faint:#666d79;
-    --border:#23262e; --border-strong:#2e323c;
-    --accent:#7d97ff; --accent-soft:#1a1f33; --accent-ink:#a9bbff;
-    --star:#e3b341;
-    --t-top:#ff7a63; --t-must:#7d97ff; --t-rec:#3fcb7f; --t-more:#7b8493;
-    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
-    --shadow:0 2px 8px rgba(0,0,0,.4);
-    --shadow-lg:0 10px 40px rgba(0,0,0,.5);}}
-  /* Manual theme toggle wins over the media query in both directions. */
-  :root[data-theme="light"]{color-scheme:light}
+    --bg:#0a0c0f; --surface:#12151a; --surface-2:#171b21;
+    --ink:#eceef1; --muted:#9aa2ad; --faint:#69727d;
+    --line:#22262e; --line-strong:#2e343d;
+    --accent:#ff9142; --accent-ink:#ffb375; --accent-wash:#221a13;
+    --t-top:#fb7185; --t-must:#60a5fa; --t-rec:#34d399; --t-more:#7b8593;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 40px rgba(0,0,0,.5);}}
+  :root[data-theme="light"]{color-scheme:light;
+    --bg:#f4f5f7; --surface:#ffffff; --surface-2:#f8f9fb; --ink:#10131a; --muted:#57606a;
+    --faint:#8b95a1; --line:#e6e8ec; --line-strong:#d5d9df; --accent:#f6821f; --accent-ink:#b45309;
+    --accent-wash:#fdf1e5; --t-top:#e11d48; --t-must:#2563eb; --t-rec:#059669; --t-more:#8b95a1;
+    --shadow:0 1px 2px rgba(16,19,26,.04),0 10px 30px rgba(16,19,26,.05);}
   :root[data-theme="dark"]{color-scheme:dark;
-    --bg:#0b0c0f; --bg-tint:#12141c; --surface:#15171c; --surface-2:#1a1d23;
-    --text:#e9eaee; --muted:#9aa1ad; --faint:#666d79; --border:#23262e; --border-strong:#2e323c;
-    --accent:#7d97ff; --accent-soft:#1a1f33; --accent-ink:#a9bbff; --star:#e3b341;
-    --t-top:#ff7a63; --t-must:#7d97ff; --t-rec:#3fcb7f; --t-more:#7b8493;
-    --shadow-sm:0 1px 2px rgba(0,0,0,.4); --shadow:0 2px 8px rgba(0,0,0,.4); --shadow-lg:0 10px 40px rgba(0,0,0,.5);}
+    --bg:#0a0c0f; --surface:#12151a; --surface-2:#171b21; --ink:#eceef1; --muted:#9aa2ad;
+    --faint:#69727d; --line:#22262e; --line-strong:#2e343d; --accent:#ff9142; --accent-ink:#ffb375;
+    --accent-wash:#221a13; --t-top:#fb7185; --t-must:#60a5fa; --t-rec:#34d399; --t-more:#7b8593;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 40px rgba(0,0,0,.5);}
 
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
-  body{margin:0;background:var(--bg);color:var(--text);
-    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Inter,sans-serif;
-    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
-    background-image:radial-gradient(80rem 40rem at 50% -14rem,var(--bg-tint),transparent 70%);
-    background-repeat:no-repeat;}
-  a{color:inherit}
-  ::selection{background:var(--accent-soft);color:var(--accent-ink)}
-  .wrap{max-width:46rem;margin:0 auto;padding:0 1.25rem 6rem}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;font-variant-ligatures:common-ligatures}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--accent-wash);color:var(--accent-ink)}
+  svg{display:block}
 
-  header.site{display:flex;align-items:center;justify-content:space-between;
-    padding:1.15rem 0;margin-bottom:2rem;flex-wrap:wrap;gap:.6rem;
-    border-bottom:1px solid var(--border)}
-  header.site .brand{display:inline-flex;align-items:baseline;gap:.4rem;
-    font-weight:800;font-size:1.1rem;text-decoration:none;letter-spacing:-.02em}
-  header.site .brand .spark{
-    background:linear-gradient(135deg,var(--accent),#a06bff);-webkit-background-clip:text;
-    background-clip:text;color:transparent;font-weight:900}
-  header.site .brand .sub{color:var(--muted);font-weight:600;font-size:.95rem}
-  header.site .right{display:flex;align-items:center;gap:.5rem;font-size:.8125rem}
-  header.site .right a{color:var(--muted);text-decoration:none;padding:.28rem .55rem;border-radius:999px;
-    transition:color .15s,background .15s}
-  header.site .right a:hover{color:var(--text);background:var(--surface-2)}
-  header.site .right a.on{color:var(--accent-ink);background:var(--accent-soft);font-weight:600}
-  header.site .right .sep{width:1px;height:1rem;background:var(--border-strong);margin:0 .1rem}
-  header.site .admin{color:var(--faint);border:1px solid var(--border-strong)}
+  /* thin brand hairline pinned to the very top of the page */
+  .topbar{height:3px;background:linear-gradient(90deg,var(--accent),#ffb060 55%,var(--accent))}
 
-  footer.site{margin-top:4.5rem;padding-top:1.6rem;border-top:1px solid var(--border);
-    color:var(--faint);font-size:.8125rem;text-align:center;line-height:1.7}
-  footer.site .dot{opacity:.5;margin:0 .4rem}
+  .wrap{max-width:60rem;margin:0 auto;padding:0 1.5rem 6rem}
+  .measure{max-width:var(--measure)}
 
-  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  .rise{animation:rise .4s ease both}
+  /* ---- masthead ---- */
+  header.site{display:flex;align-items:center;justify-content:space-between;gap:1rem;
+    padding:1.35rem 0 1.25rem;flex-wrap:wrap}
+  .brand{display:inline-flex;align-items:center;gap:.6rem;font-weight:800;font-size:1.15rem;
+    letter-spacing:-.02em}
+  .brand .mark{width:1.75rem;height:1.75rem;border-radius:7px;display:grid;place-items:center;
+    background:var(--ink);color:var(--bg);font-size:1rem;flex:0 0 auto;
+    box-shadow:inset 0 0 0 2px var(--accent)}
+  .brand .sub{color:var(--muted);font-weight:600}
+  .nav{display:flex;align-items:center;gap:.35rem;font-size:.8125rem}
+  .nav a{color:var(--muted);padding:.3rem .6rem;border-radius:7px;transition:color .15s,background .15s}
+  .nav a:hover{color:var(--ink);background:var(--surface-2)}
+  .nav a.on{color:var(--accent-ink);font-weight:700}
+  .nav .sep{width:1px;height:1.1rem;background:var(--line-strong);margin:0 .25rem}
+  .nav a.admin{border:1px solid var(--line-strong);color:var(--faint)}
+  .rule{height:1px;background:var(--line);margin-bottom:2.25rem}
+
+  /* ---- shared chips ---- */
+  .pill{display:inline-flex;align-items:center;gap:.4rem;font-size:.7rem;font-weight:700;
+    letter-spacing:.02em;padding:.22rem .55rem;border-radius:999px;
+    background:var(--surface-2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .pill svg{width:.85rem;height:.85rem}
+  .tierdot{width:.5rem;height:.5rem;border-radius:50%;flex:0 0 auto;background:var(--c,var(--t-more))}
+
+  footer.site{margin-top:5rem;padding-top:1.75rem;border-top:1px solid var(--line);
+    color:var(--faint);font-size:.8125rem;line-height:1.75}
+  footer.site .fbrand{color:var(--muted);font-weight:700;letter-spacing:-.01em}
+
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .rise{animation:rise .45s cubic-bezier(.2,.7,.2,1) both}
   @media (prefers-reduced-motion:reduce){.rise{animation:none}}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 </style>
 </head>
 <body>
+<div class="topbar"></div>
 <div class="wrap">
   <header class="site">
-    <a class="brand" href="/{{ lang }}"><span class="spark">⚡</span> Megatron <span class="sub">LLM Hub</span></a>
-    <div class="right">
+    <a class="brand" href="/{{ lang }}">
+      <span class="mark">⚡</span>Megatron <span class="sub">LLM Hub</span>
+    </a>
+    <nav class="nav">
       {% for code, name in langs.items() %}<a href="/{{ code }}{{ here_suffix or '' }}" class="{{ 'on' if code == lang else '' }}">{{ name }}</a>{% endfor %}
       <span class="sep"></span>
       <a class="admin" href="/ui/login">{{ t('Admin') }}</a>
-    </div>
+    </nav>
   </header>
+  <div class="rule"></div>
 
   {% block content %}{% endblock %}
 
   <footer class="site">
-    <div><strong style="color:var(--muted)">Megatron LLM Hub</strong></div>
+    <div class="fbrand">Megatron LLM Hub</div>
     <div>{{ t('Public daily security intelligence. Personal analysis stays private.') }}</div>
   </footer>
 </div>

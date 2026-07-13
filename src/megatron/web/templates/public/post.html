@@ -1,73 +1,72 @@
 {% extends "public/base.html" %}
+{% from "public/marks.html" import source_mark %}
 {% block title %}{{ view.title }} · {{ view.date }} · Megatron LLM Hub{% endblock %}
 {% block head %}
 <style>
-  .back{display:inline-flex;align-items:center;gap:.35rem;margin-bottom:1.4rem;
-    color:var(--muted);text-decoration:none;font-size:.8125rem;font-weight:500;
-    padding:.3rem .7rem .3rem .5rem;border:1px solid var(--border);border-radius:999px;
-    transition:color .15s,border-color .15s,background .15s}
-  .back:hover{color:var(--text);border-color:var(--border-strong);background:var(--surface-2)}
+  .back{display:inline-flex;align-items:center;gap:.35rem;margin-bottom:1.6rem;
+    color:var(--muted);font-size:.8125rem;font-weight:600;transition:color .15s}
+  .back:hover{color:var(--accent-ink)}
 
-  .post-head{margin-bottom:2rem;padding-bottom:1.4rem;border-bottom:1px solid var(--border)}
-  .post-head .kicker{display:inline-flex;align-items:center;gap:.4rem;font-size:.75rem;font-weight:700;
-    text-transform:uppercase;letter-spacing:.06em;color:var(--accent-ink);
-    background:var(--accent-soft);padding:.2rem .55rem;border-radius:999px;margin-bottom:.7rem}
-  .post-head h1{font-size:1.85rem;line-height:1.18;margin:0 0 .5rem;letter-spacing:-.025em;font-weight:800}
-  .post-head .meta{color:var(--faint);font-size:.85rem;font-variant-numeric:tabular-nums}
-  .post-head .meta b{color:var(--muted);font-weight:600}
+  .post-head{max-width:var(--measure);margin-bottom:2.25rem}
+  .post-head .pill{margin-bottom:1rem}
+  .post-head .pill svg{color:var(--muted)}
+  .post-head h1{font-size:clamp(1.9rem,4.5vw,2.6rem);line-height:1.12;margin:0 0 .9rem;
+    letter-spacing:-.03em;font-weight:800;text-wrap:balance}
+  .post-head .byline{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;
+    color:var(--faint);font-size:.85rem;font-variant-numeric:tabular-nums}
+  .post-head .byline b{color:var(--muted);font-weight:600}
+  .post-head .byline .d{width:3px;height:3px;border-radius:50%;background:var(--line-strong)}
 
-  /* Tier section header with a colored marker. */
-  .tier{--c:var(--t-more);display:flex;align-items:center;gap:.5rem;
-    font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
-    color:var(--c);margin:2rem 0 .8rem}
-  .tier::before{content:"";width:.7rem;height:.7rem;border-radius:3px;background:var(--c);
-    box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 18%,transparent)}
-  .tier .count{color:var(--faint);font-weight:600;letter-spacing:.02em}
-  .tier::after{content:"";flex:1;height:1px;background:var(--border)}
+  .content{max-width:var(--measure)}
+  .tier{display:flex;align-items:center;gap:.6rem;margin:2.5rem 0 1.1rem}
+  .tier .lbl{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--c,var(--t-more))}
+  .tier .count{font-size:.72rem;font-weight:600;color:var(--faint)}
+  .tier::after{content:"";flex:1;height:1px;background:var(--line)}
 
-  article.item{--c:var(--t-more);position:relative;background:var(--surface);
-    border:1px solid var(--border);border-radius:var(--radius);
-    padding:1rem 1.1rem 1rem 1.25rem;margin-bottom:.65rem;box-shadow:var(--shadow-sm);
-    transition:box-shadow .16s ease,border-color .16s ease,transform .16s ease}
-  article.item::before{content:"";position:absolute;left:0;top:.9rem;bottom:.9rem;width:3px;
-    border-radius:0 3px 3px 0;background:var(--c);opacity:.7}
-  article.item:hover{box-shadow:var(--shadow);border-color:var(--border-strong);transform:translateY(-1px)}
-  article.item .one-liner{font-weight:700;font-size:1.02rem;line-height:1.45;margin:0;letter-spacing:-.01em}
-  article.item .detail{margin:.5rem 0 0;font-size:.85rem;line-height:1.6;color:var(--muted);
-    white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-box-orient:vertical;
-    -webkit-line-clamp:4;overflow:hidden}
-  article.item .row{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin-top:.7rem;
-    font-size:.75rem;color:var(--faint)}
-  .tag{font-size:.7rem;font-weight:600;padding:.1rem .45rem;border-radius:6px;
-    background:var(--surface-2);border:1px solid var(--border);color:var(--muted)}
-  .row .author{display:inline-flex;align-items:center;gap:.25rem}
+  article.item{padding:1.25rem 0;border-bottom:1px solid var(--line)}
+  article.item:last-child{border-bottom:0}
+  article.item .head{display:flex;gap:.65rem;align-items:baseline}
+  article.item .head .dot{margin-top:.5rem;width:.5rem;height:.5rem;border-radius:50%;
+    flex:0 0 auto;background:var(--c,var(--t-more))}
+  article.item .one-liner{font-weight:750;font-size:1.12rem;line-height:1.4;margin:0;
+    letter-spacing:-.015em;color:var(--ink)}
+  article.item .detail{margin:.55rem 0 0;padding-left:1.15rem;font-size:.92rem;line-height:1.65;
+    color:var(--muted);white-space:pre-wrap;word-break:break-word;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
+  article.item .row{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;
+    margin:.7rem 0 0 1.15rem;font-size:.78rem;color:var(--faint)}
+  .tag{padding:.14rem .5rem;border-radius:6px;background:var(--surface-2);
+    border:1px solid var(--line);color:var(--muted);font-weight:600}
+  .row .author{color:var(--muted)}
   .row .spacer{flex:1}
-  .row a.src{display:inline-flex;align-items:center;gap:.25rem;color:var(--accent-ink);
-    text-decoration:none;font-weight:600;padding:.15rem .5rem;border-radius:999px;
-    background:var(--accent-soft);transition:opacity .15s}
-  .row a.src:hover{opacity:.8}
+  .row a.src{display:inline-flex;align-items:center;gap:.3rem;color:var(--accent-ink);
+    font-weight:700;transition:opacity .15s}
+  .row a.src:hover{opacity:.7}
 </style>
 {% endblock %}
 {% block content %}
-<a class="back" href="/{{ lang }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>{{ t('All digests') }}</a>
+<a class="back" href="/{{ lang }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>{{ t('All digests') }}</a>
 
-{% set icon = '🐦' if 'twitter' in view.source_id else ('🐙' if 'github' in view.source_id else '🌐') %}
-<div class="post-head rise">
-  <div class="kicker">{{ icon }} {{ view.source_id }}</div>
+<header class="post-head rise">
+  <span class="pill">{{ source_mark(view.source_id) }}{{ view.source_id }}</span>
   <h1>{{ view.title }}</h1>
-  <div class="meta"><b>{{ view.date }}</b> · {{ view.count }} {{ t('items') }}</div>
-</div>
+  <div class="byline"><b>{{ view.date }}</b><span class="d"></span>{{ view.count }} {{ t('items') }}</div>
+</header>
 
+<div class="content">
 {% set tier_color = {'must_see_push':'var(--t-top)','must_see_page':'var(--t-must)','recommend':'var(--t-rec)','skim':'var(--t-more)'} %}
 {% for tier in tier_order %}
   {% set items = view.grouped.get(tier) or [] %}
   {% if items %}
     <div class="tier" style="--c:{{ tier_color.get(tier,'var(--t-more)') }}">
-      {{ t(tier_label.get(tier, tier)) }}<span class="count">· {{ items|length }}</span>
+      <span class="lbl">{{ t(tier_label.get(tier, tier)) }}</span><span class="count">{{ items|length }}</span>
     </div>
     {% for it in items %}
-    <article class="item rise" style="--c:{{ tier_color.get(tier,'var(--t-more)') }}">
-      <p class="one-liner">{{ it.one_liner or (it.content | truncate(90)) }}</p>
+    <article class="item" style="--c:{{ tier_color.get(tier,'var(--t-more)') }}">
+      <div class="head">
+        <span class="dot"></span>
+        <p class="one-liner">{{ it.one_liner or (it.content | truncate(90)) }}</p>
+      </div>
       {% if it.content and it.one_liner %}<p class="detail">{{ it.content }}</p>{% endif %}
       <div class="row">
         {% for tg in it.topics or [] %}<span class="tag">{{ tg }}</span>{% endfor %}
@@ -79,4 +78,5 @@
     {% endfor %}
   {% endif %}
 {% endfor %}
+</div>
 {% endblock %}
