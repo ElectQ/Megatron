@@ -159,6 +159,51 @@ def seed():
     asyncio.run(_run())
 
 
+@cli.command("poll")
+@click.argument("source_id", required=False, default="")
+def poll(source_id: str):
+    """Pull polled sources now and ingest (bundle_pull / http_pull / git_pull).
+
+    No SOURCE_ID = every enabled polled source. Use this for a cold start or a
+    manual refresh — normally the scheduler polls each source on its own cron.
+
+        docker compose exec web python -m megatron.main poll
+        docker compose exec web python -m megatron.main poll twitter_security_list
+    """
+    from sqlalchemy import select
+
+    from .core.db import async_session_factory, dispose_db, init_db
+    from .core.models import SourceConfig
+    from .scheduler import poll_source
+
+    async def _run():
+        await init_db()
+        if source_id:
+            targets = [source_id]
+        else:
+            async with async_session_factory() as s:
+                rows = (await s.execute(select(SourceConfig))).scalars().all()
+                targets = [
+                    r.name
+                    for r in rows
+                    if r.enabled and r.adapter in ("bundle_pull", "http_pull", "git_pull")
+                ]
+            if not targets:
+                click.echo("No enabled polled sources found.")
+        total = 0
+        for sid in targets:
+            try:
+                ingested, duplicated = await poll_source(sid)
+                total += ingested
+                click.echo(f"{sid}: ingested={ingested} duplicated={duplicated}")
+            except Exception as e:  # noqa: BLE001 — report per-source, keep going
+                click.echo(f"{sid}: ERROR {e}", err=True)
+        await dispose_db()
+        click.echo(f"Done. {total} new item(s) ingested — run your analysis tasks now.")
+
+    asyncio.run(_run())
+
+
 @cli.command("reset-password")
 @click.option("--username", default="admin", help="User to reset (default: admin)")
 @click.option(

@@ -18,6 +18,7 @@ usage() {
     echo "Commands:"
     echo "  deploy   Full deploy (check env, .env, build, start) [default]"
     echo "  update   Git pull + rebuild + restart"
+    echo "  pull     Fetch polled sources now and ingest (cold start / manual refresh)"
     echo "  backup   Snapshot the data volume (DB + secrets) → backups/*.tar.gz"
     echo "  restore  Restore the data volume from a backup: restore <file.tar.gz>"
     echo "  reset-password  Reset the admin password (no data loss): reset-password [newpass]"
@@ -209,6 +210,12 @@ restore)
         sh -c "rm -rf /data/* /data/..?* 2>/dev/null; tar xzf /backup/${BASE} -C /data" || err "Restore failed"
     $COMPOSE start web >/dev/null 2>&1 || $COMPOSE up -d
     log "Restored from ${FILE}. Verify: bash deploy.sh logs"
+    ;;
+
+pull)
+    _setup
+    # Pull polled sources now (bundle_pull/http_pull). Optional source id arg.
+    $COMPOSE exec -T web python -m megatron.main poll "${1:-}"
     ;;
 
 reset-password)
