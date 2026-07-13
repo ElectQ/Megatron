@@ -111,7 +111,8 @@ async def login_submit(
 @router.get("/logout")
 async def logout(request: Request):
     request.session.clear()
-    return RedirectResponse("/ui/login", status_code=303)
+    # Sign out lands on the public homepage, not the login wall.
+    return RedirectResponse("/", status_code=303)
 
 
 @router.post("/system/password", dependencies=[Depends(admin_auth)])
