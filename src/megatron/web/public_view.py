@@ -14,9 +14,17 @@ property of the stream, so it is settled in the source config (a deliberate edit
 where no mis-marked item and no stray click in the admin can undo it.
 
 Inside a publishable source the default is to publish: the content is already
-public and the personal framing (`why_for_me`, scores) is stripped on the way out
-regardless, so a `False` from the model is it saying "this specific one is
-sensitive" rather than the blog's only line of defence.
+public, so a `False` from the model is it saying "this specific one is sensitive"
+rather than the blog's only line of defence.
+
+`why_for_me` — the model's one-line take on why an item is worth reading — is
+*published*, because without it the blog is a bare mirror of other people's
+tweets. That is only safe because the prompt is written to match: it asks for an
+objective reason ("default config is affected, PoC is public"), never one
+addressed to the reader ("you run a self-hosted Samba"). The two have to move
+together — publishing a rationale that was written under a promise of privacy is
+exactly the leak this module exists to prevent. `scores` stay internal: they are
+the model's own confidence bookkeeping and mean nothing to a reader.
 
 Overrides live in `publication_overrides`, never by rewriting the run — the run is
 the record of what the model actually said, and that record is what tells you the
@@ -35,10 +43,11 @@ from ..core.engine_models import AnalysisRun, PublicationOverride
 from ..core.models import SourceConfig
 from ..engine.bundle import BUNDLE_SCHEMA
 
-# Personal fields removed on the way out. `content` (the original public post/
-# repo) and `one_liner` (an objective one-line summary) stay; the personal
-# rationale and the private scores do not.
-_STRIP = ("why_for_me", "scores")
+# Removed on the way out. `scores` is the model's internal bookkeeping
+# (relevance/confidence/noise_risk) — meaningless to a reader and a needless
+# window into how the ranking works. Everything else, including `why_for_me`,
+# is what the blog is *for*. See the module docstring on why that is safe.
+_STRIP = ("scores",)
 
 # Tier priority — lower is more prominent. Used to pick a day's headline teaser.
 _TIER_RANK = {"must_see_push": 0, "must_see_page": 1, "recommend": 2, "skim": 3}

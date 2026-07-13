@@ -61,9 +61,9 @@ output_schema: github_radar_v1
 - `actionability`：`none` / `read` / `watch` / `try`（值得上手的工具给 `try`）。
 - `scores`：`relevance`(0-3) `actionability`(0-3) `confidence`(0-1) `noise_risk`(0-1)。
   推断仓库用途时 confidence 给低一点（0.3-0.6），别不懂装懂。
-- `public`：`true` / `false`（**默认 false**）。这个仓库值不值得放到**公开博客**上分享？
-  GitHub 仓库本身是公开的，所以只要是**客观有价值的安全项目/工具**就可以 `public: true`；
-  纯噪音、或你不确定的，留 `false`。（公开时系统会去掉个人 `why_for_me`。）
+- `public`：**这条流不上公开博客，填什么都不会改变这一点** —— 它在源这一级就被锁成私有了
+  （公开它等于公开「这个用户关注了谁」，泄露的是关注图谱而非单条内容）。
+  所以不用纠结，留空即可。
 
 ## 输入
 共 {{ item_count }} 条动作：

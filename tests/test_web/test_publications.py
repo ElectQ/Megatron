@@ -134,12 +134,14 @@ async def test_a_personal_source_never_publishes_whatever_the_model_said():
 
 
 @pytest.mark.asyncio
-async def test_public_items_strip_personal_fields():
+async def test_public_items_carry_the_take_but_not_the_scores():
+    """The take is why the blog is worth reading; the scores are internal."""
     await _seed_source()
     async with async_session_factory() as s:
         policy = await load_policy(s)
         pub = public_items(_bundle([_item(1, True)]), policy)
-    assert pub and "why_for_me" not in pub[0] and "scores" not in pub[0]
+    assert pub and pub[0]["why_for_me"] == "secret-rationale-1"
+    assert "scores" not in pub[0]
 
 
 @pytest.mark.asyncio
@@ -194,9 +196,9 @@ async def test_operator_can_publish_what_the_model_held_back(client):
     async with async_session_factory() as s:
         policy = await load_policy(s)
         pub = public_items(_bundle([_item(1, False)]), policy)
-    # Force-published, but still stripped of the personal framing.
+    # Force-published — take and all; only the internal scores are held back.
     assert [p["id"] for p in pub] == ["1"]
-    assert "why_for_me" not in pub[0]
+    assert "scores" not in pub[0]
 
 
 @pytest.mark.asyncio

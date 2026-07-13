@@ -1,7 +1,12 @@
-"""The public frontend must show only public items and never leak personal analysis.
+"""The public frontend must show only public items, and only public items.
 
-The load-bearing test is the privacy lock: a private item's text must not appear
-in any public response, and `why_for_me` must never render publicly.
+The load-bearing test is the privacy lock: nothing belonging to a held-back item
+— not its headline, not its content, not the model's take on it — may appear in
+any public response, and a `personal` source must not publish at all.
+
+The take (`why_for_me`) of a *published* item is itself published: without it the
+blog is a bare mirror of other people's tweets. Only `scores`, the model's
+internal bookkeeping, stays behind.
 """
 
 from __future__ import annotations
@@ -18,7 +23,9 @@ DATE = "2026-07-12"
 
 PUBLIC_LINE = "PUBLIC-CVE-DISCLOSURE"
 PRIVATE_LINE = "PRIVATE-INTERNAL-THING"
-PERSONAL_WHY = "WHY-THIS-MATTERS-TO-YOU"
+PUBLIC_TAKE = "TAKE-ON-THE-PUBLIC-ONE"
+PRIVATE_TAKE = "TAKE-ON-THE-PRIVATE-ONE"
+SECRET_SCORE = 0.123456
 
 
 @pytest.fixture
@@ -41,7 +48,8 @@ def _bundle() -> dict:
                 "external_id": "e1",
                 "tier": "must_see_page",
                 "one_liner": PUBLIC_LINE,
-                "why_for_me": PERSONAL_WHY,
+                "why_for_me": PUBLIC_TAKE,
+                "scores": {"confidence": SECRET_SCORE},
                 "topics": ["cve"],
                 "url": "https://x.com/a/1",
                 "content": "public tweet body",
@@ -53,7 +61,7 @@ def _bundle() -> dict:
                 "external_id": "e2",
                 "tier": "recommend",
                 "one_liner": PRIVATE_LINE,
-                "why_for_me": PERSONAL_WHY,
+                "why_for_me": PRIVATE_TAKE,
                 "topics": ["internal"],
                 "url": "https://x.com/a/2",
                 "content": "private body",
@@ -128,7 +136,14 @@ def test_the_public_post_shows_public_and_hides_private(client, a_public_day):
     assert r.status_code == 200
     assert PUBLIC_LINE in r.text, "the public item is shown"
     assert PRIVATE_LINE not in r.text, "the private item must never appear"
-    assert PERSONAL_WHY not in r.text, "personal 'why for you' is never public"
+    assert PRIVATE_TAKE not in r.text, "nor may the model's take on the private item"
+
+
+def test_the_post_carries_the_models_take_but_not_its_scores(client, a_public_day):
+    """The take is the point of the blog; the scores are internal bookkeeping."""
+    r = client.get(f"/zh/{SRC}/{DATE}")
+    assert PUBLIC_TAKE in r.text, "the model's take on a published item is published"
+    assert str(SECRET_SCORE) not in r.text, "internal scores stay internal"
 
 
 def test_a_day_with_no_public_content_is_404(client):
