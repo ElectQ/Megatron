@@ -1,5 +1,5 @@
 {% extends "public/base.html" %}
-{% from "public/marks.html" import source_mark %}
+{% from "public/marks.html" import source_mark, source_label %}
 {% block title %}{{ view.title }} · {{ view.date }} · Megatron LLM Hub{% endblock %}
 {% block head %}
 <style>
@@ -48,7 +48,7 @@
 <a class="back" href="/{{ lang }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>{{ t('All digests') }}</a>
 
 <header class="post-head rise">
-  <span class="pill">{{ source_mark(view.source_id) }}{{ view.source_id }}</span>
+  <span class="pill">{{ source_mark(view.source_id) }}{{ source_label(view.source_id) }}</span>
   <h1>{{ view.title }}</h1>
   <div class="byline"><b>{{ view.date }}</b><span class="d"></span>{{ view.count }} {{ t('items') }}</div>
 </header>
