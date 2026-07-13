@@ -98,11 +98,16 @@ def _seed_old(db: Path) -> None:
 
 @pytest.fixture
 def migrated(tmp_path):
-    """A DB carrying the old rows, brought up to head — i.e. what a deploy does."""
+    """A DB carrying the old rows, brought up through 0012.
+
+    Deliberately stops at 0012 rather than `head`: 0013 rewrites the same `public`
+    block again, and this file is about what 0012 alone is responsible for. The
+    old-DB → head path is covered in test_publish_the_take_migration.py.
+    """
     db = tmp_path / "old.db"
     _alembic(db, "0011_publication_overrides")
     _seed_old(db)
-    _alembic(db, "head")
+    _alembic(db, "0012_publish_defaults")
     con = sqlite3.connect(db)
     yield con
     con.close()

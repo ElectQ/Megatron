@@ -135,8 +135,7 @@ _ZH: dict[str, str] = {
     "Manual only": "仅手动",
     "Scheduled": "定时执行",
     "Cron expression (UTC)": "Cron 表达式(UTC)",
-    "Times are UTC — the preview above shows your local time.":
-        "时间按 UTC 计 —— 上方预览会换算成你的本地时间(北京 9:00 = `0 1 * * *`)。",
+    "Times are UTC — the preview above shows your local time.": "时间按 UTC 计 —— 上方预览会换算成你的本地时间(北京 9:00 = `0 1 * * *`)。",
     "daily": "每天",
     "weekly": "每周",
     "every 6h": "每 6 小时",
@@ -147,18 +146,16 @@ _ZH: dict[str, str] = {
     "Models subtitle": "分析任务使用的 LLM 提供方与 API 密钥。",
     "LLM providers and API keys used by analysis tasks.": "分析任务使用的 LLM 提供方与 API 密钥。",
     "Jinja2 templates used by analysis tasks.": "分析任务使用的 Jinja2 模板。",
-    "Edit the push text below — Preview shows what gets sent, Save applies it.":
-        "下方直接编辑推送文案 —— Preview 预览发出的样子,Save 生效(即时,无需重部署)。",
+    "Edit the push text below — Preview shows what gets sent, Save applies it.": "下方直接编辑推送文案 —— Preview 预览发出的样子,Save 生效(即时,无需重部署)。",
     "Push template editor": "推送文案编辑器",
     # Public Blog (publication management)
     "Public Blog": "公开发布",
-    "What the analysis published to the public site — and your call to overrule it.":
-        "分析发到公开站点的内容 —— 以及你推翻它的决定权。",
+    "What the analysis published to the public site — and your call to overrule it.": "分析发到公开站点的内容 —— 以及你推翻它的决定权。",
     "How publishing is decided": "发布规则",
-    "The analysis marks each item public or private (default: private). You can overrule it here — take a whole day down, or drop a single item. Your decision is stored separately, so the run still records what the model actually said.":
-        "谁能公开,先看**源**:私有源(如 GitHub 关注流)永远不上博客——它泄露的是「你关注了谁」,这是整条流的属性,不是某一条的。公开源里,条目默认公开(个人解读自动剥离),分析只把确实敏感的按下不发,而你在这里说了算。你的决定单独存储,运行记录仍保留模型当初的判断。",
-    "Personal notes (why_for_me, scores) are never published, even for public items.":
-        "个人解读(why_for_me、评分)永远不会公开,即便该条是公开的。",
+    "The analysis marks each item public or private (default: private). You can overrule it here — take a whole day down, or drop a single item. Your decision is stored separately, so the run still records what the model actually said.": "谁能公开,先看**源**:私有源(如 GitHub 关注流)永远不上博客——它泄露的是「你关注了谁」,这是整条流的属性,不是某一条的。公开源里,条目默认公开,分析只把确实敏感的按下不发,而你在这里说了算。你的决定单独存储,运行记录仍保留模型当初的判断。",
+    "The model's take (one_liner, why_for_me) IS published — the prompt asks for it "
+    "objectively, never addressed to you. Only the internal scores stay private.": "模型的解读(one_liner、why_for_me)**会**公开——prompt 要求它写成客观陈述,"
+    "不对「你」说话。只有内部评分不公开。",
     "live": "已公开",
     "not published": "未公开",
     "taken down": "已撤下",
@@ -167,10 +164,8 @@ _ZH: dict[str, str] = {
     "Republish day": "重新发布",
     "Take day down": "撤下整天",
     "Reset": "恢复默认",
-    "Discard your overrides and go back to what the analysis decided.":
-        "丢弃你的覆盖,回到分析的原始判定。",
-    "This day is taken down — the public page 404s regardless of the items below.":
-        "这一天已撤下 —— 无论下面的条目如何,公开页都会 404。",
+    "Discard your overrides and go back to what the analysis decided.": "丢弃你的覆盖,回到分析的原始判定。",
+    "This day is taken down — the public page 404s regardless of the items below.": "这一天已撤下 —— 无论下面的条目如何,公开页都会 404。",
     "Public": "公开",
     "Tier": "分档",
     "Item": "条目",
@@ -180,15 +175,11 @@ _ZH: dict[str, str] = {
     "private source": "私有源",
     "— (default)": "— (默认)",
     "held back": "已按下",
-    "The model did not flag this — inside a public source that means publish.":
-        "模型没有标记这条 —— 在公开源里,这意味着「发布」。",
-    "The model judged this one sensitive and held it back.":
-        "模型判定这条确实敏感,主动按下不发。",
+    "The model did not flag this — inside a public source that means publish.": "模型没有标记这条 —— 在公开源里,这意味着「发布」。",
+    "The model judged this one sensitive and held it back.": "模型判定这条确实敏感,主动按下不发。",
     "Private source — locked.": "私有源 —— 已锁定。",
-    "This source is private — it never reaches the public blog, whatever its items say. Its day page is reachable only with the capability token. To change that, set the source's audience to public in its config.":
-        "这个源是私有的 —— 无论条目怎么标,它永远不会出现在公开博客上;日刊页只能凭令牌链接访问。要改变这一点,需要在源的配置里把 audience 设为 public。",
-    "No analysed days yet. Run a task first — anything it marks public shows up here.":
-        "还没有已分析的日子。先跑一次任务 —— 它标为公开的内容会出现在这里。",
+    "This source is private — it never reaches the public blog, whatever its items say. Its day page is reachable only with the capability token. To change that, set the source's audience to public in its config.": "这个源是私有的 —— 无论条目怎么标,它永远不会出现在公开博客上;日刊页只能凭令牌链接访问。要改变这一点,需要在源的配置里把 audience 设为 public。",
+    "No analysed days yet. Run a task first — anything it marks public shows up here.": "还没有已分析的日子。先跑一次任务 —— 它标为公开的内容会出现在这里。",
     # Card titles
     "New template": "新建模板",
     "Add MCP Server": "添加 MCP 服务器",
@@ -226,8 +217,7 @@ _ZH: dict[str, str] = {
     # Hero + pipeline strip
     "Daily briefing": "每日简报",
     "Security intelligence, curated daily.": "每日精选的安全情报。",
-    "An LLM reads the day across every source, ranks what matters, and publishes the public signal — vulnerabilities, tools, events.":
-        "由大模型通读当天全部来源,分级筛出要点,并公开可披露的信号 —— 漏洞、工具、事件。",
+    "An LLM reads the day across every source, ranks what matters, and publishes the public signal — vulnerabilities, tools, events.": "由大模型通读当天全部来源,分级筛出要点,并公开可披露的信号 —— 漏洞、工具、事件。",
     "How it works": "工作流程",
     "streams": "条推送流",
     "Read": "阅读",

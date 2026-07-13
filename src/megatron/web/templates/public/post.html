@@ -30,6 +30,10 @@
     flex:0 0 auto;background:var(--c,var(--t-more))}
   article.item .one-liner{font-weight:750;font-size:1.12rem;line-height:1.4;margin:0;
     letter-spacing:-.015em;color:var(--ink)}
+  /* The model's take. Sits above the raw post because it is the reason to read on;
+     the original is the citation, not the story. */
+  article.item .why{margin:.5rem 0 0;padding-left:1.15rem;font-size:.98rem;line-height:1.6;
+    color:var(--ink)}
   article.item .detail{margin:.55rem 0 0;padding-left:1.15rem;font-size:.92rem;line-height:1.65;
     color:var(--muted);white-space:pre-wrap;word-break:break-word;
     display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
@@ -67,6 +71,7 @@
         <span class="dot"></span>
         <p class="one-liner">{{ it.one_liner or (it.content | truncate(90)) }}</p>
       </div>
+      {% if it.why_for_me %}<p class="why">{{ it.why_for_me }}</p>{% endif %}
       {% if it.content and it.one_liner %}<p class="detail">{{ it.content }}</p>{% endif %}
       <div class="row">
         {% for tg in it.topics or [] %}<span class="tag">{{ tg }}</span>{% endfor %}
