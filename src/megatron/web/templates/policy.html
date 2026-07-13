@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Filter Policy · Megatron{% endblock %}
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Filter Policy') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('Global defaults for how the day bundle is filtered. A task can override caps in its own config.') }}</p>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body">
+        <h3 class="card-title">{{ t('Quantity caps') }}</h3>
+        <p class="text-xs text-muted mb-3">{{ t('必看 = must_see_push + must_see_page. lead_min = 最少几条头条打头（下限，不是上限）。skim_max=0 表示不限。') }}</p>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {% for key, label in [
+                ('lead_min','头条下限 lead_min'),
+                ('must_see_min','必看下限 must_see_min'),
+                ('must_see_max','必看上限 must_see_max'),
+                ('recommend_max','推荐上限 recommend_max'),
+                ('skim_max','速览上限 skim_max (0=不限)')] %}
+            <label class="flex flex-col gap-1">
+                <span class="text-xs text-muted">{{ label }}</span>
+                <input type="number" class="input input-bordered js-cap" data-key="{{ key }}"
+                       value="{{ policy.caps.get(key, 0) }}">
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body">
+        <h3 class="card-title">{{ t('Politics blocklist') }}</h3>
+        <p class="text-xs text-muted mb-3">{{ t('命中这些词的条目（对照的是 AI 写的一句话/标签，不是原文）会被 drop，不进日刊也不推送。每行一个词。') }}</p>
+        <textarea id="blocklist" rows="10" class="textarea textarea-bordered font-mono text-xs w-full">{{ policy.politics_blocklist|join('\n') }}</textarea>
+    </div>
+</div>
+
+<div class="flex gap-2 items-center">
+    <button type="button" class="btn btn-primary btn-sm" onclick="savePolicy()">{{ t('Save') }}</button>
+    <span id="policy-result" class="text-xs"></span>
+</div>
+
+<script>
+async function savePolicy(){
+    const caps = {};
+    document.querySelectorAll('.js-cap').forEach(el => caps[el.dataset.key] = parseInt(el.value || '0', 10));
+    const blist = document.getElementById('blocklist').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    const r = await MG.apiSend('/api/admin/policy', 'PUT', {caps, politics_blocklist: blist});
+    const res = document.getElementById('policy-result');
+    if (r.ok) { res.textContent = '✓ saved'; res.className='text-xs text-success'; }
+    else { res.textContent = '✕ ' + await MG.errorText(r); res.className='text-xs text-error'; }
+}
+</script>
+{% endblock %}

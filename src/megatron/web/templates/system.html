@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}System · Megatron{% endblock %}
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('System settings') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('Runtime settings for this install. Set here once — no redeploy.') }}</p>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body">
+        <h3 class="card-title">{{ t('Public domain (base URL)') }}</h3>
+        <p class="text-xs text-muted mb-3">{{ t('读者访问这个实例的地址。推送里的「查看今日详情」链接就是用它拼的 —— 填你的域名或公网地址,别填 localhost。') }}</p>
+        <input id="base_url" type="text" class="input input-bordered w-full font-mono text-sm"
+               value="{{ policy.base_url }}" placeholder="https://megatron.example.com">
+        {% if policy.base_url_is_local %}
+        <div class="text-xs text-warning mt-2">⚠️ {{ t('当前是本机地址,推送里的链接在手机上打不开。请填对外可访问的域名。') }}</div>
+        {% endif %}
+        <div class="flex gap-2 items-center mt-3">
+            <button type="button" class="btn btn-primary btn-sm" onclick="saveSettings()">{{ t('Save') }}</button>
+            <span id="settings-result" class="text-xs"></span>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body">
+        <h3 class="card-title">{{ t('Change password') }}</h3>
+        {% set pw = request.query_params.get('pw') %}
+        {% if pw == 'ok' %}<div class="text-xs text-success mb-2">✓ {{ t('密码已更新') }}</div>
+        {% elif pw == 'wrong' %}<div class="text-xs text-error mb-2">✕ {{ t('当前密码不正确') }}</div>
+        {% elif pw == 'short' %}<div class="text-xs text-error mb-2">✕ {{ t('新密码至少 6 位') }}</div>{% endif %}
+        <form method="post" action="/ui/system/password" class="flex flex-col gap-3 max-w-sm">
+            <input type="password" name="current_password" placeholder="{{ t('当前密码') }}" class="input input-bordered" required>
+            <input type="password" name="new_password" placeholder="{{ t('新密码（≥6 位）') }}" class="input input-bordered" required>
+            <button type="submit" class="btn btn-primary btn-sm self-start">{{ t('Update password') }}</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body text-sm text-muted">
+        <div class="font-medium text-secondary mb-1">{{ t('Deploy') }}</div>
+        <p class="text-xs">{{ t('docker compose 一键部署;域名不再是必填的启动参数,先起服务、再在这里配置即可。') }}</p>
+    </div>
+</div>
+
+<script>
+async function saveSettings(){
+    const base_url = document.getElementById('base_url').value.trim();
+    const r = await MG.apiSend('/api/admin/settings', 'PUT', {base_url});
+    const res = document.getElementById('settings-result');
+    if (r.ok) { res.textContent = '✓ saved'; res.className='text-xs text-success'; setTimeout(()=>location.reload(), 500); }
+    else { res.textContent = '✕ ' + await MG.errorText(r); res.className='text-xs text-error'; }
+}
+</script>
+{% endblock %}

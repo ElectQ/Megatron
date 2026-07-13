@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>{{ title }} · {{ date }}</title>
+<style>
+  /* Standalone on purpose: this page opens from a chat message on a phone, so
+     it carries no admin shell, no CDN and no JS it does not need. */
+  :root {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --text: #17181b;
+    --muted: #6b7280;
+    --faint: #9ca3af;
+    --border: #e5e7eb;
+    --accent: #d94a3d;
+    --accent-soft: #fdf0ee;
+    --why-bg: #f3f4f6;
+    --shadow: 0 1px 2px rgba(0,0,0,.05), 0 1px 12px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e0f11;
+      --surface: #17191c;
+      --text: #e8e9ea;
+      --muted: #9aa0a8;
+      --faint: #6b7280;
+      --border: #26292e;
+      --accent: #ff6b5a;
+      --accent-soft: #2a1a18;
+      --why-bg: #1e2126;
+      --shadow: none;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 1rem 5rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 48rem; margin: 0 auto; }
+
+  header { padding: 1.5rem 0 1rem; border-bottom: 1px solid var(--border); }
+  h1 { font-size: 1.375rem; margin: 0 0 .3rem; letter-spacing: -.01em; }
+  .stats { color: var(--muted); font-size: .8125rem; }
+  .stats b { color: var(--text); font-weight: 600; }
+
+  nav.days { display: flex; gap: .75rem; margin-top: .75rem; font-size: .8125rem; }
+  nav.days a, nav.days span {
+    color: var(--muted); text-decoration: none;
+    padding: .25rem .625rem; border: 1px solid var(--border);
+    border-radius: 999px; background: var(--surface);
+  }
+  nav.days a:hover { color: var(--text); border-color: var(--faint); }
+  nav.days span { opacity: .4; }
+
+  section { margin-top: 1.5rem; }
+  h2 {
+    font-size: .75rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--muted);
+    margin: 0 0 .5rem; display: flex; align-items: center; gap: .4rem;
+  }
+  h2 .count { color: var(--faint); font-weight: 400; letter-spacing: 0; text-transform: none; }
+  section.push h2 { color: var(--accent); }
+
+  article {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: .5rem;
+    padding: .75rem .875rem;
+    margin-bottom: .375rem;
+    box-shadow: var(--shadow);
+  }
+  section.push article { border-left: 3px solid var(--accent); }
+
+  .one-liner {
+    font-size: 1rem; font-weight: 600; line-height: 1.4;
+    margin: 0; letter-spacing: -.005em;
+  }
+  section.skim .one-liner,
+  section.recommend .one-liner { font-size: .9375rem; font-weight: 500; }
+
+  /* The rationale reads as a subtitle, not as a labelled box: no heading, no
+     panel, no third of the card spent saying "为什么给你". */
+  .why {
+    margin: .25rem 0 0;
+    font-size: .875rem; line-height: 1.5; color: var(--muted);
+  }
+  section.push .why { color: var(--text); }
+
+  /* The original text, clamped. Enough to judge the item without leaving the
+     page; the full thing is one click away. */
+  .detail {
+    margin: .5rem 0 0; padding-left: .625rem;
+    border-left: 2px solid var(--border);
+    font-size: .8125rem; line-height: 1.55; color: var(--faint);
+    white-space: pre-wrap; word-break: break-word;
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4; overflow: hidden;
+  }
+  section.push .detail { -webkit-line-clamp: 6; color: var(--muted); }
+
+  .src { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; }
+
+  .meta {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .375rem;
+    margin-top: .5rem; font-size: .75rem; color: var(--faint);
+  }
+  .meta a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--border); }
+  .meta a:hover { color: var(--text); border-color: var(--faint); }
+  .dot { opacity: .4; }
+  .tag {
+    font-size: .6875rem; line-height: 1.4; padding: 0 .3125rem;
+    border: 1px solid var(--border); border-radius: .25rem; color: var(--muted);
+  }
+  .act-try   { border-color: var(--accent); color: var(--accent); }
+
+  /* Skim is the long tail: forty-odd items nobody will read top-to-bottom. Full
+     cards would make it three screens of scrolling. Tiles put it on one screen,
+     and the whole tile is the link — the point of a skim item is to get to X. */
+  .tiles {
+    display: grid; gap: .375rem;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  }
+  a.tile {
+    display: block; padding: .5rem .625rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: .5rem; text-decoration: none; color: var(--text);
+    box-shadow: var(--shadow);
+  }
+  a.tile:hover { border-color: var(--faint); }
+  a.tile .t {
+    font-size: .8125rem; font-weight: 500; line-height: 1.4;
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; overflow: hidden;
+  }
+  a.tile .m {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .25rem;
+    margin-top: .3125rem; font-size: .6875rem; color: var(--faint);
+  }
+  a.tile:hover .go { color: var(--accent); }
+
+  .empty {
+    text-align: center; color: var(--muted);
+    padding: 4rem 1rem; font-size: .9375rem;
+  }
+  .empty .big { font-size: 2rem; margin-bottom: .5rem; }
+
+  .notice {
+    margin-top: 2rem; padding: .75rem .875rem;
+    border: 1px solid var(--border); border-radius: .5rem;
+    background: var(--surface); color: var(--muted); font-size: .8125rem;
+  }
+  .notice b { color: var(--text); }
+  .notice ul { margin: .375rem 0 0; padding-left: 1.1rem; }
+
+  footer {
+    margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
+    color: var(--faint); font-size: .75rem; display: flex;
+    justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>⚡ {{ title }} · {{ date }}</h1>
+    {% if bundle %}
+      <div class="stats">
+        入库 <b>{{ bundle.stats.by_source.get(source_id, 0) }}</b>
+        · 精选 <b>{{ bundle.push_item_ids | length }}</b>
+        · 收录 <b>{{ shown }}</b>
+        <span class="dot">·</span><span class="src">{{ source_id }}</span>
+      </div>
+    {% endif %}
+    <nav class="days">
+      <a href="/day/{{ source_id }}/{{ prev_date }}{{ token_qs }}">← {{ prev_date }}</a>
+      {% if next_date <= today %}
+        <a href="/day/{{ source_id }}/{{ next_date }}{{ token_qs }}">{{ next_date }} →</a>
+      {% else %}
+        <span>{{ next_date }} →</span>
+      {% endif %}
+    </nav>
+  </header>
+
+  {% if not bundle %}
+    <div class="empty">
+      <div class="big">🌙</div>
+      这一天还没有日刊。<br>
+      分析任务跑完之后，这里就会有内容。
+    </div>
+  {% else %}
+
+    {% for tier in tier_order %}
+      {% set items = grouped.get(tier) or [] %}
+      {% if items %}
+        <section class="{{ 'push' if tier == 'must_see_push' else tier }}">
+          <h2>
+            {% if tier == 'must_see_push' %}🔴{% endif %}
+            {{ tier_label[tier] }}
+            <span class="count">{{ items | length }}</span>
+          </h2>
+
+          {% if tier == 'skim' %}
+            <div class="tiles">
+              {% for item in items %}
+                <a class="tile" href="{{ item.url }}" target="_blank" rel="noopener noreferrer nofollow">
+                  <div class="t">{{ item.one_liner or (item.content | truncate(70)) }}</div>
+                  <div class="m">
+                    {% for t in item.topics or [] %}<span class="tag">{{ t }}</span>{% endfor %}
+                    {% if item.author %}<span>@{{ item.author }}</span>{% endif %}
+                    <span class="go">↗</span>
+                  </div>
+                </a>
+              {% endfor %}
+            </div>
+          {% else %}
+            {% for item in items %}
+              <article>
+                <p class="one-liner">{{ item.one_liner or (item.content | truncate(90)) }}</p>
+
+                {% if item.why_for_me %}
+                  <p class="why">{{ item.why_for_me }}</p>
+                {% endif %}
+
+                {% if item.content %}
+                  <p class="detail">{{ item.content }}</p>
+                {% endif %}
+
+                <div class="meta">
+                  {% if item.actionability and item.actionability != 'none' %}
+                    <span class="tag act-{{ item.actionability }}">{{ item.actionability }}</span>
+                  {% endif %}
+                  {% for t in item.topics or [] %}<span class="tag">{{ t }}</span>{% endfor %}
+                  {% if item.author %}<span>@{{ item.author }}</span>{% endif %}
+                  {% if item.metrics and item.metrics.get('like_count') %}
+                    <span class="dot">·</span><span>♥ {{ item.metrics.like_count }}</span>
+                  {% endif %}
+                  {% if item.url %}
+                    <span class="dot">·</span>
+                    <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer nofollow">原文 ↗</a>
+                  {% endif %}
+                </div>
+
+              </article>
+            {% endfor %}
+          {% endif %}
+        </section>
+      {% endif %}
+    {% endfor %}
+
+    {% if not bundle["items"] %}
+      <div class="empty">
+        <div class="big">🫧</div>
+        今天这些源里没有值得留下的东西。
+      </div>
+    {% endif %}
+
+    {% if bundle.warnings or bundle.schema_errors or bundle.stats.dropped_unmatched %}
+      <div class="notice">
+        <b>本次运行的提示</b>
+        <ul>
+          {% for w in bundle.warnings or [] %}<li>{{ w.message }}</li>{% endfor %}
+          {% if bundle.stats.dropped_unmatched %}
+            <li>{{ bundle.stats.dropped_unmatched }} 条模型返回的条目对不上任何原文，已丢弃。</li>
+          {% endif %}
+          {% for e in (bundle.schema_errors or [])[:3] %}<li>schema: {{ e }}</li>{% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+  {% endif %}
+
+  <footer>
+    <span>Megatron · run #{{ bundle.run_id if bundle else '—' }}</span>
+    <span>{{ bundle.timezone if bundle else '' }}</span>
+  </footer>
+
+</div>
+</body>
+</html>

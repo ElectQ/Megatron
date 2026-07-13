@@ -1,5 +1,6 @@
-megatron.yourdomain.com {
-    reverse_proxy localhost:8000
+megatron.qshunter.top {
+    # Host publish port from docker-compose (PORT, default 8010 → container 8000).
+    reverse_proxy localhost:8010
 
     encode gzip zstd
 

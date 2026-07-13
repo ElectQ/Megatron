@@ -37,10 +37,16 @@ async def _reset_db():
             "analysis_modules",
             "webhook_channels",
             "prompt_templates",
+            "digest_templates",
+            "policy",
+            "system_settings",
             "llm_providers",
             "users",
             "items",
             "ingest_logs",
+            "source_configs",
+            "mcp_servers",
+            "pull_state",
         ):
             await session.execute(text(f"DELETE FROM {table}"))
         await session.commit()

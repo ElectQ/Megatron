@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>{{ title }} · {{ date }}</title>
+<style>
+  /* Standalone: opens from a chat message, so no admin shell, no CDN, no JS.
+     Avatars are the one external asset — github.com/<login>.png, which needs no
+     referrer (the page sends none) and degrades to a monogram if it fails. */
+  :root {
+    --bg: #f7f7f8; --surface: #ffffff; --text: #17181b; --muted: #6b7280;
+    --faint: #9ca3af; --border: #e5e7eb; --accent: #d94a3d; --accent-soft: #fdf0ee;
+    --star: #d9a600; --line: #d7dae0;
+    --shadow: 0 1px 2px rgba(0,0,0,.05), 0 1px 12px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e0f11; --surface: #17191c; --text: #e8e9ea; --muted: #9aa0a8;
+      --faint: #6b7280; --border: #26292e; --accent: #ff6b5a; --accent-soft: #2a1a18;
+      --star: #e3b341; --line: #2b2f36; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 1.25rem 5rem; background: var(--bg); color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 74rem; margin: 0 auto; }
+  a { color: inherit; }
+  img.av {
+    border-radius: 50%; background: var(--border); object-fit: cover;
+    flex: none; display: block;
+  }
+
+  header { padding: 1.5rem 0 1rem; border-bottom: 1px solid var(--border); }
+  h1 { font-size: 1.375rem; margin: 0 0 .3rem; letter-spacing: -.01em; }
+  .stats { color: var(--muted); font-size: .8125rem; }
+  .stats b { color: var(--text); font-weight: 600; }
+  nav.days { display: flex; gap: .75rem; margin-top: .75rem; font-size: .8125rem; }
+  nav.days a, nav.days span {
+    color: var(--muted); text-decoration: none; padding: .25rem .625rem;
+    border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+  }
+  nav.days a:hover { color: var(--text); border-color: var(--faint); }
+  nav.days span { opacity: .4; }
+
+  /* Three columns on a wide screen: timeline axis · repos · people. */
+  .layout {
+    display: grid; gap: 1.5rem; margin-top: 1.25rem; align-items: start;
+    grid-template-columns: 13.5rem minmax(0, 1fr) 15rem;
+  }
+  .col > h2 {
+    font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); margin: 0 0 .75rem; display: flex; align-items: center; gap: .4rem;
+  }
+  .col > h2 .count { color: var(--faint); font-weight: 400; letter-spacing: 0; text-transform: none; }
+  .axis, .aside { position: sticky; top: .75rem; }
+  @media (max-width: 62rem) {
+    .layout { display: flex; flex-direction: column; gap: 2rem; }
+    .main { order: 1; } .aside { order: 2; } .axis { order: 3; }
+    .axis, .aside { position: static; }
+  }
+
+  .repo-name {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 600; letter-spacing: -.01em; word-break: break-all;
+  }
+  .repo-name .owner { color: var(--faint); font-weight: 400; }
+
+  /* ---- center: one card per repo, each with a value line ---- */
+  .group-label {
+    font-size: .6875rem; color: var(--faint); margin: 1.25rem 0 .5rem; letter-spacing: .04em;
+  }
+  .group-label:first-child { margin-top: 0; }
+
+  /* Highlights: new repos / releases — the high-signal lane, above the fold. */
+  .highlights { margin-bottom: 1.5rem; }
+  article.hl { display: flex; gap: .6rem; border-left: 3px solid var(--accent); }
+  .hl-actor { flex: none; }
+  .hl-actor img.av { width: 34px; height: 34px; }
+  .hl-body { min-width: 0; flex: 1; }
+  .act-badge { font-size: .6875rem; font-weight: 600; color: var(--accent); letter-spacing: .02em; }
+  a.hl-repo { display: block; text-decoration: none; font-size: .95rem; margin-top: .15rem; }
+  a.hl-repo:hover { color: var(--accent); }
+  .hl-meta { margin-top: .35rem; font-size: .6875rem; color: var(--faint); }
+  article {
+    background: var(--surface); border: 1px solid var(--border); border-radius: .625rem;
+    padding: .8rem .9rem; margin-bottom: .5rem; box-shadow: var(--shadow);
+  }
+  article.hot { border-left: 3px solid var(--star); }
+  .repo-head { display: flex; align-items: baseline; gap: .5rem; }
+  .repo-head a.repo-name { text-decoration: none; font-size: .95rem; flex: 1; }
+  .repo-head a.repo-name:hover { color: var(--accent); }
+  .stars { flex: none; font-size: .8125rem; font-weight: 700; color: var(--star); white-space: nowrap; }
+  .value { margin: .4rem 0 0; font-size: .875rem; line-height: 1.5; color: var(--text); }
+  .value.thin { color: var(--muted); font-style: italic; }
+  .faces { margin-top: .55rem; display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
+  .faces a { display: flex; align-items: center; gap: .28rem; text-decoration: none;
+             font-size: .72rem; color: var(--muted); }
+  .faces a:hover { color: var(--text); }
+  .faces img.av { width: 18px; height: 18px; }
+  .faces .fk { color: var(--faint); }
+  .topics { margin-top: .45rem; display: flex; flex-wrap: wrap; gap: .3rem; }
+  .tag {
+    font-size: .6875rem; line-height: 1.4; padding: 0 .3125rem;
+    border: 1px solid var(--border); border-radius: .25rem; color: var(--faint);
+  }
+
+  /* ---- left: timeline as a vertical axis, avatars as the nodes ---- */
+  .axis ol {
+    list-style: none; margin: 0; padding: 0 0 0 1.6rem; position: relative;
+    max-height: 82vh; overflow-y: auto;
+  }
+  .axis ol::before {
+    content: ""; position: absolute; left: .6rem; top: .3rem; bottom: .3rem;
+    width: 2px; background: var(--line);
+  }
+  .axis li { position: relative; display: flex; align-items: center; gap: .4rem;
+             padding: .2rem 0; font-size: .75rem; }
+  .axis li img.av { width: 22px; height: 22px; margin-left: -1.55rem;
+                    border: 2px solid var(--bg); }
+  .axis .t { color: var(--faint); font-variant-numeric: tabular-nums; flex: none; }
+  .axis .act { flex: none; font-size: .7rem; }
+  .axis a.repo { text-decoration: none; color: var(--text); overflow: hidden;
+                 text-overflow: ellipsis; white-space: nowrap; }
+  .axis a.repo:hover { color: var(--accent); }
+
+  /* ---- right: people, avatar + what they touched ---- */
+  .who-block { display: flex; gap: .55rem; margin-bottom: .85rem; }
+  .who-block img.av { width: 30px; height: 30px; margin-top: .1rem; }
+  .who-main { min-width: 0; flex: 1; }
+  .who-block .lead { display: flex; align-items: baseline; gap: .35rem; }
+  .who-block .lead a { font-weight: 600; text-decoration: none; font-size: .875rem; word-break: break-all; }
+  .who-block .lead a:hover { color: var(--accent); }
+  .who-block .n { font-size: .6875rem; color: var(--faint); flex: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
+  a.chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .7rem;
+    text-decoration: none; color: var(--muted); padding: .05rem .35rem;
+    border: 1px solid var(--border); border-radius: .35rem; background: var(--surface);
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  a.chip:hover { color: var(--text); border-color: var(--faint); }
+  a.chip.fork { border-style: dashed; }
+
+  .empty { text-align: center; color: var(--muted); padding: 4rem 1rem; }
+  .empty .big { font-size: 2rem; margin-bottom: .5rem; }
+  footer {
+    margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
+    color: var(--faint); font-size: .75rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>⚡ {{ title }} · {{ date }}</h1>
+    <div class="stats">
+      入库 <b>{{ stats.total }}</b>
+      · 仓库 <b>{{ stats.repo_count }}</b>
+      · 活跃 <b>{{ stats.actor_count }}</b> 人
+      · ⭐ <b>{{ stats.star_count }}</b>{% if stats.fork_count %} · 🍴 <b>{{ stats.fork_count }}</b>{% endif %}{% if stats.created_count %} · 🆕 <b>{{ stats.created_count }}</b>{% endif %}{% if stats.release_count %} · 🏷️ <b>{{ stats.release_count }}</b>{% endif %}
+    </div>
+    <nav class="days">
+      <a href="/day/{{ source_id }}/{{ prev_date }}{{ token_qs }}">← {{ prev_date }}</a>
+      {% if next_date <= today %}
+        <a href="/day/{{ source_id }}/{{ next_date }}{{ token_qs }}">{{ next_date }} →</a>
+      {% else %}
+        <span>{{ next_date }} →</span>
+      {% endif %}
+    </nav>
+  </header>
+
+  {% if not stats.total %}
+    <div class="empty">
+      <div class="big">🌙</div>
+      这一天你关注的人在 GitHub 上没有动静。
+    </div>
+  {% else %}
+
+  {% macro icon(action) %}{% if action == 'fork' %}🍴{% elif action == 'created' %}🆕{% elif action == 'release' %}🏷️{% else %}⭐{% endif %}{% endmacro %}
+  {% macro reponame(full) %}{% set p = full.split('/') %}<span class="repo-name"><span class="owner">{{ p[0] }}/</span>{{ p[1:] | join('/') }}</span>{% endmacro %}
+  {# GitHub serves an identicon for any live account, so this resolves for real
+     followees; a deleted account 404s, and onerror hides the broken icon. #}
+  {% macro avatar(login, size) %}<img class="av" src="https://github.com/{{ login }}.png?size={{ size }}" alt="" loading="lazy" width="{{ size }}" height="{{ size }}" onerror="this.style.visibility='hidden'">{% endmacro %}
+
+  {% macro repo_card(r, hot) %}
+    <article class="{{ 'hot' if hot else '' }}">
+      <div class="repo-head">
+        <a class="repo-name" href="{{ r.repo_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ reponame(r.repo) }}</a>
+        {% if r.count > 1 %}<span class="stars">⭐ {{ r.count }}</span>{% endif %}
+      </div>
+      {% if r.ann.one_liner %}
+        <p class="value">{{ r.ann.one_liner }}</p>
+      {% else %}
+        <p class="value thin">
+          {%- if r.forkers %}被 {{ r.forkers[0].login }} fork —— 值得看看 fork 者在关注什么
+          {%- elif r.count > 1 %}{{ r.count }} 位关注者不约而同收藏
+          {%- elif r.stargazers %}{{ r.stargazers[0].login }} 收藏了它{% endif -%}
+        </p>
+      {% endif %}
+      <div class="faces">
+        {% for s in r.stargazers %}
+          <a href="{{ s.url }}" target="_blank" rel="noopener noreferrer nofollow" title="{{ s.login }} ⭐">{{ avatar(s.login, 36) }}{{ s.login }}</a>
+        {% endfor %}
+        {% for f in r.forkers %}
+          <a href="{{ f.url }}" target="_blank" rel="noopener noreferrer nofollow" title="{{ f.login }} 🍴">{{ avatar(f.login, 36) }}{{ f.login }} <span class="fk">🍴</span></a>
+        {% endfor %}
+      </div>
+      {% if r.ann.topics %}
+        <div class="topics">{% for t in r.ann.topics %}<span class="tag">{{ t }}</span>{% endfor %}</div>
+      {% endif %}
+    </article>
+  {% endmacro %}
+
+  <div class="layout">
+
+    <!-- LEFT: timeline axis -->
+    <div class="col axis">
+      <h2>🕒 时间线 <span class="count">{{ timeline | length }}</span></h2>
+      <ol>
+        {% for e in timeline %}
+          <li>
+            {{ avatar(e.who, 44) }}
+            <span class="t">{{ e.at[11:16] }}</span>
+            <span class="act">{{ icon(e.action) }}</span>
+            <a class="repo" href="{{ e.repo_url }}" target="_blank" rel="noopener noreferrer nofollow" title="{{ e.who }} {{ e.action }} {{ e.repo }}">{{ e.repo.split('/')[-1] }}</a>
+          </li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    <!-- CENTER: repos, each with a value intro -->
+    <div class="col main">
+      {% if highlights %}
+        <section class="highlights">
+          <h2>🆕 新动向 <span class="count">新建 / 发版</span></h2>
+          {% for h in highlights %}
+            <article class="hl">
+              <a class="hl-actor" href="{{ h.who_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ avatar(h.who, 44) }}</a>
+              <div class="hl-body">
+                <div class="repo-head">
+                  <span class="act-badge">{{ icon(h.action) }} {{ '新建仓库' if h.action == 'created' else '发布新版本' }}</span>
+                </div>
+                <a class="repo-name hl-repo" href="{{ h.repo_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ reponame(h.repo) }}</a>
+                {% if h.ann.one_liner %}<p class="value">{{ h.ann.one_liner }}</p>
+                {% elif h.text %}<p class="value thin">{{ h.text }}</p>{% endif %}
+                <div class="hl-meta">{{ h.who }} · {{ h.at[11:16] }}</div>
+              </div>
+            </article>
+          {% endfor %}
+        </section>
+      {% endif %}
+
+      <h2>📦 仓库 <span class="count">{{ (trending + singles) | length }}</span></h2>
+      {% if trending %}
+        <div class="group-label">🔥 多人关注</div>
+        {% for r in trending %}{{ repo_card(r, true) }}{% endfor %}
+      {% endif %}
+      {% if singles %}
+        <div class="group-label">其余仓库</div>
+        {% for r in singles %}{{ repo_card(r, false) }}{% endfor %}
+      {% endif %}
+    </div>
+
+    <!-- RIGHT: people -->
+    <div class="col aside">
+      <h2>👤 关注的人在看 <span class="count">{{ by_who | length }} 人</span></h2>
+      {% for w in by_who %}
+        <div class="who-block">
+          <a href="{{ w.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ avatar(w.login, 60) }}</a>
+          <div class="who-main">
+            <div class="lead">
+              <a href="{{ w.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ w.login }}</a>
+              <span class="n">{{ w.count }} 个</span>
+            </div>
+            <div class="chips">
+              {% for t in w.touched %}
+                <a class="chip {{ 'fork' if t.action == 'fork' else '' }}" href="{{ t.repo_url }}" target="_blank" rel="noopener noreferrer nofollow" title="{{ t.action }} {{ t.repo }}">{{ t.repo.split('/')[-1] }}{% if t.action != 'star' %} {{ icon(t.action) }}{% endif %}</a>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+  </div>
+  {% endif %}
+
+  <footer>{{ source_id }} · 数据来自你关注的 GitHub 账号的公开动作 · 头像来自 GitHub</footer>
+
+</div>
+</body>
+</html>

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.logging import get_logger
@@ -22,6 +23,31 @@ ACTIVE_RUN_STATUSES = ("queued", "running")
 
 _DEFAULT_SOUNDWAVE_REPO = "ElectQ/Soundwave"
 _DEFAULT_SOUNDWAVE_BRANCH = "master"
+
+# Adapters whose data arrives out of band (a collector pushes, or the scheduler
+# polls). A run reads the database; it never goes to the network for them.
+OUT_OF_BAND_ADAPTERS = ("http_push", "http_pull", "bundle_pull", "git_pull", "native")
+
+# Fallback for installs with no registry row yet, so behaviour is unchanged
+# until `megatron sources sync` runs.
+_LEGACY_KIND_ADAPTER = {
+    "twitter": "git_pull",
+    "http_pull": "http_pull",
+    "bundle_pull": "bundle_pull",
+    "soundwave": "mcp_query",
+    "mcp": "mcp_query",
+}
+
+
+@dataclass
+class SourceBinding:
+    """What a module's `source` string resolves to."""
+
+    source_id: str
+    adapter: str
+    kind: str | None
+    kwargs: dict
+    row: object | None = None  # SourceConfig | None
 
 
 def _default_soundwave_repo() -> tuple[str, str]:
@@ -164,6 +190,12 @@ class ModuleRunner:
 
     async def _execute_run(self, module, run) -> dict:
         started = time.time()
+        self._warnings: list[dict] = []
+        # The operative filtering policy (caps + politics), DB row → file fallback.
+        # Fetched once so the sync _effective_caps helper can read it.
+        from ..profile.policy import resolve_policy
+
+        self._policy = await resolve_policy(self.session)
         try:
             run.module_snapshot = await self._module_snapshot(module)
             run.prompt_snapshot = await self._prompt_snapshot(module)
@@ -179,6 +211,8 @@ class ModuleRunner:
             if latest_date and effective_fc.get("time_mode") in (None, "today", "date"):
                 effective_fc = {**effective_fc, "time_mode": "date", "target_date": latest_date}
 
+            await self._check_arrivals(module, effective_fc)
+
             items = await self._select_items(module, effective_fc)
             run.input_count = len(items)
             run.input_item_ids = [it.id for it in items]
@@ -186,7 +220,7 @@ class ModuleRunner:
 
             if not items:
                 run.status = "completed"
-                run.result = {"briefing": "无数据", "items": []}
+                run.result = {"briefing": "无数据", "items": [], "warnings": self._warnings}
                 run.finished_at = datetime.now(timezone.utc)
                 run.duration_sec = time.time() - started
                 await self.session.commit()
@@ -200,7 +234,9 @@ class ModuleRunner:
                 after=len(filtered),
             )
 
-            prompt_str, prompt_snapshot = await self._render_prompt(module, filtered)
+            prompt_str, prompt_snapshot = await self._render_prompt(
+                module, filtered, self._prompt_context(effective_fc)
+            )
 
             llm, provider_snapshot = await self._build_llm(module)
             run.prompt_snapshot = prompt_snapshot
@@ -213,6 +249,13 @@ class ModuleRunner:
             )
 
             result = self._parse_result(content)
+            if effective_fc.get("output_mode") == "day_bundle":
+                names = await self._source_names(filtered)
+                result = await self._build_bundle(
+                    module, run, effective_fc, filtered, result, names
+                )
+            if self._warnings:
+                result["warnings"] = self._warnings
             run.prompt_tokens = tokens_in
             run.completion_tokens = tokens_out
             run.total_cost_usd = round(cost, 6)
@@ -249,6 +292,43 @@ class ModuleRunner:
             await self.session.commit()
             logger.error("runner.failed", module_id=module.id, run_id=run.id, error=run.error)
             raise
+
+    async def _source_binding(self, module) -> SourceBinding:
+        """Resolve ``module.source`` to a registry row, an adapter and plugin kwargs.
+
+        The adapter — not the plugin class — decides whether a run fetches
+        anything. See ``_refresh_data``.
+        """
+        kind, kwargs = await self._resolve_source(module)
+
+        from sqlalchemy import select as sa_select
+
+        from ..core.models import SourceConfig
+
+        row = (
+            await self.session.execute(
+                sa_select(SourceConfig).where(SourceConfig.name == module.source)
+            )
+        ).scalar_one_or_none()
+
+        if row is not None and row.adapter:
+            adapter = row.adapter
+            if adapter in ("http_pull", "bundle_pull"):
+                # The plugin kind is implied by the adapter; the spec's fetch/map
+                # (or index_url) blocks live in config and are already in kwargs.
+                kind = adapter
+        else:
+            # No registry row: infer from the built-in kind so an install that
+            # has not run `sources sync` still behaves as it did before.
+            adapter = _LEGACY_KIND_ADAPTER.get(kind or "", "native")
+
+        return SourceBinding(
+            source_id=module.source,
+            adapter=adapter,
+            kind=kind,
+            kwargs=kwargs,
+            row=row,
+        )
 
     async def _resolve_source(self, module) -> tuple[str | None, dict]:
         """Resolve a module's data source to ``(source_kind, kwargs)``.
@@ -326,29 +406,214 @@ class ModuleRunner:
 
         return None, kwargs
 
-    async def _refresh_data(self, module, run) -> str | None:
-        """Fetch fresh data inline for live sources; return latest date fetched.
+    async def _check_arrivals(self, module, fc: dict) -> None:
+        """Warn about sources that never showed up. Do not stop the run.
 
-        Pull-based sources (git/twitter, ``live_fetch=False``) are ingested
-        out-of-band by the scheduler, so this is a no-op for them. Live sources
-        (MCP) fetch on demand; any failure propagates so the run is marked
-        FAILED rather than silently "completed / 无数据".
+        Waiting for a full house means one dead collector costs you the whole
+        day's brief. Publish with what arrived and say what did not — unless the
+        task explicitly asks to fail instead.
         """
+        from ..ingest.health import missing_sources, today_arrivals
+
+        date = fc.get("target_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        wanted = set(fc.get("sources") or [module.source])
+
+        arrivals = await today_arrivals(self.session, date)
+        missing = [a for a in missing_sources(arrivals) if a.source_id in wanted]
+        if not missing:
+            return
+
+        names = ", ".join(a.source_id for a in missing)
+        if fc.get("fail_on_missing_source"):
+            raise RuntimeError(f"No data for {date} from: {names}")
+
+        self._warn(
+            "source_missing",
+            f"No data for {date} from: {names}",
+            date=date,
+            sources=[a.source_id for a in missing],
+        )
+
+    async def _source_names(self, records) -> dict[str, str]:
+        """source_id -> display name, so the digest is titled by its source
+        rather than by a string baked into the renderer."""
+        from sqlalchemy import select as sa_select
+
+        from ..core.models import SourceConfig
+
+        ids = {r.source for r in records}
+        if not ids:
+            return {}
+        rows = (
+            (await self.session.execute(sa_select(SourceConfig).where(SourceConfig.name.in_(ids))))
+            .scalars()
+            .all()
+        )
+        return {sc.name: (sc.display_name or sc.name) for sc in rows}
+
+    async def _build_bundle(
+        self, module, run, fc: dict, records, llm_output: dict, source_names
+    ) -> dict:
+        """Turn the model's tiering into a day bundle, with the caps enforced here.
+
+        Opt-in via filter_config.output_mode == "day_bundle" so tasks that predate
+        this keep their old result shape.
+        """
+        from ..config import get_day_token
+        from ..core.sysconfig import is_local_base_url, resolve_base_url
+        from .bundle import build_day_bundle
+        from .doorbell import render_doorbell
+        from .validate import validate_output
+
+        # base_url is a system setting (set in the UI, DB → env fallback). A
+        # loopback value means the push link is dead on the reader's phone — say
+        # so on the run rather than let someone wonder why.
+        base_url = await resolve_base_url(self.session)
+        if is_local_base_url(base_url):
+            self._warn(
+                "base_url_not_reachable",
+                f"base_url={base_url} — the 详情 link in the push only opens on this "
+                "machine. Set your domain in 系统设置 (System settings).",
+            )
+
+        date = fc.get("target_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        schema = (run.prompt_snapshot or {}).get("output_schema") or {}
+        schema_errors = validate_output(llm_output, schema)
+        if schema_errors:
+            self._warn(
+                "schema_errors",
+                f"LLM output did not match the prompt's output_schema ({len(schema_errors)})",
+                errors=schema_errors[:3],
+            )
+
+        bundle = build_day_bundle(
+            date=date,
+            run_id=run.id,
+            records=records,
+            llm_output=llm_output,
+            caps=self._effective_caps(fc),
+            intent=fc.get("intent") or {},
+            base_url=base_url,
+            day_token=get_day_token(),
+            timezone=fc.get("timezone", "Asia/Shanghai"),
+            source_names=source_names,
+            title=fc.get("title", ""),
+        )
+        bundle["schema_errors"] = schema_errors
+        # The task picks the push template (like page_layout picks the day page):
+        # `digest` = tiered push, `feed` = link-only for page-only sources. The
+        # template body comes from the DB (editable in the admin UI), falling back
+        # to config/digests/*.md.
+        from ..config import settings as _settings
+        from ..profile.loader import resolve_digest_body
+
+        style = fc.get("digest_style", "digest")
+        bundle["digest_style"] = style
+        body = await resolve_digest_body(self.session, style, _settings.config_dir)
+        # Channels already prefer report_markdown; handing them the rendered push
+        # means the webhook plugins need no changes at all.
+        bundle["report_markdown"] = render_doorbell(bundle, body=body)
+
+        logger.info(
+            "runner.bundle",
+            run_id=run.id,
+            date=date,
+            items=len(bundle["items"]),
+            push=len(bundle["push_item_ids"]),
+            unmatched=bundle["stats"]["dropped_unmatched"],
+            schema_errors=len(schema_errors),
+        )
+        return bundle
+
+    def _warn(self, code: str, message: str, **fields) -> None:
+        """Record a run-level warning. Surfaced in run.result['warnings']."""
+        self._warnings.append({"code": code, "message": message, **fields})
+        logger.warning(f"runner.{code}", **fields)
+
+    async def _refresh_data(self, module, run) -> str | None:
+        """Bring the day's data in, if this source needs it. Returns the latest date.
+
+        The adapter decides:
+
+        * http_push / http_pull / git_pull / native — data arrives out of band
+          (a collector pushes, or the scheduler polls). A run reads the DB.
+        * mcp_query — the degraded path. Pulling a whole day over MCP inside the
+          run and analysing it is the thing the spec explicitly rejects, so it is
+          gated on MEGATRON_MCP_LIVE_FETCH:
+
+            off       never; the source is for querying, not for the daily job
+            backfill  only when the day has zero rows — top the DB up, then read
+                      the DB like everyone else (default, transitional)
+            always    the old behaviour; an escape hatch, not a destination
+
+        `backfill` is not "fetch a day and analyse it": it repairs the table and
+        the analysis still reads the table. It exists because today the only
+        working intake for this install *is* MCP, and turning it off before the
+        collector pushes would leave the daily brief empty.
+        """
+        binding = await self._source_binding(module)
+
+        if binding.adapter in OUT_OF_BAND_ADAPTERS:
+            return None
+
+        if binding.adapter != "mcp_query":
+            logger.warning(
+                "runner.refresh.unknown_adapter",
+                source=binding.source_id,
+                adapter=binding.adapter,
+            )
+            return None
+
+        return await self._mcp_backfill(module, binding)
+
+    async def _mcp_backfill(self, module, binding: SourceBinding) -> str | None:
         from datetime import timedelta
 
+        from ..config import get_ingest_settings
         from ..core.db import insert_ignore
         from ..core.models import ItemRecord
         from ..ingest.watermark import advance_watermark, get_watermark
         from ..plugins.sources.base import source_registry
 
-        kind, source_kwargs = await self._resolve_source(module)
+        mode = (get_ingest_settings().mcp_live_fetch or "backfill").lower()
+
+        if mode == "off":
+            self._warn(
+                "mcp_live_fetch_disabled",
+                f"Source '{binding.source_id}' is adapter=mcp_query and "
+                "MEGATRON_MCP_LIVE_FETCH=off; its data must arrive via ingest.",
+                source=binding.source_id,
+            )
+            return None
+
+        if mode == "backfill":
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            existing = (
+                await self.session.execute(
+                    select(func.count())
+                    .select_from(ItemRecord)
+                    .where(
+                        ItemRecord.source == binding.source_id,
+                        ItemRecord.collect_date == today,
+                    )
+                )
+            ).scalar_one()
+            if existing:
+                # The collector already delivered; do not touch the network.
+                return None
+            self._warn(
+                "mcp_backfill",
+                f"No rows for {today} from '{binding.source_id}'; backfilling over MCP. "
+                "Switch the collector to HTTP push and set MEGATRON_MCP_LIVE_FETCH=off.",
+                source=binding.source_id,
+                date=today,
+            )
+
+        kind, source_kwargs = binding.kind, binding.kwargs
         if not kind or kind not in source_registry:
             logger.warning("runner.refresh.no_source", source=module.source)
             return None
         source_cls = source_registry.get(kind)
-        if not source_cls.live_fetch:
-            # Pull-based source: data arrives via the scheduler, not here.
-            return None
 
         # Incremental: fetch only dates strictly after our watermark.
         wm = await get_watermark(self.session, module.source)
@@ -420,9 +685,12 @@ class ModuleRunner:
         fc = fc if fc is not None else (module.filter_config or {})
         time_mode = fc.get("time_mode", "today")
 
+        # `sources` lets a day pipeline merge several collectors; unset keeps the
+        # historical single-source behaviour exactly.
+        sources = fc.get("sources") or [module.source]
         stmt = (
             select(ItemRecord)
-            .where(ItemRecord.source == module.source)
+            .where(ItemRecord.source.in_(sources))
             .order_by(ItemRecord.published_at.desc())
         )
         if module.source_ref:
@@ -456,7 +724,13 @@ class ModuleRunner:
 
     async def _apply_filters(self, module, records: list[ItemRecord]) -> list[ItemRecord]:
         cfg = module.filter_config.get("filters", [])
-        max_items = int(module.filter_config.get("max_items", 30))
+
+        # A day bundle is meant to be the day's complete view, so by default it
+        # sends everything to the model. Truncating the input to 30 would silently
+        # decide what the digest may contain before the model ever sees it — and
+        # a source can easily deliver 150 items a day.
+        default_max = 0 if module.filter_config.get("output_mode") == "day_bundle" else 30
+        max_items = int(module.filter_config.get("max_items", default_max))
 
         if not cfg:
             # No filters: honor max_items (0 = all)
@@ -477,7 +751,36 @@ class ModuleRunner:
 
         return [r for r in records if r.item_id in kept_ids]
 
-    async def _render_prompt(self, module, records: list[ItemRecord]) -> tuple[str, dict]:
+    def _effective_caps(self, fc: dict) -> dict:
+        """Caps actually applied: policy (DB row → config/policy.yaml) then the
+        task's own overrides. The product filtering policy is never a framework
+        constant."""
+        policy = getattr(self, "_policy", None)
+        if policy is None:
+            from ..profile.policy import load_policy
+
+            policy = load_policy()
+        base = dict(policy.get("caps") or {})
+        base.setdefault("politics_blocklist", list(policy.get("politics_blocklist") or []))
+        return {**base, **(fc.get("caps") or {})}
+
+    def _prompt_context(self, fc: dict) -> dict:
+        """What the prompt gets to know about the run, beyond the items.
+
+        The caps go in so the prompt's stated limits and the limits
+        ``enforce_caps`` will actually apply are the same numbers. They are still
+        enforced server-side afterwards — telling the model the budget just stops
+        it from writing a digest that is guaranteed to be cut apart.
+        """
+        return {
+            "intent": fc.get("intent") or {},
+            "caps": self._effective_caps(fc),
+            "date": fc.get("target_date") or "",
+        }
+
+    async def _render_prompt(
+        self, module, records: list[ItemRecord], extra: dict | None = None
+    ) -> tuple[str, dict]:
         from ..core.engine_models import PromptTemplate
 
         tmpl = await self.session.get(PromptTemplate, module.prompt_template_id)
@@ -492,7 +795,7 @@ class ModuleRunner:
             "output_schema": tmpl.output_schema or {},
             "is_active": tmpl.is_active,
         }
-        return render_prompt(tmpl.template, items), snapshot
+        return render_prompt(tmpl.template, items, extra), snapshot
 
     async def _prompt_snapshot(self, module) -> dict:
         from ..core.engine_models import PromptTemplate
@@ -574,12 +877,16 @@ class ModuleRunner:
         from ..core.engine_models import ModuleChannel
 
         rows = (
-            await self.session.execute(
-                select(ModuleChannel.channel_id)
-                .where(ModuleChannel.module_id == module.id)
-                .order_by(ModuleChannel.position, ModuleChannel.channel_id)
+            (
+                await self.session.execute(
+                    select(ModuleChannel.channel_id)
+                    .where(ModuleChannel.module_id == module.id)
+                    .order_by(ModuleChannel.position, ModuleChannel.channel_id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         if rows:
             return [int(r) for r in rows]
         return [int(r) for r in (module.webhook_channel_ids or [])]
@@ -624,13 +931,22 @@ class ModuleRunner:
         )
 
     async def _deliver(self, module, run, result: dict) -> list[dict]:
-        """Push result to the module's configured webhook channels."""
-        from .delivery import DeliveryService
+        """Push to the module's channels.
+
+        For a day bundle the channels only ever see the capped push subset and
+        the doorbell text — the rest of the day lives on the day page. The
+        webhook plugins are unchanged: they already prefer `report_markdown`.
+        """
         from ..plugins.webhooks.base import AnalysisResult
+        from .bundle import BUNDLE_SCHEMA, push_items
+        from .delivery import DeliveryService
+
+        is_bundle = result.get("schema") == BUNDLE_SCHEMA
+        items = push_items(result) if is_bundle else result.get("items", [])
 
         ar = AnalysisResult(
             briefing=result.get("briefing", ""),
-            items=result.get("items", []),
+            items=items,
             raw=result,
             run_id=run.id,
             module_name=module.name,

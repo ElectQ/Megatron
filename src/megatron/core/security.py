@@ -12,6 +12,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_admin_token, get_session_secret, settings
+from .logging import get_logger
+
+logger = get_logger(__name__)
 
 
 ENC_PREFIX = "enc:v1:"
@@ -158,20 +161,45 @@ def validate_runtime_settings() -> None:
         weak.append("MEGATRON_MASTER_KEY")
     if not settings.admin_password:
         weak.append("MEGATRON_ADMIN_PASSWORD")
-    from ..config import get_ingest_settings
+    from ..config import get_ingest_token
 
-    ingest_token = get_ingest_settings().ingest_token
+    ingest_token = get_ingest_token()
     if ingest_token == "dev-ingest-token-change-me" or ingest_token.startswith("change-me"):
         weak.append("MEGATRON_INGEST_TOKEN")
     if weak:
         raise RuntimeError("Unsafe production configuration: " + ", ".join(weak))
 
+    # base_url used to be a hard boot requirement, but it is now a UI setting
+    # (系统设置 → 域名, DB-backed, seeded from env). Refusing to boot would trap the
+    # operator out of the very UI where they'd fix it. So: warn loudly instead, and
+    # the run-time warning + the UI banner carry the rest.
+    if settings.base_url_is_local:
+        logger.warning(
+            "config.base_url_local",
+            base_url=settings.base_url,
+            hint="Set your public domain in 系统设置 (System settings); push links "
+            "won't open on a phone until you do.",
+        )
+
 
 class IngestAuth:
-    """Bearer token auth for ingest endpoints (Soundwave push)."""
+    """Bearer token auth for ingest endpoints (Soundwave push).
 
-    def __init__(self, expected: str):
+    ``expected=None`` resolves the token per request. Bootstrap generates and
+    persists the token after import time, so a value pinned at construction
+    would keep the stale default alive.
+    """
+
+    def __init__(self, expected: str | None = None):
         self._expected = expected
+
+    @property
+    def expected(self) -> str:
+        if self._expected is not None:
+            return self._expected
+        from ..config import get_ingest_token
+
+        return get_ingest_token()
 
     async def __call__(
         self,
@@ -183,7 +211,7 @@ class IngestAuth:
                 detail="Missing bearer token",
             )
         token = authorization.removeprefix("Bearer ").strip()
-        if not safe_eq(token, self._expected):
+        if not safe_eq(token, self.expected):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Invalid ingest token",

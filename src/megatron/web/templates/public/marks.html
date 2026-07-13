@@ -1,0 +1,16 @@
+{# Monochrome brand marks (currentColor) — a formal alternative to emoji. #}
+{% macro source_label(source_id) -%}
+  {%- if 'twitter' in source_id or source_id.startswith('x_') -%}Twitter
+  {%- elif 'github' in source_id -%}GitHub
+  {%- else -%}RSS{%- endif -%}
+{%- endmacro %}
+
+{% macro source_mark(source_id) -%}
+  {%- if 'twitter' in source_id or source_id.startswith('x_') -%}
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+  {%- elif 'github' in source_id -%}
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.37.5 0 5.78 0 12.29c0 5.2 3.44 9.6 8.21 11.16.6.11.82-.25.82-.56v-2.2c-3.34.71-4.04-1.58-4.04-1.58-.55-1.36-1.33-1.72-1.33-1.72-1.09-.73.08-.72.08-.72 1.2.08 1.83 1.22 1.83 1.22 1.07 1.8 2.81 1.28 3.5.98.11-.76.42-1.28.76-1.57-2.67-.3-5.47-1.31-5.47-5.83 0-1.29.47-2.34 1.24-3.17-.13-.3-.54-1.52.11-3.18 0 0 1.01-.32 3.3 1.21a11.6 11.6 0 0 1 6 0c2.29-1.53 3.3-1.21 3.3-1.21.65 1.66.24 2.88.12 3.18.77.83 1.23 1.88 1.23 3.17 0 4.53-2.81 5.53-5.49 5.82.43.37.81 1.1.81 2.22v3.29c0 .32.22.68.83.56A12.02 12.02 0 0 0 24 12.29C24 5.78 18.63.5 12 .5z"/></svg>
+  {%- else -%}
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9h2.6A11.6 11.6 0 0 0 4 8.4V11zm0 5.1a2.9 2.9 0 1 0 0 5.8 2.9 2.9 0 0 0 0-5.8zM4 4v2.6c7.4 0 13.4 6 13.4 13.4H20C20 11.16 12.84 4 4 4z"/></svg>
+  {%- endif -%}
+{%- endmacro %}

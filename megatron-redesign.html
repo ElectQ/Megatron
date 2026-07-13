@@ -1,0 +1,499 @@
+<title>Megatron · Redesign proposal</title>
+<style>
+  :root {
+    /* Cloudflare orange — reserved for primary action + active nav ONLY */
+    --accent: #f6821f;
+    --accent-hover: #e8730e;
+    --accent-soft: rgba(246, 130, 31, 0.12);
+    --accent-border: rgba(246, 130, 31, 0.35);
+
+    /* Warm-biased neutrals (hue nudged toward the orange accent, not pure grey) */
+    --bg: #ffffff;
+    --surface: #faf9f7;
+    --elevated: #ffffff;
+    --border: #e9e5df;
+    --border-strong: #d8d2c8;
+    --text: #1d1b18;
+    --text-2: #57534d;
+    --muted: #8a847a;
+
+    /* Semantic — distinct from the accent hue */
+    --good: #1a9d5a;
+    --good-soft: rgba(26, 157, 90, 0.12);
+    --warn: #b7791f;
+    --warn-soft: rgba(183, 121, 31, 0.12);
+    --crit: #d13438;
+    --crit-soft: rgba(209, 52, 56, 0.12);
+    --info: #2b6cb0;
+    --info-soft: rgba(43, 108, 176, 0.12);
+
+    --radius: 8px;
+    --radius-sm: 6px;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "SF Mono", ui-monospace, "Menlo", Consolas, monospace;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.1);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #100f0d;
+      --surface: #191713;
+      --elevated: #201d18;
+      --border: #2c2823;
+      --border-strong: #3a352e;
+      --text: #f4f1ec;
+      --text-2: #b8b2a8;
+      --muted: #8b857a;
+      --accent-soft: rgba(246, 130, 31, 0.16);
+      --good-soft: rgba(26, 157, 90, 0.18);
+      --warn-soft: rgba(183, 121, 31, 0.2);
+      --crit-soft: rgba(209, 52, 56, 0.2);
+      --info-soft: rgba(43, 108, 176, 0.22);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #100f0d; --surface: #191713; --elevated: #201d18;
+    --border: #2c2823; --border-strong: #3a352e;
+    --text: #f4f1ec; --text-2: #b8b2a8; --muted: #8b857a;
+    --accent-soft: rgba(246,130,31,0.16); --good-soft: rgba(26,157,90,0.18);
+    --warn-soft: rgba(183,121,31,0.2); --crit-soft: rgba(209,52,56,0.2);
+    --info-soft: rgba(43,108,176,0.22);
+    --shadow: 0 1px 2px rgba(0,0,0,0.4); --shadow-pop: 0 8px 28px rgba(0,0,0,0.55);
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --surface: #faf9f7; --elevated: #ffffff;
+    --border: #e9e5df; --border-strong: #d8d2c8;
+    --text: #1d1b18; --text-2: #57534d; --muted: #8a847a;
+    --accent-soft: rgba(246,130,31,0.12); --good-soft: rgba(26,157,90,0.12);
+    --warn-soft: rgba(183,121,31,0.12); --crit-soft: rgba(209,52,56,0.12);
+    --info-soft: rgba(43,108,176,0.12);
+    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1120px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* ---- doc typography ---- */
+  .doc-eyebrow { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1.doc { font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.02em; margin: 10px 0 12px; text-wrap: balance; }
+  .doc-lede { font-size: 17px; color: var(--text-2); max-width: 62ch; margin: 0 0 8px; }
+  h2.sec { font-size: 22px; letter-spacing: -0.01em; margin: 56px 0 6px; }
+  .sec-note { color: var(--text-2); margin: 0 0 20px; max-width: 66ch; font-size: 15px; }
+  .kicker { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 18px; }
+
+  /* ---- app frame mock ---- */
+  .frame {
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-pop);
+    background: var(--bg);
+  }
+  .frame-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .frame-url { margin-left: 12px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .app { display: grid; grid-template-columns: 224px 1fr; min-height: 560px; }
+  @media (max-width: 720px) { .app { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+  /* ---- sidebar ---- */
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 14px 10px; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 6px 10px 14px; }
+  .brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 15px; flex: none; }
+  .brand-name { font-weight: 650; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 11px; color: var(--muted); }
+  .nav-group { margin-top: 14px; }
+  .nav-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.11em; text-transform: uppercase; color: var(--muted); padding: 0 10px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px; border-radius: var(--radius-sm);
+    color: var(--text-2); font-size: 13.5px; text-decoration: none; cursor: pointer;
+    border-left: 2px solid transparent;
+  }
+  .nav-item:hover { background: rgba(128,120,108,0.1); color: var(--text); }
+  .nav-item.active {
+    background: var(--accent-soft); color: var(--accent);
+    font-weight: 600; border-left-color: var(--accent);
+  }
+  .nav-item svg { width: 16px; height: 16px; flex: none; stroke-width: 1.8; }
+  .nav-item .cnt { margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .nav-foot { margin-top: auto; padding: 12px 10px 4px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+
+  /* ---- content ---- */
+  .content { background: var(--bg); padding: 0; overflow: hidden; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); }
+  .crumb { font-size: 12.5px; color: var(--muted); }
+  .crumb b { color: var(--text-2); font-weight: 600; }
+  .page-title { font-size: 19px; font-weight: 650; letter-spacing: -0.01em; margin: 2px 0 0; }
+  .body { padding: 22px 24px; }
+
+  /* tabs (secondary nav) */
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: -4px 0 20px; }
+  .tab { padding: 9px 14px; font-size: 13px; color: var(--text-2); border-bottom: 2px solid transparent; cursor: pointer; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+
+  /* pipeline strip */
+  .pipe { display: flex; align-items: stretch; gap: 0; margin-bottom: 22px; flex-wrap: wrap; }
+  .pipe-step { flex: 1 1 0; min-width: 118px; display: flex; align-items: center; }
+  .pipe-card { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+  .pipe-k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .pipe-v { font-size: 22px; font-weight: 680; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .pipe-meta { font-size: 11.5px; color: var(--text-2); margin-top: 3px; }
+  .pipe-arrow { color: var(--muted); padding: 0 8px; flex: none; }
+  @media (max-width: 620px) { .pipe-arrow { display: none; } .pipe-step { flex-basis: 46%; } }
+
+  /* stat / metric tiles */
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+  @media (max-width: 620px) { .grid3 { grid-template-columns: 1fr; } }
+  .card { background: var(--elevated); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .card-pad { padding: 16px 18px; }
+  .card-h { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .card-title { font-size: 13px; font-weight: 650; }
+  .metric-k { font-size: 12px; color: var(--muted); }
+  .metric-v { font-size: 26px; font-weight: 680; letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .metric-d { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+
+  /* table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; padding: 10px 18px; border-bottom: 1px solid var(--border-strong); }
+  tbody td { padding: 11px 18px; border-bottom: 1px solid var(--border); color: var(--text); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: rgba(128,120,108,0.06); }
+  .mono { font-family: var(--mono); font-size: 12px; }
+  .cell-sub { color: var(--muted); font-size: 12px; }
+
+  /* pills */
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid transparent; }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.good { color: var(--good); background: var(--good-soft); }
+  .pill.warn { color: var(--warn); background: var(--warn-soft); }
+  .pill.crit { color: var(--crit); background: var(--crit-soft); }
+  .pill.info { color: var(--info); background: var(--info-soft); }
+  .pill.idle { color: var(--muted); background: rgba(128,120,108,0.12); }
+
+  /* buttons */
+  .btn { font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: var(--radius-sm); border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background .15s, border-color .15s, color .15s; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary { background: transparent; color: var(--text); border-color: var(--border-strong); }
+  .btn-secondary:hover { background: rgba(128,120,108,0.1); border-color: var(--muted); }
+  .btn-ghost { background: transparent; color: var(--text-2); }
+  .btn-ghost:hover { background: rgba(128,120,108,0.1); color: var(--text); }
+  .btn-danger { background: transparent; color: var(--crit); border-color: var(--crit-soft); }
+  .btn-danger:hover { background: var(--crit-soft); }
+  .btn-sm { font-size: 12px; padding: 4px 10px; }
+
+  /* form */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; font-weight: 600; color: var(--text-2); }
+  .input, .select { font-family: var(--sans); font-size: 13px; padding: 8px 11px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); width: 100%; }
+  .input::placeholder { color: var(--muted); }
+  .input:focus, .select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 620px) { .form-grid { grid-template-columns: 1fr; } }
+  .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .hint { font-size: 12px; color: var(--muted); }
+
+  /* empty state */
+  .empty { text-align: center; padding: 40px 20px; }
+  .empty-ic { width: 40px; height: 40px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin: 0 auto 12px; }
+  .empty h4 { margin: 0 0 4px; font-size: 15px; }
+  .empty p { margin: 0 auto 16px; color: var(--text-2); font-size: 13px; max-width: 42ch; }
+
+  /* annotation callout */
+  .note { display: flex; gap: 12px; background: var(--accent-soft); border: 1px solid var(--accent-border); border-radius: var(--radius); padding: 13px 15px; margin: 16px 0; }
+  .note-ic { color: var(--accent); flex: none; font-weight: 800; }
+  .note p { margin: 0; font-size: 13.5px; color: var(--text); }
+
+  /* naming table */
+  .maptable { width: 100%; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; border-collapse: separate; border-spacing: 0; }
+  .maptable td, .maptable th { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 13px; text-align: left; }
+  .maptable th { background: var(--surface); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+  .maptable tr:last-child td { border-bottom: none; }
+  .strike { color: var(--muted); text-decoration: line-through; }
+  .arrow-r { color: var(--accent); font-weight: 700; }
+
+  /* component gallery */
+  .swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+  .sw { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; width: 128px; }
+  .sw-chip { height: 46px; }
+  .sw-meta { padding: 6px 9px; }
+  .sw-name { font-size: 12px; font-weight: 600; }
+  .sw-hex { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+  .gcard { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; background: var(--elevated); }
+  .gcard h4 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  .theme-toggle { position: fixed; top: 14px; right: 14px; z-index: 10; }
+  hr.div { border: none; border-top: 1px solid var(--border); margin: 0; }
+</style>
+
+<button class="btn btn-secondary btn-sm theme-toggle" onclick="(function(){var r=document.documentElement;var d=r.getAttribute('data-theme')==='dark'||(!r.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);r.setAttribute('data-theme',d?'light':'dark');})()">◐ Theme</button>
+
+<div class="page">
+
+  <span class="doc-eyebrow">Design proposal · Cloudflare-style</span>
+  <h1 class="doc">Megatron, rebuilt around the pipeline it actually runs</h1>
+  <p class="doc-lede">A redesign of the admin UI in the Cloudflare vernacular: orange reserved strictly for the primary action and your current location, warm-neutral surfaces everywhere else, and navigation that mirrors the real data flow — <b>Source → Collect → Analyze → Deliver</b>. Everything below is a live mock; toggle the theme, top-right.</p>
+
+  <!-- ============ 1. THE APP MOCK — OVERVIEW ============ -->
+  <h2 class="sec">1 · Navigation & the Overview page</h2>
+  <p class="sec-note">Left nav is grouped into four sections that read as the pipeline. Orange marks only the active item. The header carries a breadcrumb + one primary action; secondary views live in in-page tabs, not more sidebar entries.</p>
+
+  <div class="frame">
+    <div class="frame-bar">
+      <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+      <span class="frame-url">megatron.local / ui / overview</span>
+    </div>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">M</div>
+          <div><div class="brand-name">Megatron</div><div class="brand-sub">LLM Analysis Hub</div></div>
+        </div>
+
+        <a class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Overview
+        </a>
+
+        <div class="nav-group">
+          <div class="nav-label">Data</div>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/></svg>Sources<span class="cnt">3</span></a>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Collected<span class="cnt">2.4k</span></a>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/></svg>Analyzed<span class="cnt">128</span></a>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-label">Analysis</div>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Tasks<span class="cnt">1</span></a>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Schedules<span class="cnt">1</span></a>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-label">Configuration</div>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v5H4zM4 13h16v7H4z"/></svg>Prompts</a>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l3 5 5 1-3.5 3.5L17 17l-5-2.5L7 17l.5-5.5L4 8l5-1z"/></svg>Models</a>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12a8 8 0 0 1 8-8"/><path d="M4 12h6M12 20a8 8 0 0 0 8-8"/><circle cx="12" cy="12" r="2"/></svg>Delivery</a>
+        </div>
+
+        <div class="nav-foot"><span class="pill good" style="padding:1px 7px;font-size:10px">online</span><span style="margin-left:auto">v0.2.0</span></div>
+      </aside>
+
+      <section class="content">
+        <div class="topbar">
+          <div>
+            <div class="crumb"><b>Overview</b></div>
+            <div class="page-title">Pipeline health</div>
+          </div>
+          <button class="btn btn-primary btn-sm">＋ Run a task now</button>
+        </div>
+        <div class="body">
+          <!-- pipeline strip -->
+          <div class="pipe">
+            <div class="pipe-step"><div class="pipe-card"><div class="pipe-k">Sources</div><div class="pipe-v">3</div><div class="pipe-meta"><span class="pill good">2 active</span></div></div><span class="pipe-arrow">→</span></div>
+            <div class="pipe-step"><div class="pipe-card"><div class="pipe-k">Collected</div><div class="pipe-v">2,431</div><div class="pipe-meta">+64 today</div></div><span class="pipe-arrow">→</span></div>
+            <div class="pipe-step"><div class="pipe-card"><div class="pipe-k">Analyzed</div><div class="pipe-v">128</div><div class="pipe-meta">last · 09:00</div></div><span class="pipe-arrow">→</span></div>
+            <div class="pipe-step"><div class="pipe-card"><div class="pipe-k">Delivered</div><div class="pipe-v">126</div><div class="pipe-meta"><span class="pill warn">2 retrying</span></div></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><span class="card-title">Recent runs</span><span class="hint">last 5</span></div>
+            <div style="overflow-x:auto">
+            <table>
+              <thead><tr><th>Task</th><th>Status</th><th>Items</th><th>Model</th><th>Finished</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>Twitter security briefing</td><td><span class="pill good">completed</span></td><td class="mono">64</td><td class="cell-sub">deepseek-chat</td><td class="cell-sub">09:00:12</td><td><a class="btn btn-ghost btn-sm">View report</a></td></tr>
+                <tr><td>Twitter security briefing</td><td><span class="pill info">running</span></td><td class="mono">—</td><td class="cell-sub">deepseek-chat</td><td class="cell-sub">—</td><td><a class="btn btn-ghost btn-sm">View</a></td></tr>
+                <tr><td>Twitter security briefing</td><td><span class="pill crit">failed</span></td><td class="mono">0</td><td class="cell-sub">deepseek-chat</td><td class="cell-sub">yesterday</td><td><a class="btn btn-ghost btn-sm">Retry</a></td></tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="note"><span class="note-ic">↳</span><p><b>Why a pipeline strip?</b> The current Overview shows four disconnected count cards. Rendering them as <b>Source → Collect → Analyze → Deliver</b> turns the dashboard into a one-glance answer to "is the system working, and where is it stuck?" — the 2 retrying deliveries jump out immediately.</p></div>
+
+  <!-- ============ 2. INTEGRATIONS REDESIGN ============ -->
+  <h2 class="sec">2 · The Integrations page (the one you screenshotted)</h2>
+  <p class="sec-note">Same content, right-sized. The giant full-width glowing button becomes a modest right-aligned primary action. Fields get real labels. The empty state tells you what to do next.</p>
+
+  <div class="frame">
+    <div class="frame-bar">
+      <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+      <span class="frame-url">megatron.local / ui / data / sources</span>
+    </div>
+    <section class="content">
+      <div class="topbar">
+        <div>
+          <div class="crumb"><b>Data</b> › Sources</div>
+          <div class="page-title">Sources</div>
+        </div>
+        <button class="btn btn-primary btn-sm">＋ Add MCP server</button>
+      </div>
+      <div class="body">
+        <div class="tabs">
+          <span class="tab active">MCP servers</span>
+          <span class="tab">Source configs</span>
+        </div>
+
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-h"><span class="card-title">Add MCP server</span><span class="hint">All sources connect over the MCP protocol</span></div>
+          <div class="card-pad">
+            <div class="form-grid">
+              <div class="field"><label>Server name</label><input class="input" placeholder="soundwave-twitter"></div>
+              <div class="field"><label>Server URL</label><input class="input" placeholder="https://api.soundwave.dev/mcp"></div>
+              <div class="field"><label>Transport</label><select class="select"><option>SSE (Server-Sent Events)</option><option>stdio (local / container)</option></select></div>
+              <div class="field"><label>Resource filter <span class="hint">· optional</span></label><input class="input" placeholder="tweets/*"></div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-ghost btn-sm">Test connection</button>
+              <button class="btn btn-primary btn-sm">Connect server</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="card-title">Connected servers</span><span class="hint">1</span></div>
+          <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Name</th><th>Endpoint</th><th>Transport</th><th>Status</th><th>Last sync</th><th></th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="mono">soundwave-twitter</td>
+                <td class="cell-sub mono">api.soundwave.dev/mcp</td>
+                <td><span class="pill idle" style="background:rgba(128,120,108,.12)">sse</span></td>
+                <td><span class="pill good">connected</span></td>
+                <td class="cell-sub">09:00</td>
+                <td class="row"><button class="btn btn-ghost btn-sm">Test</button><button class="btn btn-ghost btn-sm">Discover</button><button class="btn btn-danger btn-sm">Delete</button></td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ 3. NAV MAP + NAMING ============ -->
+  <h2 class="sec">3 · Navigation order & one name per thing</h2>
+  <p class="sec-note">Today the same concept has up to three names across nav, routes and code. Pick one human word per concept and use it everywhere the user can see. Keep the code name internal.</p>
+
+  <table class="maptable">
+    <thead><tr><th style="width:26%">Proposed nav label</th><th style="width:37%">Replaces (today)</th><th>Internal / code name (unchanged)</th></tr></thead>
+    <tbody>
+      <tr><td><b>Overview</b></td><td>Overview / Dashboard</td><td class="mono cell-sub">dashboard</td></tr>
+      <tr><td><b>Sources</b></td><td><span class="strike">Integrations</span> / <span class="strike">MCP Sources</span></td><td class="mono cell-sub">MCPServer + SourceConfig</td></tr>
+      <tr><td><b>Collected</b></td><td>Collected Data / Items</td><td class="mono cell-sub">ItemRecord</td></tr>
+      <tr><td><b>Analyzed</b></td><td>Analyzed / Runs</td><td class="mono cell-sub">AnalysisRun</td></tr>
+      <tr><td><b>Tasks</b></td><td><span class="strike">Tasks</span> vs <span class="strike">Modules</span> (both used)</td><td class="mono cell-sub">AnalysisModule</td></tr>
+      <tr><td><b>Schedules</b></td><td>Schedules</td><td class="mono cell-sub">Schedule</td></tr>
+      <tr><td><b>Prompts</b></td><td>Prompts</td><td class="mono cell-sub">PromptTemplate</td></tr>
+      <tr><td><b>Models</b></td><td>LLM Providers</td><td class="mono cell-sub">LLMProvider</td></tr>
+      <tr><td><b>Delivery</b></td><td><span class="strike">Webhooks</span> vs <span class="strike">Channels</span> (both used)</td><td class="mono cell-sub">Channel</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note"><span class="note-ic">!</span><p><b>Ordering rationale.</b> Sidebar order = order you set the system up + order data flows: connect a <b>Source</b>, watch it <b>Collect</b>, write a <b>Prompt</b> + pick a <b>Model</b>, wire a <b>Task</b> to <b>Deliver</b> on a <b>Schedule</b>. Config lives at the bottom because you touch it once; Data/Analysis live at top because you watch them daily.</p></div>
+
+  <!-- ============ 4. COMPONENTS ============ -->
+  <h2 class="sec">4 · Component kit</h2>
+  <p class="sec-note">Flat, bordered, low-shadow — no glow, no shimmer sweep. Orange appears on exactly one element per view. This is the whole visual language; every page is assembled from these.</p>
+
+  <div class="gallery">
+    <div class="gcard">
+      <h4>Buttons</h4>
+      <div class="row" style="margin-bottom:8px"><button class="btn btn-primary">Primary</button><button class="btn btn-secondary">Secondary</button></div>
+      <div class="row"><button class="btn btn-ghost">Ghost</button><button class="btn btn-danger">Delete</button></div>
+      <p class="hint" style="margin:12px 0 0">One primary per view. Everything else is secondary/ghost.</p>
+    </div>
+
+    <div class="gcard">
+      <h4>Status pills</h4>
+      <div class="row"><span class="pill good">completed</span><span class="pill info">running</span><span class="pill warn">retrying</span><span class="pill crit">failed</span><span class="pill idle">disabled</span></div>
+      <p class="hint" style="margin:12px 0 0">Semantic colors, never the orange accent.</p>
+    </div>
+
+    <div class="gcard">
+      <h4>Inputs</h4>
+      <div class="field" style="margin-bottom:10px"><label>Server name</label><input class="input" placeholder="soundwave-twitter"></div>
+      <div class="field"><label>Transport</label><select class="select"><option>SSE</option><option>stdio</option></select></div>
+    </div>
+
+    <div class="gcard">
+      <h4>Metric tile</h4>
+      <div class="metric-k">Collected today</div>
+      <div class="metric-v">2,431</div>
+      <div class="metric-d" style="color:var(--good)">▲ 64 vs yesterday</div>
+    </div>
+
+    <div class="gcard" style="grid-column: 1 / -1">
+      <h4>Empty state — with a next step</h4>
+      <div class="empty">
+        <div class="empty-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/></svg></div>
+        <h4>No sources connected yet</h4>
+        <p>Megatron ingests data through MCP servers. Connect one to start collecting items your tasks can analyze.</p>
+        <button class="btn btn-primary btn-sm">＋ Add your first MCP server</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 5. TOKENS ============ -->
+  <h2 class="sec">5 · Color tokens</h2>
+  <p class="sec-note">Warm-neutral ground with a single orange accent. Both themes derive from the same token names — components never reference raw hex.</p>
+
+  <span class="kicker">Accent — primary action & active nav only</span>
+  <div class="swatches" style="margin-bottom:24px">
+    <div class="sw"><div class="sw-chip" style="background:#f6821f"></div><div class="sw-meta"><div class="sw-name">accent</div><div class="sw-hex">#F6821F</div></div></div>
+    <div class="sw"><div class="sw-chip" style="background:#e8730e"></div><div class="sw-meta"><div class="sw-name">accent-hover</div><div class="sw-hex">#E8730E</div></div></div>
+  </div>
+
+  <span class="kicker">Semantic — status only</span>
+  <div class="swatches" style="margin-bottom:24px">
+    <div class="sw"><div class="sw-chip" style="background:#1a9d5a"></div><div class="sw-meta"><div class="sw-name">good</div><div class="sw-hex">#1A9D5A</div></div></div>
+    <div class="sw"><div class="sw-chip" style="background:#b7791f"></div><div class="sw-meta"><div class="sw-name">warn</div><div class="sw-hex">#B7791F</div></div></div>
+    <div class="sw"><div class="sw-chip" style="background:#d13438"></div><div class="sw-meta"><div class="sw-name">crit</div><div class="sw-hex">#D13438</div></div></div>
+    <div class="sw"><div class="sw-chip" style="background:#2b6cb0"></div><div class="sw-meta"><div class="sw-name">info</div><div class="sw-hex">#2B6CB0</div></div></div>
+  </div>
+
+  <span class="kicker">Neutrals — dark theme (warm bias)</span>
+  <div class="swatches">
+    <div class="sw"><div class="sw-chip" style="background:#100f0d"></div><div class="sw-meta"><div class="sw-name">bg</div><div class="sw-hex">#100F0D</div></div></div>
+    <div class="sw"><div class="sw-chip" style="background:#191713"></div><div class="sw-meta"><div class="sw-name">surface</div><div class="sw-hex">#191713</div></div></div>
+    <div class="sw"><div class="sw-chip" style="background:#2c2823"></div><div class="sw-meta"><div class="sw-name">border</div><div class="sw-hex">#2C2823</div></div></div>
+    <div class="sw"><div class="sw-chip" style="background:#f4f1ec"></div><div class="sw-meta"><div class="sw-name">text</div><div class="sw-hex">#F4F1EC</div></div></div>
+    <div class="sw"><div class="sw-chip" style="background:#8b857a"></div><div class="sw-meta"><div class="sw-name">muted</div><div class="sw-hex">#8B857A</div></div></div>
+  </div>
+
+  <h2 class="sec">6 · What this fixes vs. today</h2>
+  <table class="maptable">
+    <thead><tr><th style="width:34%">Today</th><th>After</th></tr></thead>
+    <tbody>
+      <tr><td>3 CSS layers fighting (Tailwind CDN + daisyUI + theme overrides)</td><td>One token-driven stylesheet; components reference tokens, not hex</td></tr>
+      <tr><td>Indigo glow + shimmer on every button; full-width CTA</td><td>Flat orange, one primary per view, right-sized</td></tr>
+      <tr><td>Hardcoded <span class="mono">#737373</span> scattered across templates</td><td>Semantic classes / tokens — consistent contrast, themeable</td></tr>
+      <tr><td>Flat nav, mixed names, no story</td><td>4 pipeline-shaped groups, one name per concept</td></tr>
+      <tr><td>Four disconnected count cards on Overview</td><td>A pipeline strip that shows flow + where it's stuck</td></tr>
+    </tbody>
+  </table>
+
+</div>

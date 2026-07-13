@@ -139,6 +139,51 @@ class DeliveryLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class DigestTemplate(Base):
+    """A webhook message template — the `digest_style` a task selects.
+
+    Seeded from config/digests/*.md (file = seed), then editable in the admin UI
+    (DB = truth after seed), exactly like PromptTemplate.
+    """
+
+    __tablename__ = "digest_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    style: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(128), default="")
+    body: Mapped[str] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class Policy(Base):
+    """Global filtering policy — a single row. Seeded from config/policy.yaml,
+    then editable in the admin UI."""
+
+    __tablename__ = "policy"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    caps: Mapped[dict] = mapped_column(JSON, default=dict)
+    politics_blocklist: Mapped[list] = mapped_column(JSON, default=list)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class SystemSetting(Base):
+    """Runtime system settings — a single row, editable in the admin UI.
+
+    `base_url` is the address readers reach this install at; every pushed link
+    (day page, 详情) is built from it. Seeded from MEGATRON_BASE_URL at first boot
+    so an operator can set the real domain in the UI instead of redeploying.
+    """
+
+    __tablename__ = "system_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    base_url: Mapped[str] = mapped_column(String(256), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 __all__ = [
     "LLMProvider",
     "PromptTemplate",
@@ -148,4 +193,7 @@ __all__ = [
     "User",
     "WebhookChannel",
     "DeliveryLog",
+    "DigestTemplate",
+    "Policy",
+    "SystemSetting",
 ]

@@ -11,3 +11,9 @@ megatron.db.backup
 tests/
 docs/
 *.md
+
+# config/ holds seed data: prompt bodies + digest templates (.md), source/policy
+# (.yaml). The root-level *.md rule above only matches the repo root, but keep
+# this explicit so a future broadened rule can never drop the seeds from the image.
+!config
+!config/**

@@ -17,12 +17,18 @@ from ..scheduler import shutdown_scheduler, start_scheduler
 from . import (
     channels_api,
     data_api,
+    digests_api,
     mcp_api,
     modules_api,
+    policy_api,
     prompts_api,
     providers_api,
+    public_api,
     runs_api,
+    day_api,
     schedules_api,
+    settings_api,
+    sources_api,
     stats_api,
     ui,
 )
@@ -33,7 +39,6 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging(level="INFO")
-    validate_runtime_settings()
     from ..engine import agent_loop as _agent  # noqa: F401  trigger registration
     from ..plugins import filters as _filters  # noqa: F401  trigger registration
     from ..plugins import sources as _sources  # noqa: F401  trigger registration
@@ -42,7 +47,12 @@ async def lifespan(app: FastAPI):
 
     await init_db()
     from ..core.bootstrap import bootstrap
+
     await bootstrap(None)
+
+    # After bootstrap: it mints and persists the session/admin/ingest secrets,
+    # so validating before it would flag freshly-generatable secrets as weak.
+    validate_runtime_settings()
 
     # Recover runs interrupted by the previous shutdown/crash so their modules
     # are not blocked forever by the active-run guard.
@@ -90,6 +100,11 @@ app.include_router(runs_api.router)
 app.include_router(channels_api.router)
 app.include_router(schedules_api.router)
 app.include_router(stats_api.router)
+app.include_router(sources_api.router)
+app.include_router(digests_api.router)
+app.include_router(policy_api.router)
+app.include_router(settings_api.router)
+app.include_router(day_api.router)
 app.include_router(ui.router)
 
 
@@ -98,16 +113,19 @@ async def redirect_to_login(request: Request, exc: RedirectLoginException):
     return RedirectResponse("/ui/login", status_code=303)
 
 
-@app.get("/")
-async def root():
-    return RedirectResponse("/ui/dashboard")
-
-
 @app.get("/health")
 async def health():
+    from .core_health import registered_sources
+
     return {
         "status": "ok",
         "service": "megatron",
-        "sources": ["twitter"],
+        "sources": await registered_sources(),
         "version": __version__,
     }
+
+
+# The public frontend owns `/` and the `/{lang}` catch-all, so it is mounted LAST —
+# after every specific route (/ui, /api, /day, /health, /r, /static) so its
+# single-segment `/{lang}` cannot shadow them.
+app.include_router(public_api.router)

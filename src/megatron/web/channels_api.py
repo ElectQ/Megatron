@@ -74,8 +74,14 @@ async def delete_channel(cid: int, session: AsyncSession = Depends(get_session))
     if not ch:
         raise HTTPException(404, "Channel not found")
     linked_module_id = (
-        await session.execute(select(ModuleChannel.module_id).where(ModuleChannel.channel_id == cid))
-    ).scalars().first()
+        (
+            await session.execute(
+                select(ModuleChannel.module_id).where(ModuleChannel.channel_id == cid)
+            )
+        )
+        .scalars()
+        .first()
+    )
     if linked_module_id:
         raise HTTPException(409, f"Channel is used by module #{linked_module_id}")
 

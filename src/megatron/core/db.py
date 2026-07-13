@@ -52,6 +52,7 @@ def insert_ignore(model, values, index_elements):
         raise NotImplementedError(f"insert_ignore not supported for dialect '{name}'")
     return _insert(model).values(values).on_conflict_do_nothing(index_elements=index_elements)
 
+
 async_session_factory = async_sessionmaker(
     engine,
     class_=AsyncSession,

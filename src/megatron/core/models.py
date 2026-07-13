@@ -90,9 +90,14 @@ class PullState(Base):
 
 
 class SourceConfig(Base):
-    """Persistent configuration for data sources (native plugins or MCP servers).
+    """Registry row for one logical source.
 
-    Replaces .env-based configuration and enables UI-managed source setup.
+    `name` doubles as the spec's `source_id`: it is already the de-facto primary
+    key across the runner, the module editor and `items.source`, so introducing a
+    separate `source_id` column would create two sources of truth.
+
+    Rows whose `managed_by == "yaml"` are projections of a file under the sources
+    directory and are read-only in the UI; the file is the truth.
     """
 
     __tablename__ = "source_configs"
@@ -100,13 +105,33 @@ class SourceConfig(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     source_type: Mapped[str] = mapped_column(String(32), index=True)
-    # "native" | "mcp"
+    # "native" | "mcp" — legacy discriminator, superseded by `adapter`. Still
+    # written so the existing MCP admin API keeps working; removed in Phase 1.
     config: Mapped[dict] = mapped_column(JSON, default=dict)
-    # For MCP: {server_url, transport, capabilities, resource_filter}
-    # For native: {plugin_name, plugin_config...}
+    # adapter-specific: {plugin_name, mcp_server_id, repo_url, fetch, map, ...}
     enabled: Mapped[bool] = mapped_column(default=True)
     last_sync_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    display_name: Mapped[str] = mapped_column(String(128), default="")
+    kind: Mapped[str] = mapped_column(String(32), default="")
+    # free-form: twitter_list | github_release | rss | ...
+
+    adapter: Mapped[str] = mapped_column(String(16), default="native", index=True)
+    # http_push | http_pull | git_pull | mcp_query | native
+    # Indexed because the scheduler filters on it to decide what to poll.
+
+    audience: Mapped[str] = mapped_column(String(16), default="personal")
+    # personal | public | both.
+    # Deliberate deviation from the spec, which models this as a list: there is
+    # never more than one value in Phase 0 and querying a JSON array in SQLite is
+    # painful. The API serialises it back to a list to honour the contract.
+
+    schedule_expect: Mapped[dict] = mapped_column(JSON, default=dict)
+    # {timezone, collect_by, sla_minutes} — drives the daily arrival check.
+
+    managed_by: Mapped[str] = mapped_column(String(16), default="db", index=True)
+    # "yaml" (file is the truth, UI read-only) | "db" (created via the UI/API)
 
 
 class MCPServer(Base):

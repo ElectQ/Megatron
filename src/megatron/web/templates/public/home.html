@@ -1,0 +1,104 @@
+{% extends "public/base.html" %}
+{% from "public/marks.html" import source_mark %}
+{% block title %}Megatron LLM Hub{% endblock %}
+{% block head %}
+<style>
+  /* ---- hero ---- */
+  .hero{margin:.25rem 0 2rem;max-width:42rem}
+  .eyebrow{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-ink);margin-bottom:.9rem}
+  .hero h1{font-size:clamp(2.1rem,5.5vw,3rem);line-height:1.08;margin:0 0 .7rem;
+    letter-spacing:-.035em;font-weight:800;text-wrap:balance}
+  .hero p{color:var(--muted);font-size:1.06rem;line-height:1.6;margin:0;max-width:34rem}
+
+  /* ---- pipeline strip (formal, text-forward) ---- */
+  .pipeline{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;
+    margin:1.6rem 0 2.75rem;padding:.7rem .95rem;border:1px solid var(--line);border-radius:12px;
+    background:var(--surface);box-shadow:var(--shadow);font-size:.8rem}
+  .pipeline .node{display:flex;align-items:baseline;gap:.5rem}
+  .pipeline .node .k{font-weight:750;letter-spacing:-.01em;color:var(--ink)}
+  .pipeline .node .v{color:var(--faint);font-size:.75rem}
+  .pipeline .conn{flex:1 1 1.5rem;min-width:1.25rem;height:1px;background:var(--line-strong);position:relative}
+  .pipeline .conn::after{content:"";position:absolute;right:-1px;top:-2.5px;width:5px;height:5px;
+    border-top:1px solid var(--line-strong);border-right:1px solid var(--line-strong);transform:rotate(45deg)}
+  @media (max-width:40rem){
+    .pipeline{flex-direction:column;align-items:stretch;gap:.55rem}
+    .pipeline .node{justify-content:space-between}
+    .pipeline .conn{display:none}
+  }
+
+  /* ---- day sections ---- */
+  .day{margin-top:2.5rem}
+  .day-label{display:flex;align-items:center;gap:.85rem;margin-bottom:.25rem}
+  .day-label .d{font-variant-numeric:tabular-nums;font-weight:800;font-size:1.05rem;letter-spacing:-.01em}
+  .day-label .c{font-size:.75rem;color:var(--faint);font-weight:600}
+  .day-label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  /* ---- post rows (flat, editorial, Cloudflare-like) ---- */
+  .posts{display:flex;flex-direction:column}
+  a.post{display:grid;grid-template-columns:1fr;gap:.55rem;padding:1.4rem 0;
+    border-bottom:1px solid var(--line);transition:background .15s}
+  a.post:hover{background:linear-gradient(90deg,var(--surface-2),transparent 85%)}
+  a.post:hover .p-title{color:var(--accent-ink)}
+  a.post .p-cat{display:inline-flex;align-items:center;gap:.4rem;justify-self:start}
+  a.post .p-cat .pill svg{color:var(--muted)}
+  a.post .p-title{font-size:1.4rem;line-height:1.25;font-weight:800;letter-spacing:-.02em;
+    color:var(--ink);transition:color .15s;text-wrap:balance;margin:0}
+  a.post .p-teaser{color:var(--muted);font-size:.95rem;line-height:1.55;margin:0;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+  a.post .p-meta{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;
+    font-size:.76rem;color:var(--faint);margin-top:.1rem}
+  a.post .p-meta .n b{color:var(--accent-ink);font-weight:800}
+  a.post .p-meta .tag{padding:.14rem .5rem;border-radius:6px;background:var(--surface-2);
+    border:1px solid var(--line);color:var(--muted);font-weight:600}
+  a.post .p-meta .go{margin-left:auto;color:var(--faint);font-weight:700;letter-spacing:.02em;
+    display:inline-flex;align-items:center;gap:.25rem}
+  a.post:hover .p-meta .go{color:var(--accent-ink)}
+
+  .empty{text-align:center;color:var(--muted);padding:4.5rem 1rem;
+    border:1px dashed var(--line-strong);border-radius:14px;margin-top:1rem}
+  .empty .moon{font-size:2rem;margin-bottom:.6rem;opacity:.7}
+</style>
+{% endblock %}
+{% block content %}
+
+<section class="hero rise">
+  <div class="eyebrow">{{ t('Daily briefing') }}</div>
+  <h1>{{ t('Security intelligence, curated daily.') }}</h1>
+  <p>{{ t('An LLM reads the day across every source, ranks what matters, and publishes the public signal — vulnerabilities, tools, events.') }}</p>
+</section>
+
+<div class="pipeline rise" aria-label="{{ t('How it works') }}">
+  <div class="node"><span class="k">{{ t('Sources') }}</span><span class="v">Twitter · GitHub · RSS</span></div>
+  <span class="conn"></span>
+  <div class="node"><span class="k">{{ t('LLM analysis') }}</span><span class="v">{{ t('tier & tag') }} · {{ t('mark public') }}</span></div>
+  <span class="conn"></span>
+  <div class="node"><span class="k">{{ t('Output') }}</span><span class="v">{{ t('push') }} · {{ t('public blog') }}</span></div>
+</div>
+
+{% if not days %}
+  <div class="empty rise">
+    <div class="moon">🌙</div>
+    {{ t('Nothing published yet.') }}
+  </div>
+{% else %}
+  {% for d in days %}
+  <section class="day rise">
+    <div class="day-label"><span class="d">{{ d.date }}</span><span class="c">{{ d.streams|length }} {{ t('streams') }}</span></div>
+    <div class="posts">
+      {% for s in d.streams %}
+      <a class="post" href="/{{ lang }}/{{ s.source_id }}/{{ d.date }}">
+        <span class="p-cat"><span class="pill">{{ source_mark(s.source_id) }}{{ s.title }}</span></span>
+        <h2 class="p-title">{{ s.teaser or s.title }}</h2>
+        <div class="p-meta">
+          <span class="n"><b>{{ s.count }}</b> {{ t('items') }}</span>
+          {% for tg in s.tags or [] %}<span class="tag">{{ tg }}</span>{% endfor %}
+          <span class="go">{{ t('Read') }} <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+{% endif %}
+{% endblock %}

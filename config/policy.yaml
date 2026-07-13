@@ -1,0 +1,29 @@
+# 全局过滤策略默认值。任务可在自己的 filter_config 里逐项覆盖。
+# 政治黑名单：命中 must_see/recommend/skim 的条目会被 drop（对照的是模型自己写的
+# one_liner/why_for_me/topics，不是原文），防止政治话题混进日刊。
+caps:
+  lead_min: 3
+  must_see_min: 5
+  must_see_max: 8
+  recommend_max: 15
+  skim_max: 0
+politics_blocklist:
+- 政治
+- 时政
+- 党派
+- 选举
+- 大选
+- 总统
+- 议员
+- 国会
+- 白宫
+- 地缘
+- 战争
+- 外交
+- 口水战
+- election
+- senator
+- congress
+- white house
+- geopolitic
+- politic

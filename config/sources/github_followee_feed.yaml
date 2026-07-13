@@ -1,0 +1,48 @@
+# GitHub 关注流 —— 由 Sentinel-gh (Collector) 采集。
+#
+# 和推特那条一样：Sentinel-gh 每天爬完会把一个「日包」提交到自己仓库的
+# bundles/YYYY-MM-DD.json，而那个文件本身就是一个 schema_version: 1 的统一信封
+# （同样的 source_id、items[].external_id / metrics / flags）。所以这里同样
+# 不需要任何字段映射，拉下来直接进 ingest。
+#
+# 和推特不同的一点：这个源**不推送**。它没有绑任何 webhook 渠道，只出日刊页
+# （/day/github_followee_feed/<date>）。是不是推送由「模块有没有绑渠道」决定，
+# 不由源决定 —— 所以这里 audience 仍是 personal，只是没有下游渠道去接。
+#
+# 数据形态：这是「你关注的安全研究者今天 star / fork 了哪些仓库」的事件流。
+# 每条 item 的 content 就是 "X starred Y"，metrics.circle_count 表示有多少个
+# 你关注的人碰了同一个目标 —— 多人汇聚 = 更值得看。
+
+source_id: github_followee_feed
+display_name: GitHub 关注流
+kind: github_feed
+adapter: bundle_pull
+audience: [personal]
+enabled: true
+
+# 日刊页布局：feed = 仓库聚合的专属页（热门仓库/按人/时间线）。
+# 默认 digest（推特那套分档卡片）。页面选择由此字段数据驱动，不再靠 kind 硬编码。
+page_layout: feed
+
+# 我们去拉的时间。Sentinel-gh 的 Action 在 21:00 UTC(05:00 北京)跑，
+# 留足余量后在 22:40 UTC(06:40 北京)来取。
+schedule:
+  cron: "40 22 * * *"
+
+# 期望到达时间，用于「今日源到达」健康检查
+schedule_expect:
+  timezone: Asia/Shanghai
+  collect_by: "06:00"
+  sla_minutes: 120
+
+config:
+  index_url: https://raw.githubusercontent.com/ElectQ/Sentinel-gh/main/bundles/index.json
+
+  # 一次最多回补几天（冷启动/停机后追赶用）
+  max_days: 7
+
+  # index.json 和 <date>.json 是 CDN 上两个独立对象，可能被读到不一致的版本。
+  # 校验摘要，对不上就跳过、等下一次轮询，而不是吃进一个残缺的日包。
+  verify_sha256: true
+
+  external_repo: ElectQ/Sentinel-gh

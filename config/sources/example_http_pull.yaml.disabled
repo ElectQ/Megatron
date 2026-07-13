@@ -1,0 +1,68 @@
+# 示例：raw HTTP 源 —— 加一个源只要写一个 YAML，不用改代码。
+#
+# 想启用：把文件名改成 example_http_pull.yaml（去掉 .disabled 后缀），
+# 然后 `megatron sources sync`（或重启）。
+#
+# 两种 format：
+#   json —— 需要 map: 用路径表达式把响应映射成 Item
+#   rss  —— RSS/Atom 已经是规范结构，map: 可省略
+
+source_id: hn_frontpage
+display_name: Hacker News 前页
+kind: news
+adapter: http_pull
+audience: [personal]
+enabled: true
+
+# 我们主动去拉的时间（cron，UTC）
+schedule:
+  cron: "0 6 * * *"
+
+schedule_expect:
+  timezone: Asia/Shanghai
+  collect_by: "14:30"
+  sla_minutes: 60
+
+fetch:
+  format: json
+  url: https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=50
+  method: GET
+  timeout: 20
+  headers:
+    User-Agent: megatron
+    # 需要鉴权的 API 这样写，token 本身放环境变量，不进文件：
+    # Authorization: "Bearer ${HN_API_TOKEN}"
+
+# 路径表达式子集：
+#   $            当前元素本身
+#   $.a.b        字典取值
+#   $.a[0]       列表下标
+#   $.a[*].b     摊平：取每个元素的 b
+#   不以 $ 开头  当作常量字符串
+map:
+  items: $.hits              # 相对响应根，必须解析成一个列表
+  external_id: $.objectID    # 以下都相对单个元素
+  title: $.title
+  content: $.story_text
+  url: $.url
+  author: $.author
+  published_at: $.created_at
+  metrics:
+    like_count: $.points
+    reply_count: $.num_comments
+
+---
+# 同一个目录下可以放多个文件；下面是 RSS 的样子（放到单独文件里才会生效，
+# 这里只是给你看形状）：
+#
+# source_id: blog_rss
+# display_name: 安全博客 RSS
+# kind: rss
+# adapter: http_pull
+# audience: [personal]
+# schedule:
+#   cron: "30 6 * * *"
+# fetch:
+#   format: rss
+#   url: https://example.com/feed.xml
+# # map 可省略，默认按 RSS 标准字段映射

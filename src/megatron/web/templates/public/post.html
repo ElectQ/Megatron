@@ -1,0 +1,82 @@
+{% extends "public/base.html" %}
+{% from "public/marks.html" import source_mark, source_label %}
+{% block title %}{{ view.title }} · {{ view.date }} · Megatron LLM Hub{% endblock %}
+{% block head %}
+<style>
+  .back{display:inline-flex;align-items:center;gap:.35rem;margin-bottom:1.6rem;
+    color:var(--muted);font-size:.8125rem;font-weight:600;transition:color .15s}
+  .back:hover{color:var(--accent-ink)}
+
+  .post-head{max-width:var(--measure);margin-bottom:2.25rem}
+  .post-head .pill{margin-bottom:1rem}
+  .post-head .pill svg{color:var(--muted)}
+  .post-head h1{font-size:clamp(1.9rem,4.5vw,2.6rem);line-height:1.12;margin:0 0 .9rem;
+    letter-spacing:-.03em;font-weight:800;text-wrap:balance}
+  .post-head .byline{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;
+    color:var(--faint);font-size:.85rem;font-variant-numeric:tabular-nums}
+  .post-head .byline b{color:var(--muted);font-weight:600}
+  .post-head .byline .d{width:3px;height:3px;border-radius:50%;background:var(--line-strong)}
+
+  .content{max-width:var(--measure)}
+  .tier{display:flex;align-items:center;gap:.6rem;margin:2.5rem 0 1.1rem}
+  .tier .lbl{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--c,var(--t-more))}
+  .tier .count{font-size:.72rem;font-weight:600;color:var(--faint)}
+  .tier::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  article.item{padding:1.25rem 0;border-bottom:1px solid var(--line)}
+  article.item:last-child{border-bottom:0}
+  article.item .head{display:flex;gap:.65rem;align-items:baseline}
+  article.item .head .dot{margin-top:.5rem;width:.5rem;height:.5rem;border-radius:50%;
+    flex:0 0 auto;background:var(--c,var(--t-more))}
+  article.item .one-liner{font-weight:750;font-size:1.12rem;line-height:1.4;margin:0;
+    letter-spacing:-.015em;color:var(--ink)}
+  article.item .detail{margin:.55rem 0 0;padding-left:1.15rem;font-size:.92rem;line-height:1.65;
+    color:var(--muted);white-space:pre-wrap;word-break:break-word;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
+  article.item .row{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;
+    margin:.7rem 0 0 1.15rem;font-size:.78rem;color:var(--faint)}
+  .tag{padding:.14rem .5rem;border-radius:6px;background:var(--surface-2);
+    border:1px solid var(--line);color:var(--muted);font-weight:600}
+  .row .author{color:var(--muted)}
+  .row .spacer{flex:1}
+  .row a.src{display:inline-flex;align-items:center;gap:.3rem;color:var(--accent-ink);
+    font-weight:700;transition:opacity .15s}
+  .row a.src:hover{opacity:.7}
+</style>
+{% endblock %}
+{% block content %}
+<a class="back" href="/{{ lang }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>{{ t('All digests') }}</a>
+
+<header class="post-head rise">
+  <span class="pill">{{ source_mark(view.source_id) }}{{ source_label(view.source_id) }}</span>
+  <h1>{{ view.title }}</h1>
+  <div class="byline"><b>{{ view.date }}</b><span class="d"></span>{{ view.count }} {{ t('items') }}</div>
+</header>
+
+<div class="content">
+{% set tier_color = {'must_see_push':'var(--t-top)','must_see_page':'var(--t-must)','recommend':'var(--t-rec)','skim':'var(--t-more)'} %}
+{% for tier in tier_order %}
+  {% set items = view.grouped.get(tier) or [] %}
+  {% if items %}
+    <div class="tier" style="--c:{{ tier_color.get(tier,'var(--t-more)') }}">
+      <span class="lbl">{{ t(tier_label.get(tier, tier)) }}</span><span class="count">{{ items|length }}</span>
+    </div>
+    {% for it in items %}
+    <article class="item" style="--c:{{ tier_color.get(tier,'var(--t-more)') }}">
+      <div class="head">
+        <span class="dot"></span>
+        <p class="one-liner">{{ it.one_liner or (it.content | truncate(90)) }}</p>
+      </div>
+      {% if it.content and it.one_liner %}<p class="detail">{{ it.content }}</p>{% endif %}
+      <div class="row">
+        {% for tg in it.topics or [] %}<span class="tag">{{ tg }}</span>{% endfor %}
+        {% if it.author %}<span class="author">@{{ it.author }}</span>{% endif %}
+        <span class="spacer"></span>
+        {% if it.url %}<a class="src" href="{{ it.url }}" target="_blank" rel="noopener nofollow">{{ t('source ↗') }}</a>{% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+</div>
+{% endblock %}
