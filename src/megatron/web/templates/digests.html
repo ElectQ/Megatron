@@ -9,7 +9,7 @@
 <div class="card mb-6">
     <div class="card-body text-sm text-muted">
         <div class="font-medium text-secondary mb-1">{{ t('Available variables (from the LLM-analysed bundle)') }}</div>
-        <code class="text-xs">title · date · ingest_total · stats · day_url · must_see[] · recommend[] · trimmed</code>
+        <code class="text-xs">title · date · ingest_total · stats · day_url · public_url · must_see[] · recommend[] · trimmed</code>
         <div class="text-xs mt-1">{{ t('must_see / recommend items expose: title, why, url.') }}</div>
     </div>
 </div>
@@ -26,9 +26,13 @@
                 {% if d.used_by %}{{ t('used by') }}: {{ d.used_by|join(', ') }}{% else %}<span class="opacity-60">{{ t('not used by any task') }}</span>{% endif %}
             </div>
         </div>
-        <textarea rows="14" class="textarea textarea-bordered font-mono text-xs w-full js-body">{{ d.body }}</textarea>
+        <label class="field-label" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span>✏️ {{ t('Edit the push text below — Preview shows what gets sent, Save applies it.') }}</span>
+        </label>
+        <textarea rows="14" class="textarea textarea-bordered font-mono text-xs w-full js-body"
+                  spellcheck="false" aria-label="{{ t('Push template editor') }}">{{ d.body }}</textarea>
         <div class="flex gap-2 mt-3">
-            <button type="button" class="btn btn-ghost btn-sm" onclick="previewDigest('{{ d.style }}')">{{ t('Preview') }}</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="previewDigest('{{ d.style }}')">👁 {{ t('Preview') }}</button>
             <button type="button" class="btn btn-primary btn-sm" onclick="saveDigest('{{ d.style }}', '{{ d.display_name }}')">{{ t('Save') }}</button>
             <span class="js-result text-xs self-center"></span>
         </div>

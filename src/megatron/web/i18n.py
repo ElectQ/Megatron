@@ -145,6 +145,9 @@ _ZH: dict[str, str] = {
     "Models subtitle": "分析任务使用的 LLM 提供方与 API 密钥。",
     "LLM providers and API keys used by analysis tasks.": "分析任务使用的 LLM 提供方与 API 密钥。",
     "Jinja2 templates used by analysis tasks.": "分析任务使用的 Jinja2 模板。",
+    "Edit the push text below — Preview shows what gets sent, Save applies it.":
+        "下方直接编辑推送文案 —— Preview 预览发出的样子,Save 生效(即时,无需重部署)。",
+    "Push template editor": "推送文案编辑器",
     # Card titles
     "New template": "新建模板",
     "Add MCP Server": "添加 MCP 服务器",

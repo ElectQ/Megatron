@@ -60,6 +60,9 @@ def render_digest(bundle: dict, max_chars: int = MAX_DIGEST_CHARS, body: str | N
         "ingest_total": stats.get("ingest_total", 0),
         "stats": stats,
         "day_url": bundle.get("day_url") or "",
+        # Public blog link — set only when the day published public items; falls
+        # back to "" so a template can do `public_url or day_url`.
+        "public_url": bundle.get("public_url") or "",
         "must_see": [_ctx_item(i) for i in must_see],
     }
     rec_ctx = [_ctx_item(i) for i in recommend]

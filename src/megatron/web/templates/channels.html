@@ -67,6 +67,7 @@ const SCHEMAS = {
     feishu: [{key:'webhook_url', label:'Webhook URL', type:'password'}],
     wecom: [{key:'webhook_url', label:'Webhook URL', type:'password'}],
     dingtalk: [{key:'webhook_url', label:'Webhook URL', type:'password'}, {key:'secret', label:'Secret (optional)', type:'password'}],
+    wechat_mp: [{key:'appid', label:'公众号 AppID', type:'password'}, {key:'appsecret', label:'公众号 AppSecret', type:'password'}],
 };
 
 function updateConfigFields() {

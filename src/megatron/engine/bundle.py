@@ -110,6 +110,19 @@ def day_url(base_url: str, date: str, source_id: str = "", token: str = "") -> s
     return f"{url}?k={token}" if token else url
 
 
+def public_url(base_url: str, date: str, source_id: str = "", lang: str = "zh") -> str:
+    """World-readable blog page for a day's public digest — no capability token.
+
+    Distinct from `day_url`: language-prefixed, indexable, safe to drop in a group
+    chat. It only resolves to a real page when the day has `public: true` items
+    (the public route 404s by design otherwise), so callers hand it out only when
+    the bundle actually published something — else the push falls back to day_url.
+    """
+    if not base_url or not source_id:
+        return ""
+    return f"{base_url.rstrip('/')}/{lang}/{source_id}/{date}"
+
+
 def _rank(item: dict) -> tuple:
     """Order within a tier: the model's scores, then its own stated ordering."""
     scores = item.get("scores") or {}
@@ -324,6 +337,14 @@ def build_day_bundle(
         "items": items,
         "push_item_ids": push_item_ids,
         "day_url": day_url(base_url, date, primary, day_token) if base_url else "",
+        # The public blog link, given only when the day has something public to
+        # show — otherwise "" so a push template falls back to the token day_url
+        # instead of pointing at a page that 404s.
+        "public_url": (
+            public_url(base_url, date, primary)
+            if base_url and any(i.get("public") for i in items)
+            else ""
+        ),
         "warnings": warnings or [],
     }
 
@@ -363,6 +384,7 @@ __all__: list[Any] = [
     "TIERS",
     "build_day_bundle",
     "day_url",
+    "public_url",
     "enforce_caps",
     "item_link",
     "push_items",
