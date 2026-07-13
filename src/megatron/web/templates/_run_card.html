@@ -2,7 +2,7 @@
 {% import "_macros.html" as ui %}
 <div class="collapse collapse-arrow bg-[var(--bg-surface)] border border-white/[0.08] rounded"
      {% if r.status in ('running', 'queued') %}data-poll-active{% endif %}>
-    <input type="checkbox">
+    <input type="checkbox" {% if r.status in ('failed', 'running', 'queued') %}checked{% endif %}>
     <div class="collapse-title flex items-center gap-3 flex-wrap py-4">
         <span class="font-mono text-sm">#{{ r.id }}</span>
         <span class="text-sm font-medium">{{ r.module_name or 'Task #' ~ r.module_id }}</span>
