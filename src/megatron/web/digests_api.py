@@ -54,6 +54,7 @@ def _sample_bundle(style: str) -> dict:
         "digest_style": style,
         "stats": {"ingest_total": 144},
         "day_url": "https://megatron.example.com/day/example/2026-07-12?k=demo",
+        "public_url": "https://megatron.example.com/zh/example/2026-07-12",
         "items": items,
         "push_item_ids": push_ids,
     }
