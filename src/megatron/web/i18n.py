@@ -218,7 +218,7 @@ _ZH: dict[str, str] = {
     "Filter by tier": "按分档筛选",
     # Hero + pipeline strip
     "Daily briefing": "每日简报",
-    "Security intelligence, curated daily.": "每日精选的安全情报。",
+    "Security intelligence, curated daily.": "每日精选的信息流。",
     "An LLM reads the day across every source, ranks what matters, and publishes the public signal — vulnerabilities, tools, events.": "由大模型通读当天全部来源,分级筛出要点,并公开可披露的信号 —— 漏洞、工具、事件。",
     "How it works": "工作流程",
     "streams": "条推送流",

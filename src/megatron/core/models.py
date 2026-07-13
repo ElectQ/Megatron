@@ -127,6 +127,11 @@ class SourceConfig(Base):
     # never more than one value in Phase 0 and querying a JSON array in SQLite is
     # painful. The API serialises it back to a list to honour the contract.
 
+    public_redact: Mapped[bool] = mapped_column(default=False)
+    # When public, strip the fields that name who curated an item (author + the
+    # raw content that embeds the name). See SourceSpec.public_redact. Synced from
+    # YAML like audience; the token-gated day page ignores it.
+
     schedule_expect: Mapped[dict] = mapped_column(JSON, default=dict)
     # {timezone, collect_by, sla_minutes} — drives the daily arrival check.
 

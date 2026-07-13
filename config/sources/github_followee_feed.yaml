@@ -17,11 +17,17 @@ source_id: github_followee_feed
 display_name: GitHub 关注流
 kind: github_feed
 adapter: bundle_pull
-# 私有——硬锁。每条事件本身是公开的 GitHub 活动,但把它们发出去等于公开
-# 「你关注了谁」。泄露的是关注图谱,不是单条内容,所以门槛在源这一级:
-# 这个源永远不会出现在公开前台,只能通过 /day/github_followee_feed/<date>?k=<token>
-# 带令牌访问。即便 LLM 误标 public、或后台误点发布,也漏不出去。
-audience: [personal]
+# 公开 —— 但脱敏。这个流对外的价值是「安全圈最近在 star 什么仓库」,而这个价值
+# 不需要点名是谁。泄露的从来是「你关注了谁」(关注图谱),不是单条内容 —— 每条
+# GitHub 事件本身就是公开的。所以:
+#   audience: public   → 上公开前台,和推特流一样的分档卡片
+#   public_redact: true → 公开投影里剥掉 author 和原始 content(它写着「odzhan
+#                         starred X」,含人名),只留 LLM 的 one_liner/why_for_me
+#                         (prompt 被要求不带人名、只说仓库 + N 人 star)。
+# 带 token 的日刊页 (/day/github_followee_feed/<date>?k=…) 不受影响,仍是你自己的
+# 全量视图 —— 谁 star 了什么一清二楚。脱敏只发生在给陌生人看的公开页。
+audience: [public]
+public_redact: true
 enabled: true
 
 # 日刊页布局：feed = 仓库聚合的专属页（热门仓库/按人/时间线）。

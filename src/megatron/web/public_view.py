@@ -41,7 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.engine_models import AnalysisRun, PublicationOverride
 from ..core.models import ItemRecord, SourceConfig
-from ..engine.bundle import BUNDLE_SCHEMA
+from ..engine.bundle import BUNDLE_SCHEMA, MUST_SEE
 from .media_proxy import proxied
 
 # Removed on the way out. `scores` is the model's internal bookkeeping
@@ -88,22 +88,33 @@ class Policy:
 
     # source_id -> personal | public | both
     audience: dict[str, str] = field(default_factory=dict)
+    # Sources whose public projection must drop the who-curated-it fields.
+    redact: set[str] = field(default_factory=set)
     overrides: Overrides = field(default_factory=Overrides)
 
     def source_public(self, source_id: str) -> bool:
         return self.audience.get(source_id, "personal") != "personal"
 
+    def source_redacts(self, source_id: str) -> bool:
+        return source_id in self.redact
+
 
 EMPTY = Policy()
+
+# Fields a redacting source drops on the way out, on top of `_STRIP`. `author`/
+# `author_name` are the curator's login; `content` is the raw "X starred Y",
+# which embeds it. What survives — one_liner / why_for_me / topics — is the
+# model's own text, phrased by the prompt to name the repo and a count, never a
+# person.
+_REDACT = ("author", "author_name", "content")
 
 
 async def load_policy(session: AsyncSession) -> Policy:
     """Load the source audiences and every operator override (both are small
     tables, read whole rather than joined per bundle)."""
-    audience = {
-        sc.name: (sc.audience or "personal")
-        for sc in (await session.execute(select(SourceConfig))).scalars().all()
-    }
+    sources = (await session.execute(select(SourceConfig))).scalars().all()
+    audience = {sc.name: (sc.audience or "personal") for sc in sources}
+    redact = {sc.name for sc in sources if sc.public_redact}
     ov = Overrides()
     for r in (await session.execute(select(PublicationOverride))).scalars().all():
         key = (r.source_id, r.date)
@@ -111,11 +122,12 @@ async def load_policy(session: AsyncSession) -> Policy:
             ov.items.setdefault(key, {})[r.item_id] = r.published
         else:
             ov.days[key] = r.published
-    return Policy(audience=audience, overrides=ov)
+    return Policy(audience=audience, redact=redact, overrides=ov)
 
 
-def _public_item(item: dict) -> dict:
-    return {k: v for k, v in item.items() if k not in _STRIP and not k.startswith("_")}
+def _public_item(item: dict, redact: bool = False) -> dict:
+    drop = _STRIP + _REDACT if redact else _STRIP
+    return {k: v for k, v in item.items() if k not in drop and not k.startswith("_")}
 
 
 def is_public(item: dict, source_id: str, date: str, policy: Policy = EMPTY) -> bool:
@@ -146,8 +158,9 @@ def public_items(bundle: dict, policy: Policy = EMPTY) -> list[dict]:
         return []
     if policy.overrides.day_hidden(source_id, date):
         return []
+    redact = policy.source_redacts(source_id)
     return [
-        _public_item(i)
+        _public_item(i, redact)
         for i in (bundle.get("items") or [])
         if is_public(i, source_id, date, policy)
     ]
@@ -281,6 +294,11 @@ async def public_recent(session: AsyncSession, limit: int = 40) -> list[dict]:
                 "title": result.get("title") or result.get("source_id", ""),
                 "count": len(pubs),
                 "by_tier": counts,
+                # 必看 is the band, not the tab: the lead (`must_see_push`) is a
+                # slice of it, exactly as `MUST_SEE` has it in engine/bundle. The
+                # card wants the one number a reader acts on — "how much of today
+                # do I actually have to read" — not a four-way split.
+                "must_see": sum(counts.get(t, 0) for t in MUST_SEE),
                 "teaser": lead.get("one_liner") or "",
                 "tags": [t for t in (lead.get("topics") or [])][:3],
                 "_candidates": candidates,

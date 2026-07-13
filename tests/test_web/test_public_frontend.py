@@ -199,9 +199,12 @@ async def a_photo_for_the_lead(a_public_day):
         await s.commit()
 
 
-def test_the_home_card_breaks_the_count_down_by_tier(client, a_public_day):
+def test_the_home_card_shows_the_total_and_the_must_see_count(client, a_public_day):
+    """One number a reader acts on, not a four-way split — that lives on the tabs."""
     r = client.get("/zh")
-    assert "必看" in r.text and "tierdot" in r.text
+    assert '<span class="must">' in r.text and "必看" in r.text
+    # The bundle's only public item is must_see_page, so 必看 is 1 of 1.
+    assert "<b>1</b>" in r.text
 
 
 def test_the_home_card_shows_a_proxied_picture_never_a_hotlink(client, a_photo_for_the_lead):

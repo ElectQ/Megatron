@@ -61,7 +61,12 @@ def _alembic(db: Path, target: str) -> None:
 
 @pytest.fixture
 def prompts(tmp_path):
-    """Both stored prompts as they stood before 0013, brought all the way to head."""
+    """Both stored prompts as they stood before 0013, brought up through 0013.
+
+    Stops at 0013, not head: 0014 rewrites the github prompt's `public` block
+    again (the feed goes public-redacted), and that is 0014's story to tell. This
+    file owns what 0013 alone is responsible for.
+    """
     db = tmp_path / "old.db"
     _alembic(db, "0011_publication_overrides")
 
@@ -78,7 +83,7 @@ def prompts(tmp_path):
     con.commit()
     con.close()
 
-    _alembic(db, "head")
+    _alembic(db, "0013_publish_the_take")
     con = sqlite3.connect(db)
     rows = dict(con.execute("SELECT name, template FROM prompt_templates").fetchall())
     con.close()
