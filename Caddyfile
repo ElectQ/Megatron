@@ -1,4 +1,4 @@
-megatron.yourdomain.com {
+megatron.qshunter.top {
     reverse_proxy localhost:8000
 
     encode gzip zstd

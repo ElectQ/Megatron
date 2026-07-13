@@ -58,9 +58,9 @@ MEGATRON_DATABASE_URL=sqlite+aiosqlite:////app/data/megatron.db
 MEGATRON_SESSION_SECRET=${SESSION_SECRET}
 MEGATRON_ADMIN_PASSWORD=${ADMIN_PASS}
 MEGATRON_INGEST_TOKEN=${INGEST_TOKEN}
-# Public domain (first-boot seed). Leave it and set your domain in the UI
-# (系统设置 → 域名) after start — it's a DB setting, so deploy stays one-command.
-MEGATRON_BASE_URL=http://localhost:8000
+# Public domain (first-boot seed), pre-set to the production domain. It's a DB
+# setting — change later in the UI (系统设置 → 域名) without editing env.
+MEGATRON_BASE_URL=https://megatron.qshunter.top
 MEGATRON_DEEPSEEK_API_KEY=
 MEGATRON_DINGTALK_URL=
 MEGATRON_DINGTALK_SECRET=
