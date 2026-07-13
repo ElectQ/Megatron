@@ -2,73 +2,108 @@
 {% block title %}Megatron LLM Hub{% endblock %}
 {% block head %}
 <style>
-  /* Hero data-flow diagram: 采集源 → LLM 分析 → 产出. Flexbox so it is responsive
-     and theme-aware; stacks vertically on a phone. */
-  .flow{display:flex;align-items:stretch;gap:.5rem;margin:1.25rem 0 2.5rem;flex-wrap:wrap}
-  .flow .stage{flex:1 1 9rem;min-width:8.5rem;background:var(--surface);border:1px solid var(--border);
-    border-radius:.75rem;padding:.85rem .9rem;box-shadow:var(--shadow)}
-  .flow .stage .cap{font-size:.6875rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:.4rem}
-  .flow .stage .rows{display:flex;flex-direction:column;gap:.3rem;font-size:.8125rem}
-  .flow .stage .rows span{display:flex;align-items:center;gap:.4rem}
-  .flow .stage.brainy{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset,var(--shadow)}
-  .flow .arrow{align-self:center;color:var(--faint);font-size:1.1rem;flex:0 0 auto}
-  @media (max-width:34rem){
-    .flow{flex-direction:column}
-    .flow .arrow{transform:rotate(90deg);align-self:flex-start;margin-left:1.5rem}
-  }
-  .lede h1{font-size:1.55rem;margin:0 0 .35rem;letter-spacing:-.015em}
-  .lede p{color:var(--muted);font-size:.9375rem;margin:0}
+  /* ---- Hero ---- */
+  .lede{margin:.5rem 0 1.75rem}
+  .lede h1{font-size:2rem;line-height:1.15;margin:0 0 .5rem;letter-spacing:-.03em;font-weight:800}
+  .lede h1 .grad{background:linear-gradient(120deg,var(--accent),#a06bff 70%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede p{color:var(--muted);font-size:1rem;margin:0;max-width:34rem}
 
+  /* ---- Data-flow diagram: Sources → LLM → Output ---- */
+  .flow{display:flex;align-items:stretch;gap:.5rem;margin:0 0 3rem;flex-wrap:nowrap;
+    padding:1rem;border:1px solid var(--border);border-radius:var(--radius);
+    background:linear-gradient(180deg,var(--surface),var(--surface-2));box-shadow:var(--shadow-sm)}
+  .flow .stage{flex:1 1 0;min-width:0;background:var(--surface);border:1px solid var(--border);
+    border-radius:11px;padding:.8rem .85rem;box-shadow:var(--shadow-sm)}
+  .flow .stage .cap{font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;
+    color:var(--faint);margin-bottom:.55rem;display:flex;align-items:center;gap:.35rem}
+  .flow .stage .cap b{width:.9rem;height:.9rem;border-radius:3px;display:inline-block}
+  .flow .stage .rows{display:flex;flex-direction:column;gap:.35rem;font-size:.8125rem;color:var(--muted)}
+  .flow .stage .rows span{display:flex;align-items:center;gap:.45rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .flow .stage.brainy{border-color:transparent;color:var(--text);
+    background:linear-gradient(180deg,var(--accent-soft),var(--surface));
+    box-shadow:0 0 0 1.5px var(--accent) inset,var(--shadow-sm)}
+  .flow .stage.brainy .cap{color:var(--accent-ink)}
+  .flow .arrow{align-self:center;color:var(--faint);flex:0 0 auto;display:flex}
+  .flow .arrow svg{width:20px;height:20px}
+  @media (max-width:36rem){
+    .flow{flex-direction:column;padding:.85rem}
+    .flow .arrow{transform:rotate(90deg);margin:-.15rem auto}
+  }
+
+  /* ---- Day sections ---- */
   .day{margin-top:2.5rem}
-  .day .date{display:flex;align-items:center;gap:.6rem;font-variant-numeric:tabular-nums;
-    font-weight:700;font-size:1.05rem;margin-bottom:.75rem}
-  .day .date::after{content:"";flex:1;height:1px;background:var(--border)}
-  .streams{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))}
-  a.stream{display:block;background:var(--surface);border:1px solid var(--border);border-radius:.75rem;
-    padding:.9rem 1rem;text-decoration:none;box-shadow:var(--shadow)}
-  a.stream:hover{border-color:var(--faint)}
-  a.stream .name{font-weight:600;font-size:1rem}
-  a.stream .n{color:var(--muted);font-size:.8125rem;margin-top:.3rem}
+  .day .date{display:flex;align-items:center;gap:.7rem;font-weight:700;font-size:.9rem;
+    letter-spacing:.01em;margin-bottom:.9rem;color:var(--muted)}
+  .day .date .d{font-variant-numeric:tabular-nums;font-size:1.15rem;color:var(--text);letter-spacing:-.01em}
+  .day .date::after{content:"";flex:1;height:1px;
+    background:linear-gradient(90deg,var(--border-strong),transparent)}
+
+  .streams{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fill,minmax(15.5rem,1fr))}
+  a.stream{position:relative;display:flex;align-items:center;gap:.85rem;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:.95rem 1.05rem;text-decoration:none;box-shadow:var(--shadow-sm);
+    transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+  a.stream:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg);border-color:var(--border-strong)}
+  a.stream .ico{flex:0 0 auto;width:2.4rem;height:2.4rem;border-radius:11px;display:grid;place-items:center;
+    font-size:1.25rem;background:var(--accent-soft)}
+  a.stream .body{min-width:0;flex:1}
+  a.stream .name{font-weight:700;font-size:.98rem;letter-spacing:-.01em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  a.stream .n{color:var(--faint);font-size:.78rem;margin-top:.15rem}
+  a.stream .n b{color:var(--accent-ink);font-weight:700}
+  a.stream .go{flex:0 0 auto;color:var(--faint);transition:transform .16s ease,color .16s ease}
+  a.stream:hover .go{transform:translateX(3px);color:var(--accent)}
+
+  .empty{text-align:center;color:var(--muted);padding:4rem 1rem;
+    border:1px dashed var(--border-strong);border-radius:var(--radius);margin-top:1rem}
+  .empty .moon{font-size:2.25rem;margin-bottom:.6rem}
 </style>
 {% endblock %}
 {% block content %}
 
-<div class="lede">
-  <h1>Megatron LLM Hub</h1>
+<div class="lede rise">
+  <h1>Megatron <span class="grad">LLM Hub</span></h1>
   <p>{{ t('A daily digest of publicly notable security items — vulnerabilities, tools, events.') }}</p>
 </div>
 
-<div class="flow" aria-label="data flow">
+{% set arrow %}<span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>{% endset %}
+<div class="flow rise" aria-label="data flow">
   <div class="stage">
-    <div class="cap">{{ t('Sources') }}</div>
+    <div class="cap"><b style="background:var(--t-more)"></b>{{ t('Sources') }}</div>
     <div class="rows"><span>🐦 Twitter</span><span>🐙 GitHub</span><span>🌐 RSS / HTTP</span></div>
   </div>
-  <div class="arrow">→</div>
+  {{ arrow }}
   <div class="stage brainy">
-    <div class="cap">{{ t('LLM analysis') }}</div>
+    <div class="cap"><b style="background:var(--accent)"></b>{{ t('LLM analysis') }}</div>
     <div class="rows"><span>🧭 {{ t('tier & tag') }}</span><span>🏷️ {{ t('mark public') }}</span></div>
   </div>
-  <div class="arrow">→</div>
+  {{ arrow }}
   <div class="stage">
-    <div class="cap">{{ t('Output') }}</div>
+    <div class="cap"><b style="background:var(--t-rec)"></b>{{ t('Output') }}</div>
     <div class="rows"><span>📣 {{ t('push') }}</span><span>🌐 {{ t('public blog') }}</span><span>🔒 {{ t('private') }}</span></div>
   </div>
 </div>
 
 {% if not days %}
-  <div style="text-align:center;color:var(--muted);padding:3rem 1rem">
-    <div style="font-size:2rem;margin-bottom:.5rem">🌙</div>
+  <div class="empty rise">
+    <div class="moon">🌙</div>
     {{ t('Nothing published yet.') }}
   </div>
 {% else %}
   {% for d in days %}
-  <section class="day">
-    <div class="date">{{ d.date }}</div>
+  <section class="day rise">
+    <div class="date"><span class="d">{{ d.date }}</span></div>
     <div class="streams">
       {% for s in d.streams %}
+      {% set icon = '🐦' if 'twitter' in s.source_id else ('🐙' if 'github' in s.source_id else '🌐') %}
       <a class="stream" href="/{{ lang }}/{{ s.source_id }}/{{ d.date }}">
-        <div class="name">{{ s.title }}</div>
-        <div class="n">{{ s.count }} {{ t('items') }}</div>
+        <span class="ico">{{ icon }}</span>
+        <span class="body">
+          <span class="name">{{ s.title }}</span>
+          <span class="n"><b>{{ s.count }}</b> {{ t('items') }}</span>
+        </span>
+        <span class="go"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
       </a>
       {% endfor %}
     </div>
