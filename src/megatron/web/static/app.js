@@ -245,11 +245,25 @@
       return zh ? ("每 " + mm[1] + " 小时") : ("Every " + mm[1] + "h");
     if (isNum(min) && isNum(hr)) {
       var t = hhmm(+hr, +min);
-      if (dom === "*" && mon === "*" && dow === "*") return zh ? ("每天 " + t) : ("Daily " + t);
-      if (dom === "*" && mon === "*" && isNum(dow) && +dow <= 6) return zh ? ("每" + wd[+dow] + " " + t) : ("Weekly " + wd[+dow] + " " + t);
-      if (isNum(dom) && mon === "*" && dow === "*") return zh ? ("每月 " + (+dom) + " 日 " + t) : ("Monthly day " + (+dom) + " " + t);
+      // The scheduler runs on UTC, so a bare "23:00" reads as local and misleads.
+      // Label it, and for the daily case show the viewer's local equivalent (for
+      // weekly/monthly the local weekday/day can shift, so only label the zone).
+      if (dom === "*" && mon === "*" && dow === "*") {
+        var local = localOf(+hr, +min);
+        var suffix = local === t ? "" : (zh ? " · 本地 " + local : " · local " + local);
+        return (zh ? "每天 " : "Daily ") + t + " UTC" + suffix;
+      }
+      if (dom === "*" && mon === "*" && isNum(dow) && +dow <= 6)
+        return (zh ? "每" + wd[+dow] + " " : "Weekly " + wd[+dow] + " ") + t + " UTC";
+      if (isNum(dom) && mon === "*" && dow === "*")
+        return (zh ? "每月 " + (+dom) + " 日 " : "Monthly day " + (+dom) + " ") + t + " UTC";
     }
     return null;
+
+    function localOf(h, m) {
+      var d = new Date(Date.UTC(2000, 0, 2, h, m));
+      return hhmm(d.getHours(), d.getMinutes());
+    }
   }
 
   function initCron(root) {
@@ -282,5 +296,6 @@
     pollWhileActive: pollWhileActive,
     initDatePickers: initDatePickers,
     initCron: initCron,
+    humanizeCron: humanizeCron,
   };
 })();
