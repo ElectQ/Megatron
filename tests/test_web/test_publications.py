@@ -16,7 +16,7 @@ from megatron.core.db import async_session_factory
 from megatron.engine.bundle import BUNDLE_SCHEMA
 from megatron.web.public_view import (
     has_public,
-    load_overrides,
+    load_policy,
     public_items,
     public_recent,
 )
@@ -61,7 +61,19 @@ def _bundle(items):
     }
 
 
-async def _seed_run(items):
+async def _seed_source(source_id=SRC, audience="public"):
+    from megatron.core.models import SourceConfig
+
+    async with async_session_factory() as s:
+        s.add(
+            SourceConfig(
+                name=source_id, source_type="t", adapter="bundle_pull", audience=audience
+            )
+        )
+        await s.commit()
+
+
+async def _seed_run(items, source_id=SRC, audience="public"):
     from megatron.core.engine_models import (
         AnalysisModule,
         AnalysisRun,
@@ -69,6 +81,7 @@ async def _seed_run(items):
         PromptTemplate,
     )
 
+    await _seed_source(source_id, audience)
     async with async_session_factory() as s:
         prompt = PromptTemplate(name="p", template="x")
         provider = LLMProvider(name="llm", model="m")
@@ -96,19 +109,36 @@ async def _seed_run(items):
 
 
 @pytest.mark.asyncio
-async def test_without_overrides_the_model_decides():
-    await _seed_run([_item(1, True), _item(2, False)])
+async def test_inside_a_public_source_absent_means_publish():
+    """The default flipped: content here is already-public news, so a day publishes
+    unless the model explicitly holds an item back."""
+    await _seed_run([_item(1, None), _item(2, True), _item(3, False)])
     async with async_session_factory() as s:
-        ov = await load_overrides(s)
-        pub = public_items(_bundle([_item(1, True), _item(2, False)]), ov)
-    assert [p["one_liner"] for p in pub] == ["公开条目 1"]
+        policy = await load_policy(s)
+        pub = public_items(_bundle([_item(1, None), _item(2, True), _item(3, False)]), policy)
+    # 1 (didn't say) and 2 (said yes) publish; 3 (explicitly held back) does not.
+    assert [p["id"] for p in pub] == ["1", "2"]
+
+
+@pytest.mark.asyncio
+async def test_a_personal_source_never_publishes_whatever_the_model_said():
+    """The hard gate: the GitHub feed's events are each public, but publishing them
+    exposes who you follow — so the source never reaches the blog."""
+    await _seed_run([_item(1, True), _item(2, True)], source_id="gh", audience="personal")
+    b = _bundle([_item(1, True), _item(2, True)])
+    b["source_id"] = "gh"
+    async with async_session_factory() as s:
+        policy = await load_policy(s)
+        assert public_items(b, policy) == []
+        assert has_public(b, policy) is False
 
 
 @pytest.mark.asyncio
 async def test_public_items_strip_personal_fields():
+    await _seed_source()
     async with async_session_factory() as s:
-        ov = await load_overrides(s)
-        pub = public_items(_bundle([_item(1, True)]), ov)
+        policy = await load_policy(s)
+        pub = public_items(_bundle([_item(1, True)]), policy)
     assert pub and "why_for_me" not in pub[0] and "scores" not in pub[0]
 
 
@@ -129,8 +159,8 @@ async def test_operator_can_drop_a_single_item(client):
     assert item1["overridden"] is True
 
     async with async_session_factory() as s:
-        ov = await load_overrides(s)
-        pub = public_items(_bundle([_item(1, True), _item(2, True)]), ov)
+        policy = await load_policy(s)
+        pub = public_items(_bundle([_item(1, True), _item(2, True)]), policy)
     assert [p["id"] for p in pub] == ["2"]
 
 
@@ -144,9 +174,9 @@ async def test_taking_the_day_down_hides_it_entirely(client):
 
     b = _bundle([_item(1, True), _item(2, True)])
     async with async_session_factory() as s:
-        ov = await load_overrides(s)
-        assert public_items(b, ov) == []
-        assert has_public(b, ov) is False
+        policy = await load_policy(s)
+        assert public_items(b, policy) == []
+        assert has_public(b, policy) is False
         assert await public_recent(s) == []  # gone from the blog index too
 
     # ...and the public page 404s.
@@ -162,8 +192,8 @@ async def test_operator_can_publish_what_the_model_held_back(client):
     assert r.json()["live"] is True
 
     async with async_session_factory() as s:
-        ov = await load_overrides(s)
-        pub = public_items(_bundle([_item(1, False)]), ov)
+        policy = await load_policy(s)
+        pub = public_items(_bundle([_item(1, False)]), policy)
     # Force-published, but still stripped of the personal framing.
     assert [p["id"] for p in pub] == ["1"]
     assert "why_for_me" not in pub[0]
@@ -179,8 +209,8 @@ async def test_reset_hands_the_decision_back_to_the_analysis(client):
     assert r.json()["live"] is True  # back to what the model said
 
     async with async_session_factory() as s:
-        ov = await load_overrides(s)
-        assert ov.days == {} and ov.items == {}
+        policy = await load_policy(s)
+        assert policy.overrides.days == {} and policy.overrides.items == {}
 
 
 @pytest.mark.asyncio

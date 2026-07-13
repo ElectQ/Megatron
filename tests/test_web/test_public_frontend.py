@@ -77,7 +77,12 @@ async def a_public_day():
     from megatron.ingest.spec import SourceSpec
 
     async with async_session_factory() as s:
-        await sync_specs(s, [SourceSpec(source_id=SRC, display_name="推特安全流")])
+        # The source must declare itself publishable — `audience` is the hard gate,
+        # and a `personal` source (the default) never reaches the blog at all.
+        await sync_specs(
+            s,
+            [SourceSpec(source_id=SRC, display_name="推特安全流", audience=["public"])],
+        )
         prompt = PromptTemplate(name="p", template="x", output_schema={})
         provider = LLMProvider(
             name="p",
@@ -143,3 +148,77 @@ def test_the_personal_capability_page_is_unchanged(client, a_public_day):
 
 def test_admin_still_requires_login(client):
     assert client.get("/ui/dashboard", follow_redirects=False).status_code in (303, 307)
+
+
+@pytest_asyncio.fixture
+async def a_personal_source_day():
+    """A day from a `personal` source whose items the model marked public.
+
+    The GitHub feed is the real case: every event in it is public GitHub activity,
+    yet publishing the stream exposes *who you follow*. The leak is the curation,
+    not the item — so the gate is the source, and it must hold even when the model
+    marks every item public.
+    """
+    from megatron.core.engine_models import (
+        AnalysisModule,
+        AnalysisRun,
+        LLMProvider,
+        PromptTemplate,
+    )
+    from megatron.ingest.registry import sync_specs
+    from megatron.ingest.spec import SourceSpec
+
+    gh = "github_followee_feed"
+    async with async_session_factory() as s:
+        await sync_specs(
+            s, [SourceSpec(source_id=gh, display_name="GitHub 关注流", audience=["personal"])]
+        )
+        prompt = PromptTemplate(name="p2", template="x", output_schema={})
+        provider = LLMProvider(name="p2", model="m", api_base="http://x", api_key="k")
+        s.add_all([prompt, provider])
+        await s.flush()
+        module = AnalysisModule(
+            name="m2", source=gh, prompt_template_id=prompt.id, provider_id=provider.id
+        )
+        s.add(module)
+        await s.flush()
+        s.add(
+            AnalysisRun(
+                module_id=module.id,
+                status="completed",
+                result={
+                    "schema": BUNDLE_SCHEMA,
+                    "date": DATE,
+                    "source_id": gh,
+                    "title": "GitHub 关注流",
+                    "items": [
+                        {
+                            "id": 1,
+                            "source_id": gh,
+                            "tier": "must_see_page",
+                            "one_liner": "FOLLOW-GRAPH-LEAK",
+                            "topics": ["gh"],
+                            "url": "https://github.com/a/b",
+                            "content": "x starred y",
+                            "public": True,  # the model says publish...
+                        }
+                    ],
+                    "push_item_ids": [],
+                },
+            )
+        )
+        await s.commit()
+    return gh
+
+
+def test_a_personal_source_never_reaches_the_blog(client, a_personal_source_day):
+    """...and the source's `audience` overrules it. Nothing, anywhere, publicly."""
+    gh = a_personal_source_day
+
+    # No article page.
+    assert client.get(f"/zh/{gh}/{DATE}").status_code == 404
+    # Not listed on the index either — and its text appears nowhere.
+    home = client.get("/zh")
+    assert home.status_code == 200
+    assert gh not in home.text
+    assert "FOLLOW-GRAPH-LEAK" not in home.text

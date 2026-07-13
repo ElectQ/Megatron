@@ -20,7 +20,10 @@ source_id: twitter_security_list
 display_name: 推特安全流
 kind: twitter_list
 adapter: bundle_pull
-audience: [personal]
+# 公开:这条流会上公开博客(megatron.qshunter.top/zh/...)。内容本就是公开安全新闻,
+# 个人解读(why_for_me/评分)在公开时会被自动剥离。源内条目默认公开,LLM 只对确实
+# 敏感的按 public: false 压下。
+audience: [public]
 enabled: true
 
 # 我们去拉的时间。Soundwave 的 Action 在 21:13 UTC(05:13 北京)跑，

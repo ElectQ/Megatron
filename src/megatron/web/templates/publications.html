@@ -22,19 +22,24 @@
             <span class="font-medium">{{ d.title }}</span>
             <span class="font-mono text-xs text-muted">{{ d.source_id }}</span>
 
-            {% if d.live %}
+            {% if not d.source_public %}
+            <span class="badge badge-ghost badge-sm">🔒 {{ t('private source') }}</span>
+            {% elif d.live %}
             <span class="badge badge-success badge-sm js-live">{{ t('live') }}</span>
             {% else %}
             <span class="badge badge-ghost badge-sm js-live">{{ t('not published') }}</span>
             {% endif %}
 
-            {% if d.day_published is false %}
+            {% if d.source_public and d.day_published is false %}
             <span class="badge badge-warning badge-xs">{{ t('taken down') }}</span>
             {% endif %}
 
+            {% if d.source_public %}
             <span class="text-xs text-secondary js-count">{{ d.public_count }} / {{ d.total }} {{ t('items public') }}</span>
+            {% endif %}
 
             <span class="ml-auto flex gap-2">
+                {% if d.source_public %}
                 {% if d.live %}
                 <a href="/zh/{{ d.source_id }}/{{ d.date }}" target="_blank" rel="noopener"
                    class="btn btn-outline btn-sm">{{ t('View on site ↗') }}</a>
@@ -49,10 +54,15 @@
                 <button type="button" class="btn btn-ghost btn-sm"
                         onclick="clearDay('{{ d.source_id }}','{{ d.date }}')"
                         title="{{ t('Discard your overrides and go back to what the analysis decided.') }}">{{ t('Reset') }}</button>
+                {% endif %}
             </span>
         </div>
 
-        {% if d.day_published is false %}
+        {% if not d.source_public %}
+        <div class="alert mb-3" role="alert">
+            <span class="text-xs">{{ t("This source is private — it never reaches the public blog, whatever its items say. Its day page is reachable only with the capability token. To change that, set the source's audience to public in its config.") }}</span>
+        </div>
+        {% elif d.day_published is false %}
         <div class="alert alert-warning mb-3" role="alert">
             <span class="text-xs">{{ t('This day is taken down — the public page 404s regardless of the items below.') }}</span>
         </div>
@@ -74,6 +84,7 @@
                 <tr data-item="{{ it.id }}">
                     <td>
                         <input type="checkbox" class="checkbox checkbox-sm" {% if it.public %}checked{% endif %}
+                               {% if not d.source_public %}disabled title="{{ t('Private source — locked.') }}"{% endif %}
                                onchange="setItem('{{ d.source_id }}','{{ d.date }}','{{ it.id }}', this.checked)">
                     </td>
                     <td>
@@ -88,10 +99,12 @@
                         {% for tg in it.topics %}<span class="badge badge-ghost badge-xs ml-1">{{ tg }}</span>{% endfor %}
                     </td>
                     <td>
-                        {% if it.public_by_model %}
+                        {% if it.public_by_model is none %}
+                        <span class="badge badge-ghost badge-xs" title="{{ t('The model did not flag this — inside a public source that means publish.') }}">{{ t('— (default)') }}</span>
+                        {% elif it.public_by_model %}
                         <span class="badge badge-ghost badge-xs">public</span>
                         {% else %}
-                        <span class="badge badge-ghost badge-xs">private</span>
+                        <span class="badge badge-warning badge-xs" title="{{ t('The model judged this one sensitive and held it back.') }}">{{ t('held back') }}</span>
                         {% endif %}
                         {% if it.overridden %}<span class="badge badge-info badge-xs ml-1">{{ t('overruled') }}</span>{% endif %}
                     </td>

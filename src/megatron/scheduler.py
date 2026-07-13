@@ -268,6 +268,46 @@ async def _do_module_run(module_id: int, module_name: str) -> None:
         )
 
 
+async def pull_module_source(module_id: int) -> str:
+    """Pull this module's source once, if it is one we poll. Returns the source id
+    pulled ("" if there was nothing to pull).
+
+    The manual Run path uses this. Analysis reads the DB, and for an out-of-band
+    source (`bundle_pull`) the day's bundle may simply not be in it yet — so a
+    click on Run would honestly report "no data" while the data sat one HTTP
+    request away. Clicking Run means "give me a result", so fetch first.
+
+    Unlike the scheduled path this does *not* retry for hours: a human is waiting
+    on the click. One attempt, then analyse whatever is there.
+    """
+    from .core.engine_models import AnalysisModule
+    from .ingest.registry import get_source
+    from .ingest.spec import POLLED_ADAPTERS
+
+    async with async_session_factory() as session:
+        module = await session.get(AnalysisModule, module_id)
+        if module is None:
+            return ""
+        sc = await get_source(session, module.source)
+        if sc is None or not sc.enabled or sc.adapter not in POLLED_ADAPTERS:
+            return ""  # pushed to us, or not a source we fetch — nothing to do
+        source_id = module.source
+
+    try:
+        ingested, duplicated = await poll_source(source_id)
+        logger.info(
+            "scheduler.manual_pull",
+            module_id=module_id,
+            source=source_id,
+            ingested=ingested,
+            duplicated=duplicated,
+        )
+    except Exception as e:
+        # A collector being down must not sink the run — analyse what we have.
+        logger.error("scheduler.manual_pull.failed", source=source_id, error=str(e))
+    return source_id
+
+
 async def _acquire_plan(module_id: int) -> tuple[bool, str] | None:
     """Whether this module should acquire-with-retry, and its source id.
 
