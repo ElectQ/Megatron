@@ -4,7 +4,7 @@ description: 每日 GitHub 关注流分级（日刊页 + 链接推送）
 source: github_followee_feed
 prompt: github_radar_v1
 provider: deepseek
-schedule_cron: "0 23 * * *"     # 23:00 UTC = 07:00 北京，晚于 22:40 拉取
+schedule_cron: "0 1 * * *"      # 01:00 UTC = 09:00 北京（晚于 22:40 UTC 拉取）
 channels: [钉钉安全简报]          # 推一条链接进钉钉；按名字绑定，缺渠道则不推送
 filter_config:
   time_mode: today

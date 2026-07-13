@@ -5,7 +5,7 @@ description: 每日推特安全信息流分级（门铃 + 日刊）
 source: twitter_security_list
 prompt: daily_intel_v1
 provider: deepseek
-schedule_cron: "0 9 * * *"      # 09:00 UTC = 17:00 北京
+schedule_cron: "0 1 * * *"      # 01:00 UTC = 09:00 北京（晚于 22:30 UTC 拉取）
 channels: [钉钉安全简报]          # 按名字绑定；缺渠道则不推送
 filter_config:
   time_mode: today

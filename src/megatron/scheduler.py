@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from .core.db import async_session_factory
 from .core.logging import get_logger
@@ -15,6 +15,16 @@ MODULE_JOB_PREFIX = "module_"
 PULL_JOB_PREFIX = "pull_"
 
 DEFAULT_PULL_CRON = "0 6 * * *"
+
+# Acquire-with-retry (§ scheduled analysis of a polled source).
+# A scheduled task for a polled 'today' source may fire before the day's upstream
+# bundle has landed (GitHub Actions cron can lag hours). Instead of analysing an
+# empty day, the job re-pulls and waits: starting at the task's scheduled time
+# (北京 09:00 = 01:00 UTC), it tries ACQUIRE_MAX_ATTEMPTS times, one hour apart.
+# The first attempt that sees today's data analyses + pushes; if the day never
+# arrives, a failed run is recorded and no push goes out (当天失败).
+ACQUIRE_MAX_ATTEMPTS = 5
+ACQUIRE_RETRY_SECONDS = 3600
 
 
 def get_scheduler() -> AsyncIOScheduler:
@@ -164,7 +174,69 @@ async def reload_pull_jobs() -> int:
 
 
 async def _run_module_job(module_id: int, module_name: str) -> None:
-    """Background task executed by APScheduler for a scheduled module."""
+    """APScheduler entrypoint for a scheduled module.
+
+    For a polled 'today' source, first *acquire* the day's bundle: re-pull and,
+    if today's data has not landed yet, wait an hour and retry, up to
+    ACQUIRE_MAX_ATTEMPTS times. The first attempt that sees the data analyses +
+    pushes; if it never arrives, the day is marked failed. Non-polled or
+    non-'today' modules run immediately, exactly as before.
+    """
+    import asyncio
+
+    plan = await _acquire_plan(module_id)
+    if plan is None:
+        logger.warning("scheduler.module.gone", module=module_name, module_id=module_id)
+        return
+    retry, source_id = plan
+
+    if not retry:
+        await _do_module_run(module_id, module_name)
+        return
+
+    for attempt in range(1, ACQUIRE_MAX_ATTEMPTS + 1):
+        try:
+            await poll_source(source_id)
+        except Exception as e:  # a failed pull is one failed attempt, not a crash
+            logger.error(
+                "scheduler.acquire.pull_failed",
+                module=module_name,
+                source=source_id,
+                attempt=attempt,
+                error=str(e),
+            )
+
+        if await _today_present(module_id):
+            logger.info(
+                "scheduler.acquire.ready",
+                module=module_name,
+                source=source_id,
+                attempt=attempt,
+            )
+            await _do_module_run(module_id, module_name)
+            return
+
+        logger.info(
+            "scheduler.acquire.not_ready",
+            module=module_name,
+            source=source_id,
+            attempt=attempt,
+            of=ACQUIRE_MAX_ATTEMPTS,
+        )
+        if attempt < ACQUIRE_MAX_ATTEMPTS:
+            await asyncio.sleep(ACQUIRE_RETRY_SECONDS)
+
+    logger.warning(
+        "scheduler.acquire.exhausted",
+        module=module_name,
+        source=source_id,
+        attempts=ACQUIRE_MAX_ATTEMPTS,
+    )
+    await _record_failed_day(module_id, module_name)
+
+
+async def _do_module_run(module_id: int, module_name: str) -> None:
+    """Run one analysis (analyse + push) for a module — the actual work."""
     from .engine.runner import ActiveRunExists, ModuleRunner
 
     try:
@@ -194,6 +266,85 @@ async def _run_module_job(module_id: int, module_name: str) -> None:
             module_id=module_id,
             error=str(e),
         )
+
+
+async def _acquire_plan(module_id: int) -> tuple[bool, str] | None:
+    """Whether this module should acquire-with-retry, and its source id.
+
+    Retry only makes sense when the module reads a *polled* source (we can
+    re-pull it) in the default 'today' window. Returns ``(retry, source_id)``,
+    or ``None`` if the module is gone/disabled.
+    """
+    from .core.engine_models import AnalysisModule
+    from .ingest.registry import get_source
+    from .ingest.spec import POLLED_ADAPTERS
+
+    async with async_session_factory() as session:
+        module = await session.get(AnalysisModule, module_id)
+        if module is None or not module.enabled:
+            return None
+        time_mode = (module.filter_config or {}).get("time_mode", "today")
+        if time_mode not in (None, "today"):
+            return (False, module.source)
+        sc = await get_source(session, module.source)
+        polled = sc is not None and sc.enabled and sc.adapter in POLLED_ADAPTERS
+        return (polled, module.source)
+
+
+async def _today_present(module_id: int) -> bool:
+    """True if today's (UTC) data for the module's source(s) is already ingested.
+
+    Mirrors the runner's own 'today' selection exactly — same sources, same
+    ``collect_date == today_utc`` — so 'present' here means the analysis will
+    actually have rows to work on.
+    """
+    from datetime import datetime, timezone
+
+    from .core.engine_models import AnalysisModule
+    from .core.models import ItemRecord
+
+    async with async_session_factory() as session:
+        module = await session.get(AnalysisModule, module_id)
+        if module is None:
+            return False
+        fc = module.filter_config or {}
+        sources = fc.get("sources") or [module.source]
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        stmt = (
+            select(func.count())
+            .select_from(ItemRecord)
+            .where(ItemRecord.source.in_(sources), ItemRecord.collect_date == today)
+        )
+        if module.source_ref:
+            stmt = stmt.where(ItemRecord.source_ref == module.source_ref)
+        return (await session.execute(stmt)).scalar_one() > 0
+
+
+async def _record_failed_day(module_id: int, module_name: str) -> None:
+    """Record a failed run for a day whose data never arrived — visible in
+    Run History, and (having no result) nothing is pushed."""
+    from datetime import datetime, timezone
+
+    from .core.engine_models import AnalysisRun
+
+    now = datetime.now(timezone.utc)
+    msg = (
+        f"当天数据未到达:{ACQUIRE_MAX_ATTEMPTS} 次拉取"
+        f"(每 {ACQUIRE_RETRY_SECONDS // 60} 分钟一次)后仍无今日数据,取消当天分析。"
+    )
+    async with async_session_factory() as session:
+        session.add(
+            AnalysisRun(
+                module_id=module_id,
+                status="failed",
+                triggered_by="schedule",
+                error=msg,
+                started_at=now,
+                finished_at=now,
+            )
+        )
+        await session.commit()
+    logger.warning("scheduler.acquire.day_failed", module=module_name, module_id=module_id)
 
 
 async def _load_module_schedules(scheduler: AsyncIOScheduler) -> int:
