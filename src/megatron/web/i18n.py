@@ -135,6 +135,8 @@ _ZH: dict[str, str] = {
     "Manual only": "仅手动",
     "Scheduled": "定时执行",
     "Cron expression (UTC)": "Cron 表达式(UTC)",
+    "Times are UTC — the preview above shows your local time.":
+        "时间按 UTC 计 —— 上方预览会换算成你的本地时间(北京 9:00 = `0 1 * * *`)。",
     "daily": "每天",
     "weekly": "每周",
     "every 6h": "每 6 小时",

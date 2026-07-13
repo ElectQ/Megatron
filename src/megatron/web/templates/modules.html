@@ -260,8 +260,13 @@
                 </div>
                 <div id="cron-box" class="max-w-md {{ '' if edit_module and edit_module.schedule_cron else 'hidden' }}">
                     <label class="field-label">{{ t('Cron expression (UTC)') }}</label>
-                    <input name="schedule_cron" placeholder="30 6 * * *" class="input input-bordered w-full font-mono" value="{{ edit_module.schedule_cron if edit_module else '' }}">
-                    <p class="text-xs text-muted mt-2">
+                    <input name="schedule_cron" id="cron-input" placeholder="30 6 * * *" class="input input-bordered w-full font-mono"
+                           value="{{ edit_module.schedule_cron if edit_module else '' }}" oninput="previewCron()">
+                    <p id="cron-preview" class="text-xs mt-2" style="color:var(--info)"></p>
+                    <p class="text-xs text-muted mt-1">
+                        {{ t('Times are UTC — the preview above shows your local time.') }}
+                    </p>
+                    <p class="text-xs text-muted mt-1">
                         <code>0 0 * * *</code> {{ t('daily') }} · <code>0 0 * * 1</code> {{ t('weekly') }} · <code>0 */6 * * *</code> {{ t('every 6h') }}
                     </p>
                 </div>
@@ -285,6 +290,21 @@ function toggleCron() {
     const mode = document.querySelector('input[name=exec_mode]:checked').value;
     document.getElementById('cron-box').classList.toggle('hidden', mode !== 'scheduled');
 }
+
+// The cron is UTC but reads as local at a glance, so echo back what it means
+// (incl. the viewer's local time) as it is typed — mis-setting the hour by a
+// whole timezone is otherwise invisible until the task fires at the wrong time.
+function previewCron() {
+    const el = document.getElementById('cron-preview');
+    const raw = (document.getElementById('cron-input').value || '').trim();
+    if (!el) return;
+    if (!raw) { el.textContent = ''; return; }
+    const human = MG.humanizeCron(raw, document.documentElement.lang || 'en');
+    el.textContent = human ? '→ ' + human : '';
+    el.style.color = human ? 'var(--info)' : 'var(--warning)';
+    if (!human) el.textContent = '⚠ ' + raw;
+}
+document.addEventListener('DOMContentLoaded', previewCron);
 
 function toggleTimeMode() {
     const mode = document.querySelector('input[name=time_mode]:checked').value;
