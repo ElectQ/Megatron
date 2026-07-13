@@ -278,6 +278,12 @@ async def digests_page(request: Request):
     return _render(request, "digests.html", "digests", digests=digests)
 
 
+@router.get("/publications", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def publications_page(request: Request):
+    pubs = await _api_get(request, "/api/admin/publications")
+    return _render(request, "publications.html", "publications", pubs=pubs)
+
+
 @router.get("/system", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
 async def system_page(request: Request):
     policy = await _api_get(request, "/api/admin/settings")

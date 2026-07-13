@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Public Blog · Megatron{% endblock %}
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-semibold tracking-tight">{{ t('Public Blog') }}</h2>
+    <p class="text-sm text-muted mt-1">{{ t('What the analysis published to the public site — and your call to overrule it.') }}</p>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body text-sm text-muted">
+        <div class="font-medium text-secondary mb-1">{{ t('How publishing is decided') }}</div>
+        <div class="text-xs">{{ t('The analysis marks each item public or private (default: private). You can overrule it here — take a whole day down, or drop a single item. Your decision is stored separately, so the run still records what the model actually said.') }}</div>
+        <div class="text-xs mt-1">{{ t('Personal notes (why_for_me, scores) are never published, even for public items.') }}</div>
+    </div>
+</div>
+
+{% for d in pubs %}
+<div class="card mb-6" data-pub="{{ d.source_id }}|{{ d.date }}">
+    <div class="card-body">
+        <div class="flex items-center gap-3 flex-wrap mb-3">
+            <span class="font-mono text-sm">{{ d.date }}</span>
+            <span class="font-medium">{{ d.title }}</span>
+            <span class="font-mono text-xs text-muted">{{ d.source_id }}</span>
+
+            {% if d.live %}
+            <span class="badge badge-success badge-sm js-live">{{ t('live') }}</span>
+            {% else %}
+            <span class="badge badge-ghost badge-sm js-live">{{ t('not published') }}</span>
+            {% endif %}
+
+            {% if d.day_published is false %}
+            <span class="badge badge-warning badge-xs">{{ t('taken down') }}</span>
+            {% endif %}
+
+            <span class="text-xs text-secondary js-count">{{ d.public_count }} / {{ d.total }} {{ t('items public') }}</span>
+
+            <span class="ml-auto flex gap-2">
+                {% if d.live %}
+                <a href="/zh/{{ d.source_id }}/{{ d.date }}" target="_blank" rel="noopener"
+                   class="btn btn-outline btn-sm">{{ t('View on site ↗') }}</a>
+                {% endif %}
+                {% if d.day_published is false %}
+                <button type="button" class="btn btn-primary btn-sm"
+                        onclick="setDay('{{ d.source_id }}','{{ d.date }}',true)">{{ t('Republish day') }}</button>
+                {% else %}
+                <button type="button" class="btn btn-outline btn-sm"
+                        onclick="setDay('{{ d.source_id }}','{{ d.date }}',false)">{{ t('Take day down') }}</button>
+                {% endif %}
+                <button type="button" class="btn btn-ghost btn-sm"
+                        onclick="clearDay('{{ d.source_id }}','{{ d.date }}')"
+                        title="{{ t('Discard your overrides and go back to what the analysis decided.') }}">{{ t('Reset') }}</button>
+            </span>
+        </div>
+
+        {% if d.day_published is false %}
+        <div class="alert alert-warning mb-3" role="alert">
+            <span class="text-xs">{{ t('This day is taken down — the public page 404s regardless of the items below.') }}</span>
+        </div>
+        {% endif %}
+
+        <div class="overflow-x-auto">
+            <table class="table table-xs">
+                <thead>
+                    <tr>
+                        <th>{{ t('Public') }}</th>
+                        <th>{{ t('Tier') }}</th>
+                        <th>{{ t('Item') }}</th>
+                        <th>{{ t('Model said') }}</th>
+                        <th>{{ t('Link') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for it in d['items'] %}
+                <tr data-item="{{ it.id }}">
+                    <td>
+                        <input type="checkbox" class="checkbox checkbox-sm" {% if it.public %}checked{% endif %}
+                               onchange="setItem('{{ d.source_id }}','{{ d.date }}','{{ it.id }}', this.checked)">
+                    </td>
+                    <td>
+                        {% if it.tier == 'must_see_push' %}<span class="status-dot error"></span>
+                        {% elif it.tier == 'must_see_page' %}<span class="status-dot warning"></span>
+                        {% elif it.tier == 'recommend' %}<span class="status-dot warning"></span>
+                        {% else %}<span class="status-dot neutral"></span>{% endif %}
+                        <span class="text-xs">{{ it.tier }}</span>
+                    </td>
+                    <td class="max-w-md text-sm">
+                        {{ it.one_liner }}
+                        {% for tg in it.topics %}<span class="badge badge-ghost badge-xs ml-1">{{ tg }}</span>{% endfor %}
+                    </td>
+                    <td>
+                        {% if it.public_by_model %}
+                        <span class="badge badge-ghost badge-xs">public</span>
+                        {% else %}
+                        <span class="badge badge-ghost badge-xs">private</span>
+                        {% endif %}
+                        {% if it.overridden %}<span class="badge badge-info badge-xs ml-1">{{ t('overruled') }}</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener noreferrer" class="link text-xs">{{ t('source ↗') }}</a>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% if not pubs %}
+<div class="empty-state">{{ t('No analysed days yet. Run a task first — anything it marks public shows up here.') }}</div>
+{% endif %}
+
+<script>
+const API = '/api/admin/publications';
+
+async function _apply(r) {
+    if (!r.ok) { MG.showError(await MG.errorText(r)); return; }
+    // The day's live/count badges depend on every item, so re-render from the
+    // server's own view of the day rather than guessing client-side.
+    location.reload();
+}
+
+async function setDay(src, date, published) {
+    _apply(await MG.apiSend(`${API}/${src}/${date}`, 'PUT', {published}));
+}
+
+async function setItem(src, date, itemId, published) {
+    _apply(await MG.apiSend(`${API}/${src}/${date}/items/${itemId}`, 'PUT', {published}));
+}
+
+async function clearDay(src, date) {
+    _apply(await MG.apiSend(`${API}/${src}/${date}`, 'DELETE', null));
+}
+</script>
+{% endblock %}

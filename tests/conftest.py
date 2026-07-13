@@ -32,6 +32,7 @@ async def _reset_db():
 
         for table in (
             "delivery_logs",
+            "publication_overrides",
             "analysis_runs",
             "module_channels",
             "analysis_modules",

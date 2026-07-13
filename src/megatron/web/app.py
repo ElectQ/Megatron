@@ -24,6 +24,7 @@ from . import (
     prompts_api,
     providers_api,
     public_api,
+    publish_api,
     runs_api,
     day_api,
     schedules_api,
@@ -104,6 +105,7 @@ app.include_router(sources_api.router)
 app.include_router(digests_api.router)
 app.include_router(policy_api.router)
 app.include_router(settings_api.router)
+app.include_router(publish_api.router)
 app.include_router(day_api.router)
 app.include_router(ui.router)
 
