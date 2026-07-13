@@ -21,6 +21,7 @@ usage() {
     echo "  backup   Snapshot the data volume (DB + secrets) → backups/*.tar.gz"
     echo "  restore  Restore the data volume from a backup: restore <file.tar.gz>"
     echo "  reset-password  Reset the admin password (no data loss): reset-password [newpass]"
+    echo "  reset    Wipe any previous data on this machine, then redeploy fresh"
     echo "  clean    Stop containers and remove all data (DB, secrets, volumes)"
     echo "  logs     Show live logs"
     echo "  status   Show container status"
@@ -132,9 +133,32 @@ clean)
         exit 0
     fi
     log "Stopping containers..."
-    $COMPOSE down -v
+    $COMPOSE down -v --remove-orphans
     rm -f .env 2>/dev/null || true
     log "Cleaned. Run 'bash deploy.sh' to start fresh."
+    ;;
+
+reset)
+    # One-shot: wipe any previous state on this machine, then deploy fresh.
+    _setup
+    warn "RESET = remove ALL existing data (DB, secrets, volume) and redeploy from scratch."
+    warn "Back up first if unsure: bash deploy.sh backup"
+    read -p "Continue? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log "Cancelled."
+        exit 0
+    fi
+    log "Removing previous containers, volume and secrets..."
+    $COMPOSE down -v --remove-orphans 2>/dev/null || true
+    rm -f .env 2>/dev/null || true
+    log "Deploying fresh..."
+    _env
+    log "Building..."
+    $COMPOSE build --no-cache --quiet 2>&1 | tail -1
+    log "Starting..."
+    $COMPOSE up -d
+    _wait
     ;;
 
 logs)
