@@ -20,6 +20,7 @@ usage() {
     echo "  update   Git pull + rebuild + restart"
     echo "  backup   Snapshot the data volume (DB + secrets) → backups/*.tar.gz"
     echo "  restore  Restore the data volume from a backup: restore <file.tar.gz>"
+    echo "  reset-password  Reset the admin password (no data loss): reset-password [newpass]"
     echo "  clean    Stop containers and remove all data (DB, secrets, volumes)"
     echo "  logs     Show live logs"
     echo "  status   Show container status"
@@ -184,6 +185,17 @@ restore)
         sh -c "rm -rf /data/* /data/..?* 2>/dev/null; tar xzf /backup/${BASE} -C /data" || err "Restore failed"
     $COMPOSE start web >/dev/null 2>&1 || $COMPOSE up -d
     log "Restored from ${FILE}. Verify: bash deploy.sh logs"
+    ;;
+
+reset-password)
+    _setup
+    # Locked out? Reset admin in the live DB without wiping anything.
+    NEWPASS="${1:-}"
+    if [ -n "$NEWPASS" ]; then
+        $COMPOSE exec -T web python -m megatron.main reset-password --password "$NEWPASS"
+    else
+        $COMPOSE exec -T web python -m megatron.main reset-password
+    fi
     ;;
 
 *)

@@ -159,6 +159,57 @@ def seed():
     asyncio.run(_run())
 
 
+@cli.command("reset-password")
+@click.option("--username", default="admin", help="User to reset (default: admin)")
+@click.option(
+    "--password",
+    default="",
+    help="New password; omit to generate a strong random one and print it.",
+)
+def reset_password(username: str, password: str):
+    """Reset a user's password in place — for a locked-out admin.
+
+    Touches only that user's password (nothing else in the DB), and creates the
+    user if it does not exist. Run it inside the container against the live DB:
+
+        docker compose exec web python -m megatron.main reset-password
+        docker compose exec web python -m megatron.main reset-password --password 'secret'
+    """
+    from sqlalchemy import select
+
+    from .core.db import async_session_factory, dispose_db, init_db
+    from .core.engine_models import User
+    from .core.security import generate_token, hash_password
+
+    async def _run():
+        await init_db()
+        newpass = password or generate_token(18)
+        async with async_session_factory() as s:
+            row = (
+                await s.execute(select(User).where(User.username == username))
+            ).scalar_one_or_none()
+            if row is None:
+                s.add(
+                    User(
+                        username=username,
+                        display_name=username.title(),
+                        password_hash=hash_password(newpass),
+                        is_active=True,
+                    )
+                )
+                action = "created"
+            else:
+                row.password_hash = hash_password(newpass)
+                row.is_active = True
+                action = "reset"
+            await s.commit()
+        await dispose_db()
+        click.echo(f"Password {action} for '{username}': {newpass}")
+        click.echo("Sign in, then change it under 系统设置 (System settings).")
+
+    asyncio.run(_run())
+
+
 @cli.command()
 @click.option("--repo", default="", help="Soundwave repo URL override")
 @click.option(
