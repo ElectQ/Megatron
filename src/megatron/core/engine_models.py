@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .models import Base
@@ -169,6 +169,37 @@ class Policy(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class PublicationOverride(Base):
+    """An operator's publish/unpublish decision, layered over the LLM's.
+
+    What appears on the public blog is decided per item by the analysis (`public`
+    in the bundle). That is a judgement call, and it is sometimes wrong — so the
+    operator needs a way to pull something down.
+
+    The override is stored *here* rather than by rewriting the run's `result`,
+    because the run is the record of what the model actually produced. Editing it
+    would erase the evidence that the model keeps mis-marking — exactly the signal
+    you need to fix the prompt.
+
+    Scope: `item_id == ""` is the whole day (source + date); otherwise the single
+    item. Absent row = no override = whatever the LLM said.
+    """
+
+    __tablename__ = "publication_overrides"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[str] = mapped_column(String(32), index=True)
+    date: Mapped[str] = mapped_column(String(16), index=True)
+    # "" = day-level override; otherwise the bundle item's id.
+    item_id: Mapped[str] = mapped_column(String(64), default="")
+    published: Mapped[bool] = mapped_column(Boolean)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("ux_pub_override", "source_id", "date", "item_id", unique=True),
+    )
+
+
 class SystemSetting(Base):
     """Runtime system settings — a single row, editable in the admin UI.
 
@@ -188,6 +219,7 @@ __all__ = [
     "LLMProvider",
     "PromptTemplate",
     "AnalysisModule",
+    "PublicationOverride",
     "ModuleChannel",
     "AnalysisRun",
     "User",

@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.db import get_session
 from .day_api import _latest_bundle
 from .i18n import SUPPORTED_LANGS, make_translator
-from .public_view import has_public, public_days, public_view
+from .public_view import has_public, load_overrides, public_days, public_view
 
 router = APIRouter(tags=["public"])
 templates = Jinja2Templates(directory="src/megatron/web/templates")
@@ -85,11 +85,12 @@ async def public_post(
 ):
     _lang_or_404(lang)
     bundle = await _latest_bundle(session, date, source_id)
-    # Default private: no bundle, or nothing marked public → 404 (not 403; don't
-    # confirm a private day exists).
-    if not bundle or not has_public(bundle):
+    ov = await load_overrides(session)
+    # Default private: no bundle, nothing effectively public, or the operator took
+    # the day down → 404 (not 403; don't confirm a private day exists).
+    if not bundle or not has_public(bundle, ov):
         raise HTTPException(status_code=404, detail="Not found")
-    view = public_view(bundle)
+    view = public_view(bundle, ov)
     return _render(request, lang, "public/post.html", here_suffix=f"/{source_id}/{date}", view=view)
 
 

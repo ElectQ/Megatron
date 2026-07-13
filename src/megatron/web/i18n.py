@@ -150,6 +150,35 @@ _ZH: dict[str, str] = {
     "Edit the push text below — Preview shows what gets sent, Save applies it.":
         "下方直接编辑推送文案 —— Preview 预览发出的样子,Save 生效(即时,无需重部署)。",
     "Push template editor": "推送文案编辑器",
+    # Public Blog (publication management)
+    "Public Blog": "公开发布",
+    "What the analysis published to the public site — and your call to overrule it.":
+        "分析发到公开站点的内容 —— 以及你推翻它的决定权。",
+    "How publishing is decided": "发布规则",
+    "The analysis marks each item public or private (default: private). You can overrule it here — take a whole day down, or drop a single item. Your decision is stored separately, so the run still records what the model actually said.":
+        "分析会逐条判定公开或私有(默认私有)。你可以在这里推翻它 —— 撤下一整天,或摘掉某一条。你的决定单独存储,所以运行记录里仍保留模型当初的判断。",
+    "Personal notes (why_for_me, scores) are never published, even for public items.":
+        "个人解读(why_for_me、评分)永远不会公开,即便该条是公开的。",
+    "live": "已公开",
+    "not published": "未公开",
+    "taken down": "已撤下",
+    "items public": "条已公开",
+    "View on site ↗": "查看公开页 ↗",
+    "Republish day": "重新发布",
+    "Take day down": "撤下整天",
+    "Reset": "恢复默认",
+    "Discard your overrides and go back to what the analysis decided.":
+        "丢弃你的覆盖,回到分析的原始判定。",
+    "This day is taken down — the public page 404s regardless of the items below.":
+        "这一天已撤下 —— 无论下面的条目如何,公开页都会 404。",
+    "Public": "公开",
+    "Tier": "分档",
+    "Item": "条目",
+    "Model said": "模型判定",
+    "Link": "链接",
+    "overruled": "已推翻",
+    "No analysed days yet. Run a task first — anything it marks public shows up here.":
+        "还没有已分析的日子。先跑一次任务 —— 它标为公开的内容会出现在这里。",
     # Card titles
     "New template": "新建模板",
     "Add MCP Server": "添加 MCP 服务器",

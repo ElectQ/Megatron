@@ -34,7 +34,8 @@
             ]),
             ('Analysis', [
                 ('/ui/tasks', 'Tasks', 'tasks', 'check'),
-                ('/ui/schedules', 'Schedules', 'schedules', 'clock')
+                ('/ui/schedules', 'Schedules', 'schedules', 'clock'),
+                ('/ui/publications', 'Public Blog', 'publications', 'globe')
             ]),
             ('Configuration', [
                 ('/ui/prompts', 'Prompts', 'prompts', 'lines'),
@@ -59,6 +60,7 @@
         {%- elif name == 'lines' -%}<rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/>
         {%- elif name == 'star' -%}<path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.5-.8z"/>
         {%- elif name == 'send' -%}<path d="M4 12a8 8 0 0 1 8-8"/><path d="M4 12h6M12 20a8 8 0 0 0 8-8" stroke-linecap="round"/><circle cx="12" cy="12" r="2"/>
+        {%- elif name == 'globe' -%}<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.5 5.8 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.8-3.5-9s1-6.5 3.5-9z"/>
         {%- endif -%}
         </svg>
         {%- endmacro -%}
