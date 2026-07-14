@@ -11,11 +11,15 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.db import get_session
+from ..core.models import ItemRecord
+from ..ingest.registry import get_source
 from .day_api import _latest_bundle
 from .i18n import SUPPORTED_LANGS, make_translator
+from .public_github import public_github_view
 from .public_view import has_public, load_policy, public_days, public_view
 
 router = APIRouter(tags=["public"])
@@ -98,10 +102,54 @@ async def public_post(
     policy = await load_policy(session)
     # Default private: no bundle, nothing effectively public, or the operator took
     # the day down → 404 (not 403; don't confirm a private day exists).
+    #
+    # The gate is the bundle even for a feed source, whose page is drawn from the
+    # stored rows: publishing is a decision made about an analysed day, and the
+    # home page lists exactly the days that pass here. Gating the two differently
+    # would list a day whose article 404s.
     if not bundle or not has_public(bundle, policy):
         raise HTTPException(status_code=404, detail="Not found")
+
+    # Same rule as the private page (day_api): the layout is a field on the source,
+    # not a branch on its kind. A star/fork feed gets the repo board.
+    source = await get_source(session, source_id)
+    layout = ((source.config if source else None) or {}).get("page_layout", "digest")
+    if layout == "feed":
+        return await _github_post(request, lang, session, source, source_id, date, policy)
+
     view = public_view(bundle, policy)
     return _render(request, lang, "public/post.html", here_suffix=f"/{source_id}/{date}", view=view)
+
+
+async def _github_post(request, lang, session, source, source_id, date, policy):
+    """The repo board — a GitHub feed's public face. See web/public_github.py."""
+    records = (
+        (
+            await session.execute(
+                select(ItemRecord)
+                .where(ItemRecord.source == source_id, ItemRecord.collect_date == date)
+                .order_by(ItemRecord.published_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    config = (source.config if source else None) or {}
+    view = public_github_view(
+        records,
+        await _latest_bundle(session, date, source_id),
+        source_id=source_id,
+        date=date,
+        title=(source.display_name if source else "") or source_id,
+        policy=policy,
+        # Newcomers name only the *followed* account, never the follower, so they
+        # are safe to publish by construction — but they still disclose that the
+        # circle started watching someone, so a source can opt out.
+        show_newcomers=config.get("public_newcomers", True),
+    )
+    return _render(
+        request, lang, "public/post_github.html", here_suffix=f"/{source_id}/{date}", view=view
+    )
 
 
 __all__ = ["router"]

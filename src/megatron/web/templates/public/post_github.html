@@ -1,0 +1,311 @@
+{% extends "public/base.html" %}
+{% from "public/marks.html" import source_mark %}
+{% block title %}{{ view.title }} · {{ view.date }} · Megatron LLM Hub{% endblock %}
+{% block head %}
+<style>
+  /* The public face of a GitHub follow feed: a repo board, not a people board.
+     Where the private page puts the stargazers' avatars, this puts a count — see
+     web/public_github.py for why the count is the whole signal and the faces are
+     never even built. Colours come from public/base.html; the only additions are
+     a data hue for the convergence meter and a green for "new". */
+  :root{--sig:var(--t-must); --sig-wash:#eaf0fd; --new:var(--t-rec); --new-wash:#e7f5f0;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
+  @media (prefers-color-scheme:dark){:root:not([data-theme]){--sig-wash:#16202e;--new-wash:#12211c}}
+  :root[data-theme="dark"]{--sig-wash:#16202e;--new-wash:#12211c}
+  :root[data-theme="light"]{--sig-wash:#eaf0fd;--new-wash:#e7f5f0}
+
+  .back{display:inline-flex;align-items:center;gap:.35rem;margin-bottom:1.5rem;
+    color:var(--muted);font-size:.8125rem;font-weight:600;transition:color .15s}
+  .back:hover{color:var(--accent-ink)}
+
+  .post-head{margin-bottom:1.5rem}
+  .post-head h1{font-size:clamp(1.9rem,4.5vw,2.5rem);line-height:1.12;margin:.9rem 0 .75rem;
+    letter-spacing:-.03em;font-weight:800;text-wrap:balance;max-width:var(--measure)}
+  .byline{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;
+    color:var(--faint);font-size:.85rem;font-variant-numeric:tabular-nums}
+  .byline b{color:var(--muted);font-weight:600}
+  .byline .d{width:3px;height:3px;border-radius:50%;background:var(--line-strong)}
+
+  /* No "N accounts active today" here, deliberately — that is the size of the
+     reader's circle, not a fact about the repos. */
+  .stats{display:flex;flex-wrap:wrap;gap:0;margin:1.5rem 0 2.5rem;border:1px solid var(--line);
+    border-radius:12px;background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+  .stat{flex:1 1 7rem;padding:.8rem 1.1rem;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:0}
+  .stat .v{font-size:1.45rem;font-weight:800;letter-spacing:-.02em;line-height:1.2;
+    font-variant-numeric:tabular-nums}
+  .stat .k{font-size:.72rem;color:var(--faint);font-weight:600;margin-top:.1rem}
+  .stat.sig .v{color:var(--sig)}
+  .stat.new .v{color:var(--new)}
+  @media (max-width:40rem){.stat{flex:1 1 40%;border-bottom:1px solid var(--line)}}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 14rem;gap:2.5rem;align-items:start}
+  @media (max-width:52rem){.layout{grid-template-columns:1fr;gap:2rem}
+    .rail{order:2}.main{order:1}}
+  .rail{position:sticky;top:1rem;display:flex;flex-direction:column;gap:1.75rem}
+  @media (max-width:52rem){.rail{position:static}}
+
+  h2.sec{display:flex;align-items:center;gap:.6rem;margin:0 0 1rem;font-size:.72rem;font-weight:800;
+    text-transform:uppercase;letter-spacing:.1em;color:var(--ink)}
+  h2.sec .count{font-size:.72rem;font-weight:600;color:var(--faint);letter-spacing:0;text-transform:none}
+  h2.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+  section + section{margin-top:2.75rem}
+
+  .repo-name{font-family:var(--mono);font-weight:650;letter-spacing:-.01em;word-break:break-all}
+  .repo-name .owner{color:var(--faint);font-weight:400}
+
+  /* The convergence meter — the redacted stand-in for the private page's row of
+     stargazer avatars. Five pips is the ceiling; the numeral carries the truth. */
+  .meter{display:inline-flex;align-items:center;gap:.45rem;flex:0 0 auto}
+  .pips{display:inline-flex;gap:3px}
+  .pip{width:7px;height:7px;border-radius:50%;background:var(--sig)}
+  .pip.off{background:var(--line-strong)}
+  .meter .n{font-size:.78rem;font-weight:800;color:var(--sig);letter-spacing:-.01em;
+    font-variant-numeric:tabular-nums}
+  .meter .n small{font-weight:600;color:var(--faint);margin-left:.1rem}
+
+  article.lead{border:1px solid var(--line);border-left:3px solid var(--sig);border-radius:12px;
+    background:var(--surface);box-shadow:var(--shadow);padding:1.35rem 1.5rem}
+  article.lead .top{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+  article.lead a.repo-name{font-size:1.3rem;transition:color .15s}
+  article.lead a.repo-name:hover{color:var(--accent-ink)}
+  article.lead .val{margin:.7rem 0 0;font-size:1.05rem;line-height:1.6;max-width:var(--measure)}
+
+  .topics{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.85rem}
+  .tag{padding:.14rem .5rem;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);
+    color:var(--muted);font-weight:600;font-size:.72rem}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(17rem,1fr));gap:.75rem}
+  article.repo{border:1px solid var(--line);border-radius:11px;background:var(--surface);
+    box-shadow:var(--shadow);padding:.95rem 1.05rem;transition:border-color .15s,transform .15s}
+  article.repo:hover{border-color:var(--line-strong);transform:translateY(-1px)}
+  article.repo .top{display:flex;align-items:baseline;justify-content:space-between;gap:.65rem}
+  article.repo a.repo-name{font-size:.95rem;min-width:0;transition:color .15s}
+  article.repo a.repo-name:hover{color:var(--accent-ink)}
+  article.repo .val{margin:.5rem 0 0;font-size:.9rem;line-height:1.55;color:var(--muted)}
+  .val.thin{font-style:italic;color:var(--faint)}
+
+  .lane{display:flex;flex-direction:column;gap:.6rem}
+  article.hl{display:flex;gap:.9rem;align-items:flex-start;border:1px solid var(--line);
+    border-radius:11px;background:var(--surface);box-shadow:var(--shadow);padding:.9rem 1.05rem}
+  .hl .badge{flex:0 0 auto;display:inline-flex;align-items:center;gap:.3rem;font-size:.68rem;
+    font-weight:800;letter-spacing:.02em;padding:.2rem .5rem;border-radius:999px;
+    background:var(--new-wash);color:var(--new)}
+  .hl .badge.rel{background:var(--accent-wash);color:var(--accent-ink)}
+  .hl .body{min-width:0;flex:1}
+  .hl a.repo-name{font-size:.95rem;transition:color .15s}
+  .hl a.repo-name:hover{color:var(--accent-ink)}
+  .hl .val{margin:.35rem 0 0;font-size:.88rem;line-height:1.55;color:var(--muted)}
+  .hl .ver{font-family:var(--mono);font-size:.75rem;color:var(--faint);margin-left:.4rem}
+
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(14rem,1fr));gap:.5rem}
+  a.tile{display:block;padding:.65rem .8rem;border:1px solid var(--line);border-radius:9px;
+    background:var(--surface);transition:border-color .15s,background .15s}
+  a.tile:hover{border-color:var(--line-strong);background:var(--surface-2)}
+  a.tile .repo-name{font-size:.82rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  a.tile .val{margin:.25rem 0 0;font-size:.78rem;line-height:1.5;color:var(--faint);
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+
+  /* The only people on the page — and only ever the followed, never the follower.
+     `FollowEvent` does not carry the actor, so there is nothing here to redact. */
+  .people{display:grid;grid-template-columns:repeat(auto-fill,minmax(20rem,1fr));gap:.75rem}
+  article.nc{border:1px solid var(--line);border-radius:11px;background:var(--surface);
+    box-shadow:var(--shadow);padding:1rem 1.1rem;display:flex;gap:.85rem}
+  .nc img{width:44px;height:44px;border-radius:50%;flex:0 0 auto;background:var(--surface-2);
+    border:1px solid var(--line);object-fit:cover;display:block}
+  .nc .body{min-width:0;flex:1}
+  .nc .name{font-weight:750;font-size:.95rem;letter-spacing:-.01em;transition:color .15s}
+  .nc .name:hover{color:var(--accent-ink)}
+  .nc .handle{font-family:var(--mono);color:var(--faint);font-weight:400;font-size:.82rem}
+  .nc .fol{font-size:.72rem;color:var(--faint);margin-left:.3rem;font-variant-numeric:tabular-nums}
+  .nc .bio{margin:.35rem 0 0;font-size:.85rem;line-height:1.5;color:var(--muted)}
+  .nc .langs{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.5rem}
+  .lang{font-size:.68rem;font-weight:700;padding:.1rem .45rem;border-radius:999px;
+    background:var(--accent-wash);color:var(--accent-ink)}
+  .nc ul{list-style:none;margin:.6rem 0 0;padding:0;display:flex;flex-direction:column;gap:.15rem}
+  .nc li{display:flex;align-items:baseline;gap:.4rem;font-size:.78rem}
+  .nc li a{font-family:var(--mono);font-weight:650;transition:color .15s}
+  .nc li a:hover{color:var(--accent-ink)}
+  .nc li .rd{color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .nc li .rs{flex:0 0 auto;margin-left:auto;color:var(--muted);font-size:.72rem;font-weight:700;
+    font-variant-numeric:tabular-nums}
+
+  .rail h3{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+    color:var(--faint);margin:0 0 .7rem}
+  .cloud{display:flex;flex-wrap:wrap;gap:.35rem}
+  .cloud span{font-size:.76rem;font-weight:600;padding:.18rem .5rem;border-radius:6px;
+    border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+  .cloud span b{color:var(--faint);font-weight:700;margin-left:.2rem;font-variant-numeric:tabular-nums}
+  .note{border:1px solid var(--line);border-radius:11px;background:var(--surface-2);
+    padding:.85rem .95rem;font-size:.76rem;line-height:1.65;color:var(--muted)}
+  .note b{color:var(--ink);font-weight:700}
+  .note p{margin:.4rem 0 0}
+
+  .empty{text-align:center;color:var(--muted);padding:4rem 1rem;border:1px dashed var(--line-strong);
+    border-radius:14px}
+  .empty .moon{font-size:2rem;margin-bottom:.6rem;opacity:.7}
+
+  @media (prefers-reduced-motion:reduce){article.repo:hover{transform:none}}
+</style>
+{% endblock %}
+{% block content %}
+<a class="back" href="/{{ lang }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>{{ t('All digests') }}</a>
+
+{%- macro reponame(full) %}{% set p = full.split('/') %}<span class="repo-name"><span class="owner">{{ p[0] }}/</span>{{ p[1:] | join('/') }}</span>{% endmacro -%}
+
+{# Five pips, then the numeral — the numeral is the truth, the pips are the glance. #}
+{%- macro meter(n) %}
+<span class="meter" title="{{ n }} {{ t('accounts starred it the same day') }}">
+  <span class="pips">{% for i in range(5) %}<i class="pip {{ 'off' if i >= n else '' }}"></i>{% endfor %}</span>
+  <span class="n">×{{ n }}</span>
+</span>
+{% endmacro -%}
+
+<header class="post-head rise">
+  <span class="pill">{{ source_mark(view.source_id) }}{{ view.title }}</span>
+  <h1>{{ t('What is getting starred today') }}</h1>
+  <div class="byline">
+    <b>{{ view.date }}</b><span class="d"></span>{{ view.stats.repo_count }} {{ t('repos') }}<span class="d"></span>
+    <span class="pill">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19M6.6 6.6A18.5 18.5 0 0 0 2 12s3 8 10 8a9.1 9.1 0 0 0 5.4-1.6"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M2 2l20 20"/></svg>
+      {{ t('Redacted — who starred it is not shown') }}
+    </span>
+  </div>
+</header>
+
+<div class="stats rise">
+  <div class="stat"><div class="v">{{ view.stats.repo_count }}</div><div class="k">{{ t('repos') }}</div></div>
+  <div class="stat sig"><div class="v">{{ view.stats.converged_count }}</div><div class="k">{{ t('converged') }}</div></div>
+  <div class="stat new"><div class="v">{{ view.stats.created_count }}</div><div class="k">{{ t('new repos') }}</div></div>
+  <div class="stat"><div class="v">{{ view.stats.release_count }}</div><div class="k">{{ t('releases') }}</div></div>
+  <div class="stat"><div class="v">{{ view.stats.newcomer_count }}</div><div class="k">{{ t('new faces') }}</div></div>
+</div>
+
+<div class="layout">
+<div class="main">
+
+  {% if view.lead %}
+  <section>
+    <h2 class="sec">{{ t("Today's focus") }} <span class="count">{{ t('most converged') }}</span></h2>
+    <article class="lead">
+      <div class="top">
+        <a class="repo-name" href="{{ view.lead.repo_url }}" target="_blank" rel="noopener nofollow">{{ reponame(view.lead.repo) }}</a>
+        {{ meter(view.lead.count) }}
+      </div>
+      {% if view.lead.one_liner %}<p class="val">{{ view.lead.one_liner }}</p>
+      {% else %}<p class="val thin">{{ view.lead.count }} {{ t('accounts starred it the same day') }}.</p>{% endif %}
+      {% if view.lead.topics %}<div class="topics">{% for tg in view.lead.topics %}<span class="tag">{{ tg }}</span>{% endfor %}</div>{% endif %}
+    </article>
+  </section>
+  {% endif %}
+
+  {% if view.converged %}
+  <section>
+    <h2 class="sec">{{ t('Converged') }} <span class="count">{{ t('starred by two or more accounts the same day') }}</span></h2>
+    <div class="cards">
+      {% for r in view.converged %}
+      <article class="repo">
+        <div class="top">
+          <a class="repo-name" href="{{ r.repo_url }}" target="_blank" rel="noopener nofollow">{{ reponame(r.repo) }}</a>
+          {{ meter(r.count) }}
+        </div>
+        {% if r.one_liner %}<p class="val">{{ r.one_liner }}</p>
+        {% else %}<p class="val thin">{{ t('No annotation from the model this round.') }}</p>{% endif %}
+        {% if r.topics %}<div class="topics">{% for tg in r.topics %}<span class="tag">{{ tg }}</span>{% endfor %}</div>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if view.highlights %}
+  <section>
+    <h2 class="sec">{{ t('New activity') }} <span class="count">{{ t('new repos · releases') }}</span></h2>
+    <div class="lane">
+      {% for h in view.highlights %}
+      <article class="hl">
+        <span class="badge {{ 'rel' if h.action == 'release' else '' }}">{{ t('Release') if h.action == 'release' else t('New') }}</span>
+        <div class="body">
+          <a class="repo-name" href="{{ h.repo_url }}" target="_blank" rel="noopener nofollow">{{ reponame(h.repo) }}</a>{% if h.ref %}<span class="ver">{{ h.ref }}</span>{% endif %}
+          {% if h.one_liner %}<p class="val">{{ h.one_liner }}</p>
+          {% else %}<p class="val thin">{{ t('No annotation from the model this round.') }}</p>{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if view.singles %}
+  <section>
+    <h2 class="sec">{{ t('Other repos') }} <span class="count">{{ view.singles|length }} · {{ t('one account each') }}</span></h2>
+    <div class="tiles">
+      {% for r in view.singles %}
+      <a class="tile" href="{{ r.repo_url }}" target="_blank" rel="noopener nofollow">
+        {{ reponame(r.repo) }}
+        {% if r.one_liner %}<p class="val">{{ r.one_liner }}</p>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if view.newcomers %}
+  <section>
+    <h2 class="sec">{{ t('New faces') }} <span class="count">{{ t('newly followed accounts') }}</span></h2>
+    <div class="people">
+      {% for n in view.newcomers %}
+      {% set p = n.persona %}
+      <article class="nc">
+        {# github.com/<login>.png resolves for any live account and needs no
+           referrer (base.html sends none); a deleted account 404s and the icon hides. #}
+        <a href="{{ n.target_url }}" target="_blank" rel="noopener nofollow"><img src="https://github.com/{{ n.target }}.png?size=88" alt="" width="44" height="44" loading="lazy" onerror="this.style.visibility='hidden'"></a>
+        <div class="body">
+          <a class="name" href="{{ n.target_url }}" target="_blank" rel="noopener nofollow">
+            {{ p.name or n.target }}<span class="handle"> @{{ n.target }}</span>
+            {% if p.followers %}<span class="fol">{{ p.followers }} followers</span>{% endif %}
+          </a>
+          {% if p.bio %}<p class="bio">{{ p.bio }}</p>{% endif %}
+          {% if p.languages %}<div class="langs">{% for l in p.languages %}<span class="lang">{{ l }}</span>{% endfor %}</div>{% endif %}
+          {% if p.top_repos %}
+          <ul>
+            {% for r in p.top_repos %}
+            <li>
+              <a href="https://github.com/{{ r.name }}" target="_blank" rel="noopener nofollow">{{ r.name.split('/')[-1] }}</a>
+              {% if r.description %}<span class="rd">{{ r.description }}</span>{% endif %}
+              {% if r.stars %}<span class="rs">★ {{ r.stars }}</span>{% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if not view.lead and not view.singles and not view.highlights and not view.newcomers %}
+  <div class="empty"><div class="moon">🌙</div>{{ t('Nothing published for this day.') }}</div>
+  {% endif %}
+
+</div>
+
+<aside class="rail">
+  {% if view.topics %}
+  <div>
+    <h3>{{ t('Topics today') }}</h3>
+    <div class="cloud">
+      {% for tg in view.topics %}<span>{{ tg.name }}<b>{{ tg.count }}</b></span>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="note">
+    <b>{{ t('How this page is made') }}</b>
+    <p>{{ t('Public GitHub activity — stars, forks, new repos, releases — aggregated by repo. Repos several accounts landed on the same day rank first. The model writes the one-liner.') }}</p>
+    <p><b>{{ t('The public version never shows who starred what.') }}</b> {{ t('Stargazer identities, the timeline and the by-person view exist only in the private digest.') }}</p>
+  </div>
+</aside>
+</div>
+{% endblock %}
