@@ -79,6 +79,29 @@
   .group-label:first-child { margin-top: 0; }
 
   /* Highlights: new repos / releases — the high-signal lane, above the fold. */
+  /* ---- newcomer radar: who the circle newly followed ---- */
+  .radar { margin-bottom: 1.5rem; }
+  article.nc { display: flex; gap: .7rem; border-left: 3px solid var(--accent); }
+  .nc-av { flex: none; }
+  .nc-av img.av { width: 44px; height: 44px; }
+  .nc-body { min-width: 0; flex: 1; }
+  .nc-name { font-size: .95rem; font-weight: 650; text-decoration: none; }
+  .nc-name:hover { color: var(--accent); }
+  .nc-name .handle { color: var(--muted); font-weight: 400; }
+  .nc-stat { font-size: .6875rem; color: var(--faint); margin-left: .4rem; }
+  .nc-bio { margin: .35rem 0 0; font-size: .85rem; line-height: 1.5; color: var(--muted); }
+  .nc-langs { margin-top: .45rem; display: flex; flex-wrap: wrap; gap: .3rem; }
+  .nc-lang { font-size: .6875rem; padding: .1rem .45rem; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .nc-repos { margin: .5rem 0 0; padding: 0; list-style: none; }
+  .nc-repos li { display: flex; align-items: baseline; gap: .4rem; padding: .15rem 0;
+    font-size: .8125rem; }
+  .nc-repos a { text-decoration: none; font-weight: 600; }
+  .nc-repos a:hover { color: var(--accent); }
+  .nc-repos .rd { color: var(--muted); font-weight: 400; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .nc-repos .rs { flex: none; color: var(--star); font-size: .75rem; margin-left: auto; }
+
   .highlights { margin-bottom: 1.5rem; }
   article.hl { display: flex; gap: .6rem; border-left: 3px solid var(--accent); }
   .hl-actor { flex: none; }
@@ -238,6 +261,37 @@
 
     <!-- CENTER: repos, each with a value intro -->
     <div class="col main">
+      {% if newcomers %}
+        <section class="radar">
+          <h2>🧭 新晋雷达 <span class="count">你的圈子新盯上的人</span></h2>
+          {% for n in newcomers %}
+          {% set p = n.persona %}
+          <article class="nc">
+            <a class="nc-av" href="{{ n.target_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ avatar(n.target, 48) }}</a>
+            <div class="nc-body">
+              <a class="nc-name" href="{{ n.target_url }}" target="_blank" rel="noopener noreferrer nofollow">
+                {{ p.name or n.target }}<span class="handle"> @{{ n.target }}</span>
+                {% if p.followers %}<span class="nc-stat">{{ p.followers }} followers</span>{% endif %}
+              </a>
+              {% if p.bio %}<p class="nc-bio">{{ p.bio }}</p>{% endif %}
+              {% if p.languages %}<div class="nc-langs">{% for l in p.languages %}<span class="nc-lang">{{ l }}</span>{% endfor %}</div>{% endif %}
+              {% if p.top_repos %}
+              <ul class="nc-repos">
+                {% for r in p.top_repos %}
+                <li>
+                  <a href="https://github.com/{{ r.name }}" target="_blank" rel="noopener noreferrer nofollow">{{ r.name.split('/')[-1] }}</a>
+                  {% if r.description %}<span class="rd">{{ r.description }}</span>{% endif %}
+                  {% if r.stars %}<span class="rs">★ {{ r.stars }}</span>{% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+            </div>
+          </article>
+          {% endfor %}
+        </section>
+      {% endif %}
+
       {% if highlights %}
         <section class="highlights">
           <h2>🆕 新动向 <span class="count">新建 / 发版</span></h2>

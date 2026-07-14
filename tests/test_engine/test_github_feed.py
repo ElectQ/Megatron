@@ -14,10 +14,29 @@ from megatron.core.models import ItemRecord
 from megatron.engine.github_feed import (
     aggregate_github_day,
     build_annotations,
+    parse_follow,
     parse_github_event,
 )
 
 T0 = datetime(2026, 7, 9, 12, 0, tzinfo=timezone.utc)
+
+
+def follow(actor: str, target: str, *, persona: dict | None = None) -> ItemRecord:
+    """A follow row as ingested: actor in author/content, persona folded into raw."""
+    return ItemRecord(
+        item_id=f"follow:{actor}:{target}",
+        source="github_followee_feed",
+        content=f"{actor} followed {target}",
+        url=f"https://github.com/{target}",
+        author=actor,
+        author_name=actor,
+        published_at=T0,
+        collected_at=T0,
+        collect_date="2026-07-09",
+        tags=["kind:follow"],
+        links=[f"https://github.com/{actor}", f"https://github.com/{target}"],
+        raw={"persona": persona} if persona else {},
+    )
 
 
 def ev(
@@ -163,6 +182,57 @@ def test_timeline_is_newest_first():
     assert order == ["o/2", "o/3", "o/1"]
 
 
+PERSONA = {
+    "login": "thecodacus",
+    "name": "The Codacus",
+    "bio": "AI agent tinkerer",
+    "followers": 1200,
+    "html_url": "https://github.com/thecodacus",
+    "languages": ["Python"],
+    "top_repos": [{"name": "thecodacus/agent-rce", "stars": 900, "language": "Python"}],
+}
+
+
+def test_a_repo_event_is_not_a_follow():
+    assert parse_follow(ev("a", "star", "o/r")) is None
+
+
+def test_a_follow_yields_its_target_and_persona_never_the_actor():
+    f = parse_follow(follow("g3tsyst3m", "thecodacus", persona=PERSONA))
+    assert f is not None
+    assert f.target == "thecodacus"
+    assert f.persona["followers"] == 1200
+    # The FollowEvent has no field for the actor at all — it cannot be rendered.
+    assert not hasattr(f, "who") and not hasattr(f, "actor")
+
+
+def test_a_follow_without_persona_still_recovers_the_target_from_the_url():
+    f = parse_follow(follow("g3tsyst3m", "thecodacus"))
+    assert f is not None and f.target == "thecodacus" and f.persona == {}
+
+
+def test_the_newcomer_lane_dedupes_by_target_and_omits_the_actor():
+    records = [
+        follow("g3tsyst3m", "thecodacus", persona=PERSONA),
+        follow("safedv", "thecodacus", persona=PERSONA),  # same target, different followee
+        ev("a", "star", "o/r"),
+    ]
+    out = aggregate_github_day(records)
+    assert out["stats"]["newcomer_count"] == 1
+    assert [n["target"] for n in out["newcomers"]] == ["thecodacus"]
+    # The followees who did the following appear nowhere in the newcomer output.
+    import json
+
+    blob = json.dumps(out["newcomers"])
+    assert "g3tsyst3m" not in blob and "safedv" not in blob
+
+
+def test_follows_do_not_pollute_the_repo_or_person_lanes():
+    out = aggregate_github_day([follow("g3tsyst3m", "thecodacus", persona=PERSONA)])
+    assert out["trending"] == [] and out["singles"] == []
+    assert out["by_who"] == [] and out["stats"]["total"] == 0  # events = repo events only
+
+
 def test_stats_count_each_action_separately():
     records = [ev("a", "star", "o/1"), ev("b", "star", "o/2"), ev("c", "fork", "o/3")]
     out = aggregate_github_day(records)
@@ -174,6 +244,7 @@ def test_stats_count_each_action_separately():
         "fork_count": 1,
         "created_count": 0,
         "release_count": 0,
+        "newcomer_count": 0,
     }
 
 

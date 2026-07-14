@@ -52,6 +52,21 @@ class GhEvent:
     text: str = ""  # the collector's human sentence, e.g. "alice released v2.0"
 
 
+@dataclass
+class FollowEvent:
+    """A followee newly following someone — the "who's rising" signal.
+
+    Deliberately carries the *target* (a public account we characterise) and NOT
+    the actor. Who among your followees did the following is your follow graph;
+    it stays out of this structure entirely, so nothing downstream can render it.
+    """
+
+    target: str  # the newly-followed login
+    target_url: str
+    at: datetime | None
+    persona: dict  # {} when upstream enrichment did not run
+
+
 def _kind_from_tags(tags: list) -> str:
     for t in tags or []:
         s = str(t)
@@ -132,6 +147,33 @@ def parse_github_event(record: ItemRecord) -> GhEvent | None:
     )
 
 
+def _profile_login(url: str) -> str:
+    """The login in a github.com/<login> profile URL, or "" if it is not one."""
+    segs = [s for s in urlparse(url or "").path.strip("/").split("/") if s]
+    return segs[0] if len(segs) == 1 and _SEG_RE.match(segs[0]) else ""
+
+
+def parse_follow(record: ItemRecord) -> FollowEvent | None:
+    """A follow row → its target and persona, or None if it is not a follow.
+
+    The target identity comes from the persona blob when enrichment ran, else
+    from the event URL (the collector links a follow to the followed profile).
+    The actor is never read.
+    """
+    if _kind_from_tags(record.tags) != "follow":
+        return None
+    persona = (record.raw or {}).get("persona") or {}
+    target = persona.get("login") or _profile_login(record.url)
+    if not target:
+        return None
+    return FollowEvent(
+        target=target,
+        target_url=persona.get("html_url") or f"https://github.com/{target}",
+        at=record.published_at,
+        persona=persona,
+    )
+
+
 def _iso(dt: datetime | None) -> str:
     return dt.isoformat() if dt else ""
 
@@ -165,6 +207,25 @@ def aggregate_github_day(records: list[ItemRecord], annotations: dict | None = N
     """The whole page context: repos (convergence-ranked), by-who, timeline, stats."""
     annotations = annotations or {}
     events = [e for e in (parse_github_event(r) for r in records) if e is not None]
+
+    # The "who's rising" lane: people your circle newly followed, deduped by
+    # target, richest persona first. Built straight from the rows — no analysis
+    # needed — and the actor is never carried in, so it cannot be rendered.
+    newcomers: dict[str, dict] = {}
+    for f in (parse_follow(r) for r in records):
+        if f is None or f.target in newcomers:
+            continue
+        newcomers[f.target] = {
+            "target": f.target,
+            "target_url": f.target_url,
+            "at": _iso(f.at),
+            "persona": f.persona,
+        }
+    newcomer_list = sorted(
+        newcomers.values(),
+        key=lambda n: (n["persona"].get("followers") or 0, n["at"]),
+        reverse=True,
+    )
 
     repos: dict[str, dict] = {}
     who: dict[str, dict] = {}
@@ -253,6 +314,7 @@ def aggregate_github_day(records: list[ItemRecord], annotations: dict | None = N
         "highlights": highlights,
         "trending": trending,
         "singles": singles,
+        "newcomers": newcomer_list,
         "by_who": by_who,
         "timeline": timeline,
         "stats": {
@@ -263,15 +325,18 @@ def aggregate_github_day(records: list[ItemRecord], annotations: dict | None = N
             "fork_count": counts["fork"],
             "created_count": counts["created"],
             "release_count": counts["release"],
+            "newcomer_count": len(newcomer_list),
         },
     }
 
 
 __all__ = [
+    "FollowEvent",
     "GhEvent",
     "HIGHLIGHT_ACTIONS",
     "REPO_ACTIONS",
     "aggregate_github_day",
     "build_annotations",
+    "parse_follow",
     "parse_github_event",
 ]

@@ -60,6 +60,10 @@ class IngestItem(BaseModel):
     media: dict = Field(default_factory=dict)
     metrics: dict = Field(default_factory=dict)
     flags: IngestFlags = Field(default_factory=IngestFlags)
+    # Source-specific enrichment. The GitHub follow feed attaches a `persona`
+    # blob for the newly-followed target here; folded into `raw` on the way in so
+    # it survives to the day page without a dedicated column.
+    persona: dict = Field(default_factory=dict)
     raw: dict = Field(default_factory=dict)
 
 
@@ -127,7 +131,7 @@ def envelope_to_items(
                 links=list(raw.links),
                 media=dict(raw.media),
                 metrics=dict(raw.metrics),
-                raw=dict(raw.raw),
+                raw={**dict(raw.raw), **({"persona": dict(raw.persona)} if raw.persona else {})},
             )
         )
     return items
