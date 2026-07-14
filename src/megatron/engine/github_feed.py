@@ -29,6 +29,10 @@ from ..core.models import ItemRecord
 # (left of the arrow), not the fork copy the event URL points at.
 _FORK_RE = re.compile(r"forked\s+(?P<src>[^\s]+)\s*(?:→|->)")
 _SEG_RE = re.compile(r"^[^/\s]+$")
+# The tag of a release, from its URL. Taken from the URL and not from the
+# collector's sentence ("alice released v2.0") because that sentence names the
+# person, and the public page may show the version but never the person.
+_TAG_RE = re.compile(r"/releases/tag/(?P<ref>[^/?#]+)")
 
 # Events that name a repo (as opposed to a follow). Sentinel's `is_repo_event`.
 # star/fork are the daily bulk; created (a followee starts a new project) and
@@ -50,6 +54,7 @@ class GhEvent:
     circle_count: int
     at: datetime | None
     text: str = ""  # the collector's human sentence, e.g. "alice released v2.0"
+    ref: str = ""  # a release's tag, e.g. "v2.0" — empty for every other action
 
 
 @dataclass
@@ -135,6 +140,7 @@ def parse_github_event(record: ItemRecord) -> GhEvent | None:
     except (TypeError, ValueError):
         circle = 0
 
+    tag = _TAG_RE.search(record.url or "")
     return GhEvent(
         action=action,
         repo=repo,
@@ -144,6 +150,7 @@ def parse_github_event(record: ItemRecord) -> GhEvent | None:
         circle_count=circle,
         at=record.published_at,
         text=content,
+        ref=tag.group("ref") if tag and action == "release" else "",
     )
 
 
@@ -265,6 +272,7 @@ def aggregate_github_day(records: list[ItemRecord], annotations: dict | None = N
                     "who": e.who,
                     "who_url": e.who_url,
                     "text": e.text,
+                    "ref": e.ref,
                     "at": _iso(e.at),
                     "ann": annotations.get(e.repo) or {},
                 }

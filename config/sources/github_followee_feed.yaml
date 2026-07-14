@@ -17,10 +17,13 @@ source_id: github_followee_feed
 display_name: GitHub 关注流
 kind: github_feed
 adapter: bundle_pull
-# 公开 —— 但脱敏。这个流对外的价值是「安全圈最近在 star 什么仓库」,而这个价值
+# 公开 —— 但脱敏。这个流对外的价值是「大家最近在 star 什么仓库」,而这个价值
 # 不需要点名是谁。泄露的从来是「你关注了谁」(关注图谱),不是单条内容 —— 每条
 # GitHub 事件本身就是公开的。所以:
-#   audience: public   → 上公开前台,和推特流一样的分档卡片
+#   audience: public   → 上公开前台,渲染成「仓库板」(web/public_github.py):
+#                        私密页上那排 stargazer 头像,公开页换成一个收敛计数
+#                        (「N 个账号同日收藏」)—— 计数不是身份,而它恰恰就是
+#                        这条流的全部价值。时间线和按人分组的两栏直接不生成。
 #   public_redact: true → 公开投影里剥掉 author 和原始 content(它写着「odzhan
 #                         starred X」,含人名),只留 LLM 的 one_liner/why_for_me
 #                         (prompt 被要求不带人名、只说仓库 + N 人 star)。
@@ -47,6 +50,13 @@ schedule_expect:
 
 config:
   index_url: https://raw.githubusercontent.com/ElectQ/Sentinel-gh/main/bundles/index.json
+
+  # 「新晋雷达」(你关注的人新关注了谁) 要不要上公开页。默认 true。
+  # 它安全是有构造保证的:采集侧的 follow 事件只带**被关注者**,不带关注者
+  # (engine/github_feed.py 的 FollowEvent),所以公开页展示的是一个公众账号的
+  # 公开档案,不是你圈子里的谁。但它仍然在聚合层面透露「有人开始盯这个人了」,
+  # 所以留一个开关:置 false 即整块不出现在公开页(私密日刊不受影响)。
+  public_newcomers: true
 
   # 一次最多回补几天（冷启动/停机后追赶用）
   max_days: 7
