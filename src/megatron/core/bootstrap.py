@@ -144,7 +144,7 @@ async def _ensure_llm_provider(session) -> None:
 
     provider = LLMProvider(
         name="deepseek",
-        model="deepseek/deepseek-chat",
+        model="deepseek/deepseek-v4-flash",
         api_base="https://api.deepseek.com/v1",
         api_key=encrypt_secret(api_key),
         temperature=0.3,

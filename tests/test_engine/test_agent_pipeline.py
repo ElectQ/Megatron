@@ -39,7 +39,7 @@ async def test_agent_pipeline_records_tool_calls():
         tmpl = PromptTemplate(
             name="a-tmpl", version=1, template="Analyze {{ item_count }} items.", output_schema={}
         )
-        prov = LLMProvider(name="a-prov", model="deepseek/deepseek-chat", api_key="", enabled=True)
+        prov = LLMProvider(name="a-prov", model="deepseek/deepseek-v4-flash", api_key="", enabled=True)
         session.add_all([tmpl, prov])
         await session.flush()
         module = AnalysisModule(

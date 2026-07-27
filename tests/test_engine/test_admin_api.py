@@ -27,7 +27,7 @@ async def test_provider_crud(admin_client):
         "/api/admin/providers",
         json={
             "name": "test-deepseek",
-            "model": "deepseek/deepseek-chat",
+            "model": "deepseek/deepseek-v4-flash",
             "api_key": "sk-test-1234567890abcdef",
             "temperature": 0.3,
             "max_tokens": 2048,
@@ -37,7 +37,7 @@ async def test_provider_crud(admin_client):
     provider = r.json()
     assert provider["name"] == "test-deepseek"
     assert "sk-test" not in provider["api_key_masked"]
-    assert provider["model"] == "deepseek/deepseek-chat"
+    assert provider["model"] == "deepseek/deepseek-v4-flash"
 
     r2 = await admin_client.get("/api/admin/providers")
     assert r2.status_code == 200
@@ -93,7 +93,7 @@ async def test_module_create_and_options(admin_client):
 
     prov_r = await admin_client.post(
         "/api/admin/providers",
-        json={"name": "test-prov", "model": "deepseek/deepseek-chat", "api_key": "sk-x"},
+        json={"name": "test-prov", "model": "deepseek/deepseek-v4-flash", "api_key": "sk-x"},
     )
     prov_id = prov_r.json()["id"]
 
@@ -160,7 +160,7 @@ async def test_module_create_and_options(admin_client):
     assert run_body["result"]["briefing"] == "无数据"
     assert run_body["module_snapshot"]["name"] == "test-module"
     assert run_body["prompt_snapshot"]["name"] == "test-tmpl"
-    assert run_body["provider_snapshot"]["model"] == "deepseek/deepseek-chat"
+    assert run_body["provider_snapshot"]["model"] == "deepseek/deepseek-v4-flash"
 
     provider_delete = await admin_client.delete(f"/api/admin/providers/{prov_id}")
     assert provider_delete.status_code == 409
@@ -177,7 +177,7 @@ async def test_manual_run_rejects_when_active(admin_client):
     )
     prov_r = await admin_client.post(
         "/api/admin/providers",
-        json={"name": "active-prov", "model": "deepseek/deepseek-chat", "api_key": "sk-x"},
+        json={"name": "active-prov", "model": "deepseek/deepseek-v4-flash", "api_key": "sk-x"},
     )
     mod_r = await admin_client.post(
         "/api/admin/modules",

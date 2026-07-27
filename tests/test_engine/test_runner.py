@@ -58,7 +58,7 @@ async def test_full_pipeline_with_mock_llm(sample_items):
         )
         prov = LLMProvider(
             name="e2e-prov",
-            model="deepseek/deepseek-chat",
+            model="deepseek/deepseek-v4-flash",
             api_key="",
             temperature=0.3,
             max_tokens=1024,
@@ -109,7 +109,7 @@ async def test_full_pipeline_with_mock_llm(sample_items):
         assert summary["result"]["items"][0]["cve"] == "CVE-2024-9999"
         assert summary["module_snapshot"]["name"] == "e2e-module"
         assert summary["prompt_snapshot"]["name"] == "e2e-tmpl"
-        assert summary["provider_snapshot"]["model"] == "deepseek/deepseek-chat"
+        assert summary["provider_snapshot"]["model"] == "deepseek/deepseek-v4-flash"
         assert "api_key" not in summary["provider_snapshot"]
         assert (
             summary["rendered_prompt_hash"]
