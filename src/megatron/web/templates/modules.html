@@ -286,6 +286,7 @@
 </details>
 
 <script>
+const ORIG_FILTER_CONFIG = {{ (edit_module.filter_config if edit_module else {}) | tojson }};
 function toggleCron() {
     const mode = document.querySelector('input[name=exec_mode]:checked').value;
     document.getElementById('cron-box').classList.toggle('hidden', mode !== 'scheduled');
@@ -323,11 +324,19 @@ document.getElementById('module-form').addEventListener('submit', async (e) => {
     const cron = execMode === 'scheduled' ? (fd.get('schedule_cron') || '') : '';
     const timeMode = fd.get('time_mode') || 'today';
 
+    // Keep task-level fields the form does not manage (output_mode, intent,
+    // caps, digest_style, title, ...) — the backend replaces filter_config
+    // wholesale, so dropping them here silently disables day-bundle delivery.
     const filter_config = {
+        ...(ORIG_FILTER_CONFIG || {}),
         time_mode: timeMode,
         filters: [],
         max_items: +fd.get('max_items') || 0,
     };
+    delete filter_config.target_date;
+    delete filter_config.date_from;
+    delete filter_config.date_to;
+    delete filter_config.window_hours;
     if (timeMode === 'date') filter_config.target_date = fd.get('target_date') || '';
     if (timeMode === 'range') { filter_config.date_from = fd.get('date_from') || ''; filter_config.date_to = fd.get('date_to') || ''; }
     if (timeMode === 'rolling') filter_config.window_hours = +fd.get('window_hours') || 24;

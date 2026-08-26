@@ -29,9 +29,12 @@ class WecomChannel(BaseChannel):
         if result.briefing:
             lines.append(result.briefing + "\n")
         for i, it in enumerate(result.items or [], 1):
-            title = it.get("title", "")
-            summary = it.get("summary", "")
-            url = it.get("source_url") or it.get("url", "")
+            # Accept both the legacy (title/summary/source_url) and the
+            # day-bundle (one_liner/why_for_me/original_url) field names, so a
+            # non-bundle fallback never renders blank cards.
+            title = it.get("title") or it.get("one_liner") or ""
+            summary = it.get("summary") or it.get("why_for_me") or ""
+            url = it.get("source_url") or it.get("url") or it.get("original_url") or ""
             lines.append(f"{i}. **{title}**")
             if summary:
                 lines.append(f"   {summary}")
