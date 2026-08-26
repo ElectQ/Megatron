@@ -31,6 +31,7 @@ COPY src/ ./src/
 COPY mcp_servers/ ./mcp_servers/
 COPY migrations/ ./migrations/
 COPY config/ ./config/
+COPY scripts/ ./scripts/
 COPY alembic.ini ./
 
 ENV PYTHONPATH=/app:/app/src
