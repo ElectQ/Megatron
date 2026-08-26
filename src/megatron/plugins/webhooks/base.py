@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
@@ -145,6 +146,16 @@ def _severity_icon(severity: str) -> str:
     return "🟢"
 
 
+# Semantic split markers, tried in order so a long digest is cut at
+# *meaningful* boundaries (sections first, then list items, then lines):
+#   - markdown headings (#, ##, ...)
+#   - emoji section markers used by config/digests/*.md (🔴 必看 / 🟡 推荐 / …)
+#   - the "——" divider before 查看今日详情
+_SECTION_RE = re.compile(r"(?m)^(?=(?:#{1,6} |[🔴🟡🟢🟠🟣🔵⚪]|——))")
+# List item lines: "1. …", "- …", "• …"
+_ITEM_RE = re.compile(r"(?m)^(?=\d+[.)]\s|[-•]\s)")
+
+
 def split_markdown_bytes(md: str, max_bytes: int) -> list[str]:
     """Split markdown into chunks that each fit within ``max_bytes`` (UTF-8).
 
@@ -174,6 +185,56 @@ def split_markdown_bytes(md: str, max_bytes: int) -> list[str]:
     return chunks
 
 
+def split_markdown_sections(md: str, max_bytes: int) -> list[str]:
+    """Split markdown at semantic boundaries so each chunk reads as a whole.
+
+    Cut order (most meaningful first):
+      1. sections — markdown headings, emoji markers (🔴 必看 / 🟡 推荐), the
+         "——" divider before the day link;
+      2. list items — "1. …" / "- …" / "• …" lines inside an oversized section;
+      3. lines — last resort (via :func:`split_markdown_bytes`).
+
+    Sections are greedily packed up to ``max_bytes`` so short neighbours share
+    a message. Returns ``[md]`` unchanged when it fits.
+    """
+    if not md:
+        return []
+    if max_bytes <= 0 or len(md.encode("utf-8")) <= max_bytes:
+        return [md]
+
+    parts = [p for p in _SECTION_RE.split(md) if p.strip()]
+    if len(parts) <= 1:
+        parts = [md]
+
+    chunks: list[str] = []
+    buf = ""
+    for part in parts:
+        if buf and len((buf + part).encode("utf-8")) > max_bytes:
+            chunks.append(buf)
+            buf = ""
+        if len(part.encode("utf-8")) > max_bytes:
+            # Oversized section: split at list-item boundaries first.
+            items = [p for p in _ITEM_RE.split(part) if p.strip()]
+            if len(items) <= 1:
+                items = [part]
+            sub = ""
+            for item in items:
+                if sub and len((sub + item).encode("utf-8")) > max_bytes:
+                    chunks.append(sub)
+                    sub = ""
+                if len(item.encode("utf-8")) > max_bytes:
+                    chunks.extend(c for c in split_markdown_bytes(item, max_bytes) if c)
+                    continue
+                sub += item
+            if sub:
+                buf = sub
+        else:
+            buf += part
+    if buf:
+        chunks.append(buf)
+    return chunks
+
+
 __all__ = [
     "AnalysisResult",
     "BaseChannel",
@@ -181,4 +242,5 @@ __all__ = [
     "register_channel",
     "_severity_icon",
     "split_markdown_bytes",
+    "split_markdown_sections",
 ]

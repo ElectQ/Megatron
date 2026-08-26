@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from ...core.logging import get_logger
-from .base import AnalysisResult, BaseChannel, register_channel, split_markdown_bytes
+from .base import (
+    AnalysisResult,
+    BaseChannel,
+    register_channel,
+    split_markdown_sections,
+)
 
 logger = get_logger(__name__)
 
@@ -63,7 +68,7 @@ class WecomChannel(BaseChannel):
                 # Legacy path (no markdown): single render.
                 return await self._post(self.render(result))
 
-            chunks = split_markdown_bytes(md, MAX_BYTES)
+            chunks = split_markdown_sections(md, MAX_BYTES)
             total = len(chunks)
             if total <= 1:
                 return await self._post(self.render(result))

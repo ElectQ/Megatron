@@ -100,6 +100,50 @@ def test_split_markdown_bytes():
     assert "".join(hard) == line
 
 
+def test_split_markdown_sections():
+    from megatron.plugins.webhooks.base import split_markdown_sections
+
+    # Build a realistic digest: header, 🔴 必看 block, 🟡 推荐 block, —— day link
+    digest = [
+        "⚡ 推特安全流 · 2026-08-26",
+        "入库 56 · 必看 3 · 推荐 2",
+        "",
+        "🔴 **必看**",
+    ]
+    for i in range(1, 4):
+        digest.append(f"{i}. **漏洞标题{i}**")
+        digest.append(f"   原因说明{i}")
+        digest.append(f"   [原文 ↗](http://x/{i})")
+        digest.append("")
+    digest.append("🟡 **推荐**")
+    digest.append("- 推荐A [原文 ↗](http://a)")
+    digest.append("- 推荐B [原文 ↗](http://b)")
+    digest.append("")
+    digest.append("——")
+    digest.append("[📖 查看今日详情 →](http://day)")
+    md = "\n".join(digest)
+
+    chunks = split_markdown_sections(md, 400)
+    assert len(chunks) > 1
+    for c in chunks:
+        assert len(c.encode("utf-8")) <= 400
+
+    # Semantic integrity: after the first chunk, every chunk starts at a
+    # semantic boundary (section marker, item line, or the "——" divider) —
+    # never mid-item, mid-line. Short neighbours may share a chunk.
+    import re as _re
+
+    semantic_start = _re.compile(r"^(?:#{1,6} |[🔴🟡🟢🟠🟣🔵⚪]|——|\d+[.)]\s|[-•]\s)")
+    for c in chunks[1:]:
+        assert semantic_start.match(c.strip()), f"chunk must start at a boundary: {c[:40]!r}"
+
+    # Nothing lost
+    joined = "\n".join(chunks)
+    for i in range(1, 4):
+        assert f"**漏洞标题{i}**" in joined
+    assert "推荐A" in joined and "查看今日详情" in joined
+
+
 def test_wecom_send_splits_long_markdown(monkeypatch):
     from megatron.plugins.webhooks.wecom import MAX_BYTES
 
