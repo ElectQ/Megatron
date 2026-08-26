@@ -39,9 +39,23 @@ class BaseChannel(ABC):
     """Abstract webhook channel. Each subclass renders an AnalysisResult into
     a platform-specific payload and POSTs it. Config is injected per-channel
     instance (tokens/webhooks decrypted at instantiation).
+
+    Platform capability contract:
+    - ``max_bytes``: max UTF-8 bytes per single message (0 = unlimited).
+      Channels with a limit should use ``split_markdown_bytes`` to split long
+      ``report_markdown`` into multiple messages instead of hard-truncating,
+      so readers never lose the tail of a digest.
+
+    Known platform limits (2026-08):
+      dingtalk markdown ~4500 chars/msg (splits internally)
+      wecom     markdown 4096 bytes/msg  (this class: 4000)
+      telegram  text     4096 chars/msg
+      feishu    text      ~30k chars/msg
+      wechat_mp text      2048 chars/msg (hard platform limit)
     """
 
     kind: str = ""
+    max_bytes: int = 0
 
     def __init__(self, **config: Any):
         self.config = config
@@ -131,10 +145,40 @@ def _severity_icon(severity: str) -> str:
     return "🟢"
 
 
+def split_markdown_bytes(md: str, max_bytes: int) -> list[str]:
+    """Split markdown into chunks that each fit within ``max_bytes`` (UTF-8).
+
+    Splits on line boundaries (never mid-sentence) and hard-splits only an
+    overlong single line by bytes. Returns ``[md]`` unchanged when it fits.
+    """
+    if not md:
+        return []
+    if max_bytes <= 0 or len(md.encode("utf-8")) <= max_bytes:
+        return [md]
+
+    chunks: list[str] = []
+    buf = ""
+    for line in md.splitlines(keepends=True):
+        if buf and len((buf + line).encode("utf-8")) > max_bytes:
+            chunks.append(buf)
+            buf = ""
+        while len(line.encode("utf-8")) > max_bytes:
+            take = line
+            while take and len(take.encode("utf-8")) > max_bytes:
+                take = take[:-1]
+            chunks.append(take)
+            line = line[len(take):]
+        buf += line
+    if buf:
+        chunks.append(buf)
+    return chunks
+
+
 __all__ = [
     "AnalysisResult",
     "BaseChannel",
     "channel_registry",
     "register_channel",
     "_severity_icon",
+    "split_markdown_bytes",
 ]

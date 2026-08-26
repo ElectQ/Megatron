@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 
 from megatron.plugins.webhooks.base import AnalysisResult, channel_registry
 
@@ -75,6 +76,67 @@ def test_wecom_render():
     payload = ch.render(_make_result())
     assert payload["msgtype"] == "markdown"
     assert "Apache RCE" in payload["markdown"]["content"]
+
+
+def test_split_markdown_bytes():
+    from megatron.plugins.webhooks.base import split_markdown_bytes
+
+    # Fits: unchanged
+    assert split_markdown_bytes("hello", 100) == ["hello"]
+    assert split_markdown_bytes("", 100) == []
+
+    # Long text splits on line boundaries, every chunk under the byte cap
+    long_md = "\n".join(f"{i}. " + "好" * 40 for i in range(1, 30))  # ~3600+ bytes
+    chunks = split_markdown_bytes(long_md, 400)
+    assert len(chunks) > 1
+    for c in chunks:
+        assert len(c.encode("utf-8")) <= 400
+    assert "".join(chunks).replace("\n", "") == long_md.replace("\n", "")
+
+    # A single overlong line is hard-split without losing content
+    line = "x" * 1000
+    hard = split_markdown_bytes(line, 300)
+    assert all(len(c.encode("utf-8")) <= 300 for c in hard)
+    assert "".join(hard) == line
+
+
+def test_wecom_send_splits_long_markdown(monkeypatch):
+    from megatron.plugins.webhooks.wecom import MAX_BYTES
+
+    sent = []
+
+    class FakeResp:
+        status_code = 200
+        text = ""
+
+    async def fake_post(self, url, json=None, headers=None):
+        sent.append(json)
+        return FakeResp()
+
+    ch = channel_registry.create("wecom", webhook_url="http://wecom/hook")
+    monkeypatch.setattr("httpx.AsyncClient.post", fake_post)
+
+    long_md = "\n".join(f"{i}. **标题{i}**" + "内容" * 60 for i in range(1, 30))
+    assert len(long_md.encode("utf-8")) > MAX_BYTES
+    result = AnalysisResult(
+        briefing="",
+        items=[],
+        raw={},
+        run_id=1,
+        module_name="test",
+        report_markdown=long_md,
+    )
+    outcome = asyncio.run(ch.send(result))
+
+    assert outcome["ok"] is True
+    assert len(sent) > 1, "long markdown should split into multiple messages"
+    for payload in sent:
+        content = payload["markdown"]["content"]
+        assert len(content.encode("utf-8")) <= MAX_BYTES + 200  # marker headroom
+    # Nothing lost: concatenated content contains every item
+    joined = "".join(p["markdown"]["content"] for p in sent)
+    for i in range(1, 30):
+        assert f"{i}. **标题{i}**" in joined
 
 
 def test_dingtalk_render():
