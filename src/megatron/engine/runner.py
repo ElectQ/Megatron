@@ -254,6 +254,26 @@ class ModuleRunner:
                 result = await self._build_bundle(
                     module, run, effective_fc, filtered, result, names
                 )
+                if result.get("parse_error"):
+                    # The tiers are empty because the answer never parsed, not
+                    # because the day was quiet. The bundle is still built (the
+                    # day page renders it and shows this warning), but its push is
+                    # not rendered from those empty tiers — see _build_bundle.
+                    pushed = "已改用模型原文直推" if result.get("report_markdown") else "改为推送错误提示"
+                    logger.error(
+                        "runner.bundle_unparsed_output",
+                        module=module.name,
+                        run_id=run.id,
+                        ingest=len(filtered),
+                        salvaged=bool(result.get("report_markdown")),
+                        error=result["parse_error"][:200],
+                    )
+                    self._warn(
+                        "llm_output_unparsed",
+                        f"LLM 输出无法解析({result['parse_error'][:120]});"
+                        f"已跳过分级,本次{pushed}。",
+                        ingest=len(filtered),
+                    )
             if self._warnings:
                 result["warnings"] = self._warnings
             run.prompt_tokens = tokens_in
@@ -516,10 +536,21 @@ class ModuleRunner:
 
         style = fc.get("digest_style", "digest")
         bundle["digest_style"] = style
-        body = await resolve_digest_body(self.session, style, _settings.config_dir)
-        # Channels already prefer report_markdown; handing them the rendered push
-        # means the webhook plugins need no changes at all.
-        bundle["report_markdown"] = render_doorbell(bundle, body=body)
+        # An unparsed answer leaves `items` empty for a reason that has nothing to
+        # do with the day: rendering the push from it would send "今日无必看条目"
+        # over 25 ingested items, and a reader cannot tell that from a quiet day.
+        # So never render the digest from tiers we know are missing. Whatever the
+        # model did produce is still worth sending — `_parse_result` salvages the
+        # markdown out of truncated JSON — and only when it salvaged nothing do we
+        # fall back to "" so the channels send an error notice.
+        if llm_output.get("parse_error"):
+            bundle["parse_error"] = llm_output["parse_error"]
+            bundle["report_markdown"] = llm_output.get("report_markdown") or ""
+        else:
+            body = await resolve_digest_body(self.session, style, _settings.config_dir)
+            # Channels already prefer report_markdown; handing them the rendered push
+            # means the webhook plugins need no changes at all.
+            bundle["report_markdown"] = render_doorbell(bundle, body=body)
 
         logger.info(
             "runner.bundle",
@@ -949,28 +980,37 @@ class ModuleRunner:
             result.tool_calls,
         )
 
-    async def _deliver(self, module, run, result: dict) -> list[dict]:
-        """Push to the module's channels.
-
-        For a day bundle the channels only ever see the capped push subset and
-        the doorbell text — the rest of the day lives on the day page. The
-        webhook plugins are unchanged: they already prefer `report_markdown`.
+    def _analysis_result(self, module, run, result: dict):
+        """What the channels are handed. One place, so a field added to the bundle
+        cannot be forgotten on the way to the webhook — which is how `parse_error`
+        went missing and every channel's error branch became dead code.
         """
         from ..plugins.webhooks.base import AnalysisResult
         from .bundle import BUNDLE_SCHEMA, push_items
-        from .delivery import DeliveryService
 
         is_bundle = result.get("schema") == BUNDLE_SCHEMA
-        items = push_items(result) if is_bundle else result.get("items", [])
-
-        ar = AnalysisResult(
+        return AnalysisResult(
             briefing=result.get("briefing", ""),
-            items=items,
+            # For a bundle the channels only ever see the capped push subset; the
+            # rest of the day lives on the day page.
+            items=push_items(result) if is_bundle else result.get("items", []),
             raw=result,
             run_id=run.id,
             module_name=module.name,
             report_markdown=result.get("report_markdown", ""),
+            parse_error=result.get("parse_error", ""),
         )
+
+    async def _deliver(self, module, run, result: dict) -> list[dict]:
+        """Push to the module's channels.
+
+        The webhook plugins are unchanged: they already prefer `report_markdown`,
+        and already send an error notice when `parse_error` is set and there is no
+        markdown to send.
+        """
+        from .delivery import DeliveryService
+
+        ar = self._analysis_result(module, run, result)
         try:
             service = DeliveryService(self.session)
             return await service.deliver(module, run, ar)

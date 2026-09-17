@@ -120,14 +120,29 @@ async def test_provider(pid: int, session: AsyncSession = Depends(get_session)):
             }
         )
         resp = await llm.chat([{"role": "user", "content": "Say 'OK'."}])
-        return {
-            "ok": True,
-            "model": p.model,
-            "reply": resp.content[:60],
-            "tokens": resp.prompt_tokens + resp.completion_tokens,
-        }
     except Exception as e:
         return {"ok": False, "error": str(e)[:200]}
+
+    # A 200 with an empty body is the failure this button exists to catch (a
+    # retired model name does exactly that), so "ok" has to mean "it answered",
+    # not "the call did not raise".
+    reply = (resp.content or "").strip()
+    if not reply:
+        return {
+            "ok": False,
+            "model": p.model,
+            "error": (
+                f"模型返回了空内容 (finish_reason={resp.finish_reason or '?'}, "
+                f"completion_tokens={resp.completion_tokens})。"
+                " 常见原因:模型名已下线、或 max_tokens 全被思考占满。"
+            ),
+        }
+    return {
+        "ok": True,
+        "model": p.model,
+        "reply": reply[:60],
+        "tokens": resp.prompt_tokens + resp.completion_tokens,
+    }
 
 
 __all__ = ["router"]

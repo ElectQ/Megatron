@@ -8,6 +8,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 
+from megatron.llm.provider import ChatResponse
 from megatron.web.app import app
 
 
@@ -203,3 +204,48 @@ async def test_manual_run_rejects_when_active(admin_client):
         second = await admin_client.post(f"/api/admin/modules/{module_id}/run")
         assert second.status_code == 409
         assert "already has active run" in second.text
+
+
+async def _make_provider(admin_client, model="deepseek/deepseek-v4-flash"):
+    r = await admin_client.post(
+        "/api/admin/providers",
+        json={"name": f"probe-{model}", "model": model, "api_key": "sk-x"},
+    )
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_provider_test_reports_a_healthy_provider(admin_client):
+    pid = await _make_provider(admin_client)
+    resp = ChatResponse(content="OK", prompt_tokens=5, completion_tokens=1, finish_reason="stop")
+    with patch("megatron.llm.provider.LLMProvider.chat", new_callable=AsyncMock, return_value=resp):
+        r = await admin_client.post(f"/api/admin/providers/{pid}/test")
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+    assert r.json()["reply"] == "OK"
+
+
+@pytest.mark.asyncio
+async def test_provider_test_fails_on_an_empty_reply(admin_client):
+    """The exact symptom of a retired model name: HTTP 200, empty content. The
+    button must not report that as a working provider."""
+    pid = await _make_provider(admin_client, "deepseek")
+    resp = ChatResponse(content="", prompt_tokens=5, completion_tokens=0, finish_reason="stop")
+    with patch("megatron.llm.provider.LLMProvider.chat", new_callable=AsyncMock, return_value=resp):
+        r = await admin_client.post(f"/api/admin/providers/{pid}/test")
+    body = r.json()
+    assert body["ok"] is False
+    assert "空内容" in body["error"]
+
+
+@pytest.mark.asyncio
+async def test_provider_test_surfaces_a_client_error(admin_client):
+    pid = await _make_provider(admin_client, "deepseek-chat")
+    boom = Exception("deepseek-chat is not a valid model ID")
+    with patch("megatron.llm.provider.LLMProvider.chat", new_callable=AsyncMock, side_effect=boom):
+        r = await admin_client.post(f"/api/admin/providers/{pid}/test")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is False
+    assert "not a valid model ID" in body["error"]

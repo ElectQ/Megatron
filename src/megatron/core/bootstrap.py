@@ -128,8 +128,17 @@ async def _ensure_admin_user(session) -> None:
         logger.info("bootstrap.admin_user_created", username="admin")
 
 
+DEFAULT_DEEPSEEK_MODEL = "deepseek/deepseek-v4-flash"
+
+# Names DeepSeek has retired. A stored row keeps calling one long after the
+# rename landed in this file, because seeding is create-if-missing — the request
+# comes back empty and the digest goes out blank. Bump the model here and add the
+# old name to this list (migration 0016 carries the same pair for existing DBs).
+RETIRED_DEEPSEEK_MODELS = ("deepseek/deepseek-chat",)
+
+
 async def _ensure_llm_provider(session) -> None:
-    """Create DeepSeek provider if API key is provided and no provider exists."""
+    """Create the DeepSeek provider, or pull a retired model name forward."""
     from .engine_models import LLMProvider
     from .security import encrypt_secret
 
@@ -138,13 +147,25 @@ async def _ensure_llm_provider(session) -> None:
         return
 
     result = await session.execute(select(LLMProvider).where(LLMProvider.name == "deepseek"))
-    if result.scalar_one_or_none():
-        # Already exists, maybe update key
+    existing = result.scalar_one_or_none()
+    if existing:
+        # The operator owns this row — model, temperature, max_tokens are theirs
+        # to edit in the UI. The one thing we do correct is a rename, which is
+        # not a preference: the name no longer resolves upstream.
+        if existing.model in RETIRED_DEEPSEEK_MODELS:
+            logger.warning(
+                "bootstrap.llm_provider_model_updated",
+                provider=existing.name,
+                was=existing.model,
+                now=DEFAULT_DEEPSEEK_MODEL,
+            )
+            existing.model = DEFAULT_DEEPSEEK_MODEL
+            await session.commit()
         return
 
     provider = LLMProvider(
         name="deepseek",
-        model="deepseek/deepseek-v4-flash",
+        model=DEFAULT_DEEPSEEK_MODEL,
         api_base="https://api.deepseek.com/v1",
         api_key=encrypt_secret(api_key),
         temperature=0.3,

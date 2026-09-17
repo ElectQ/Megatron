@@ -18,6 +18,10 @@ class ChatResponse:
     cost_usd: float = 0.0
     tool_calls: list = field(default_factory=list)
     raw: dict = field(default_factory=dict)
+    # Why the model stopped (`stop` / `length` / `content_filter`). `length` says
+    # the answer was cut off, which is the difference between "returned nothing"
+    # and "returned nothing we could use".
+    finish_reason: str = ""
 
 
 class LLMProvider:
@@ -68,6 +72,7 @@ class LLMProvider:
         choice = resp.choices[0]
         message = choice.message
         content = message.content or ""
+        finish_reason = getattr(choice, "finish_reason", None) or ""
         usage = getattr(resp, "usage", None)
         prompt_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
         completion_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
@@ -99,6 +104,8 @@ class LLMProvider:
         logger.info(
             "llm.chat.done",
             model=self.model,
+            finish_reason=finish_reason,
+            content_chars=len(content),
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             cost=round(cost, 6),
@@ -111,6 +118,7 @@ class LLMProvider:
             cost_usd=float(cost),
             tool_calls=tool_calls,
             raw={"model": self.model},
+            finish_reason=finish_reason,
         )
 
 
