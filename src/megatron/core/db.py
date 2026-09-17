@@ -66,7 +66,11 @@ async def init_db() -> None:
     from . import engine_models  # noqa: F401
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        # Production schema is owned exclusively by Alembic, which runs before
+        # the app starts. `create_all` is useful for local tests/dev, but in prod
+        # it can hide a missing migration and leave SQLite/PostgreSQL drifting.
+        if settings.env.lower() not in {"prod", "production"}:
+            await conn.run_sync(Base.metadata.create_all)
     logger.info("db.init", url=settings.database_url)
 
 

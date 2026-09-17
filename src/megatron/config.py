@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     )
 
     env: str = "development"
+    # Staging a copied SQLite volume under Dokploy must not start a second cron
+    # loop while the old instance is still live. Keep true for normal operation;
+    # set false only for the pre-cutover validation deployment.
+    scheduler_enabled: bool = True
     admin_token: str = "dev-admin-token-change-me"
     session_secret: str = "dev-session-secret-change-me-for-prod"
     master_key: str = ""

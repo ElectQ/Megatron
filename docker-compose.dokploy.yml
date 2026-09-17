@@ -1,0 +1,39 @@
+# Dokploy Phase A: one application instance + one local SQLite volume.
+#
+# Dokploy manages the Git build, Traefik/domain and lifecycle. Do not add ports,
+# container_name or restart here. It must run exactly one replica: the app owns an
+# APScheduler instance and SQLite WAL is not a shared, multi-writer database.
+#
+# First staging deploy: set MEGATRON_SCHEDULER_ENABLED=false in Dokploy. It lets
+# you validate a copied volume without duplicating the old instance's pulls,
+# analysis, DeepSeek calls or webhook pushes. Set it back to true only after the
+# final data sync and traffic cutover.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      MEGATRON_ENV: production
+      MEGATRON_DATABASE_URL: sqlite+aiosqlite:////app/data/megatron.db
+      MEGATRON_MASTER_KEY: ${MEGATRON_MASTER_KEY}
+      MEGATRON_SESSION_SECRET: ${MEGATRON_SESSION_SECRET:-}
+      MEGATRON_ADMIN_TOKEN: ${MEGATRON_ADMIN_TOKEN:-}
+      MEGATRON_ADMIN_PASSWORD: ${MEGATRON_ADMIN_PASSWORD:-}
+      MEGATRON_INGEST_TOKEN: ${MEGATRON_INGEST_TOKEN:-}
+      MEGATRON_DAY_TOKEN: ${MEGATRON_DAY_TOKEN:-}
+      MEGATRON_BASE_URL: ${MEGATRON_BASE_URL}
+      MEGATRON_DEEPSEEK_API_KEY: ${MEGATRON_DEEPSEEK_API_KEY:-}
+      MEGATRON_DINGTALK_URL: ${MEGATRON_DINGTALK_URL:-}
+      MEGATRON_DINGTALK_SECRET: ${MEGATRON_DINGTALK_SECRET:-}
+      MEGATRON_MCP_LIVE_FETCH: ${MEGATRON_MCP_LIVE_FETCH:-backfill}
+      MEGATRON_LOG_DIR: /app/data/logs
+      MEGATRON_LOG_FORMAT: json
+      MEGATRON_RUN_MIGRATIONS: ${MEGATRON_RUN_MIGRATIONS:-1}
+      MEGATRON_SCHEDULER_ENABLED: ${MEGATRON_SCHEDULER_ENABLED:-true}
+      MEGATRON_FORWARDED_ALLOW_IPS: ${MEGATRON_FORWARDED_ALLOW_IPS:-*}
+    volumes:
+      - megatron_data:/app/data
+
+volumes:
+  megatron_data:

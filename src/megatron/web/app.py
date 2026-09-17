@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -66,10 +66,14 @@ async def lifespan(app: FastAPI):
     if recovered:
         logger.info("app.reset_interrupted_runs", count=recovered)
 
-    start_scheduler()
-    logger.info("app.started", env=settings.env)
+    if settings.scheduler_enabled:
+        start_scheduler()
+    else:
+        logger.warning("app.scheduler_disabled")
+    logger.info("app.started", env=settings.env, scheduler_enabled=settings.scheduler_enabled)
     yield
-    shutdown_scheduler()
+    if settings.scheduler_enabled:
+        shutdown_scheduler()
     await dispose_db()
     logger.info("app.stopped")
 
@@ -127,6 +131,22 @@ async def health():
         "sources": await registered_sources(),
         "version": __version__,
     }
+
+
+@app.get("/ready")
+async def ready():
+    """Strict readiness probe for Dokploy: do not accept traffic without DB."""
+    from sqlalchemy import text
+
+    from ..core.db import async_session_factory
+
+    try:
+        async with async_session_factory() as session:
+            await session.execute(text("SELECT 1"))
+    except Exception as e:
+        logger.error("app.not_ready", error=str(e))
+        return JSONResponse(status_code=503, content={"status": "not_ready"})
+    return {"status": "ready"}
 
 
 # The public frontend owns `/` and the `/{lang}` catch-all, so it is mounted LAST —

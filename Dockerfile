@@ -33,12 +33,13 @@ COPY migrations/ ./migrations/
 COPY config/ ./config/
 COPY scripts/ ./scripts/
 COPY alembic.ini ./
+RUN chmod +x scripts/start.sh
 
 ENV PYTHONPATH=/app:/app/src
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -sf http://localhost:8000/health || exit 1
+    CMD curl -sf http://localhost:8000/ready || exit 1
 
-CMD ["sh", "-c", "alembic upgrade head && python -m uvicorn megatron.web.app:app --host 0.0.0.0 --port 8000"]
+CMD ["/app/scripts/start.sh"]

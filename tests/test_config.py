@@ -3,6 +3,13 @@ from __future__ import annotations
 import pytest
 
 
+def test_scheduler_enabled_honours_megatron_prefix(monkeypatch):
+    from megatron.config import Settings
+
+    monkeypatch.setenv("MEGATRON_SCHEDULER_ENABLED", "false")
+    assert Settings().scheduler_enabled is False
+
+
 def test_ingest_settings_honour_megatron_prefix(monkeypatch):
     """MEGATRON_INGEST_TOKEN must actually reach IngestSettings.
 

@@ -7,10 +7,15 @@ services:
       # Three slashes would be relative to WORKDIR=/app and land off-volume,
       # so the database would be lost every time the container is recreated.
       MEGATRON_DATABASE_URL: ${MEGATRON_DATABASE_URL:-sqlite+aiosqlite:////app/data/megatron.db}
+      # Dokploy 应显式设为 production 并提供 MASTER_KEY；保留 development
+      # 默认值，避免已有 deploy.sh 生成的旧 .env 在升级时被突然拒绝启动。
+      MEGATRON_ENV: ${MEGATRON_ENV:-development}
+      MEGATRON_MASTER_KEY: ${MEGATRON_MASTER_KEY:-}
       MEGATRON_SESSION_SECRET: ${MEGATRON_SESSION_SECRET:-}
       MEGATRON_ADMIN_TOKEN: ${MEGATRON_ADMIN_TOKEN:-}
       MEGATRON_ADMIN_PASSWORD: ${MEGATRON_ADMIN_PASSWORD:-}
       MEGATRON_INGEST_TOKEN: ${MEGATRON_INGEST_TOKEN:-}
+      MEGATRON_DAY_TOKEN: ${MEGATRON_DAY_TOKEN:-}
       # First-boot seed for the public domain (used to build the "view today's
       # digest" links in pushes). Pre-set to the production domain; overridable
       # via .env or later in the UI (系统设置 → 域名) — it's a DB setting.
@@ -18,6 +23,13 @@ services:
       MEGATRON_SOUNDWAVE_REPO_URL: ${MEGATRON_SOUNDWAVE_REPO_URL:-}
       MEGATRON_MCP_LIVE_FETCH: ${MEGATRON_MCP_LIVE_FETCH:-backfill}
       MEGATRON_DEEPSEEK_API_KEY: ${MEGATRON_DEEPSEEK_API_KEY:-}
+      # Log file lives on the data volume (/app/data/logs/megatron.log), so it
+      # survives `docker compose down`. stdout still gets everything.
+      MEGATRON_LOG_DIR: ${MEGATRON_LOG_DIR:-/app/data/logs}
+      MEGATRON_LOG_FORMAT: ${MEGATRON_LOG_FORMAT:-json}
+      MEGATRON_RUN_MIGRATIONS: ${MEGATRON_RUN_MIGRATIONS:-1}
+      MEGATRON_SCHEDULER_ENABLED: ${MEGATRON_SCHEDULER_ENABLED:-true}
+      MEGATRON_FORWARDED_ALLOW_IPS: ${MEGATRON_FORWARDED_ALLOW_IPS:-*}
       MEGATRON_DINGTALK_URL: ${MEGATRON_DINGTALK_URL:-}
       MEGATRON_DINGTALK_SECRET: ${MEGATRON_DINGTALK_SECRET:-}
     # Host 8010 → container 8000 (uvicorn). Host port moved off 8000 so a local

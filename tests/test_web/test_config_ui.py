@@ -28,6 +28,12 @@ async def seeded():
         await seed_digests(s, "config/digests")
 
 
+def test_ready(client):
+    r = client.get("/ready")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ready"}
+
+
 def test_digests_list_and_edit(client):
     r = client.get("/api/admin/digests", headers=AUTH)
     assert r.status_code == 200
