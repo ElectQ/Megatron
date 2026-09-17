@@ -62,7 +62,12 @@ class LLMProvider:
         if response_format:
             kwargs["response_format"] = response_format
 
-        logger.info("llm.chat.start", model=self.model, messages=len(messages))
+        logger.info(
+            "llm.chat.start",
+            model=self.model,
+            messages=len(messages),
+            json_mode=bool(response_format),
+        )
         try:
             resp = await litellm.acompletion(**kwargs)
         except Exception as e:
@@ -194,52 +199,102 @@ def parse_json_response(content: str) -> Any:
                 try:
                     return json.loads(candidate)
                 except json.JSONDecodeError:
-                    return _repair_truncated_json(candidate) or (_fallback_extract(text) or {})
+                    repaired = _repair_truncated_json(candidate)
+                    if repaired is not None:
+                        return repaired
+                    fallback = _fallback_extract(text)
+                    if fallback is not None:
+                        return fallback
+                    raise ValueError("Malformed JSON object")
     raise ValueError("Unbalanced JSON braces")
 
 
 def _repair_truncated_json(text: str) -> dict | None:
-    """Attempt to repair a truncated JSON by closing open structures.
+    """Recover the complete prefix of a truncated JSON object.
 
-    Tries (in order):
-    1. Strip trailing partial field + close arrays/objects
-    2. Extract report_markdown via regex if structure is hopeless
-    Returns dict or None.
+    The previous implementation counted every ``{`` and ``}``, including those
+    inside a model-written summary or code snippet. A one-liner such as
+    ``payload {abc`` therefore made recovery impossible. Here a small JSON-aware
+    scanner tracks strings and escapes before deciding where a partial item can
+    be cut. Every recovered result is marked ``_partial``: callers must never
+    publish it as a complete daily tiering.
     """
-    # Strategy A: close open braces/brackets
-    candidate = text.strip()
-    if not candidate.startswith("{"):
-        candidate = "{" + candidate.split("{", 1)[1] if "{" in candidate else candidate
+    start = text.find("{")
+    if start == -1:
+        return _fallback_extract(text)
+    candidate = text[start:].strip()
+    stack, commas, in_string, invalid = _json_state(candidate)
+    if invalid:
+        return _fallback_extract(text)
 
-    # Count unclosed structures (rough, ignores strings for speed)
-    open_braces = candidate.count("{") - candidate.count("}")
-    open_brackets = candidate.count("[") - candidate.count("]")
-
-    # Remove trailing partial content after last complete field
-    last_quote_colon = candidate.rfind('": "')
-    last_comma = candidate.rfind(", ")
-    last_close = max(candidate.rfind("}"), candidate.rfind("]"))
-    if last_quote_colon > last_close and last_quote_colon > last_comma:
-        # Truncated mid-string: cut back to last complete value
-        cut_point = candidate.rfind('", ', 0, last_quote_colon)
-        if cut_point > 0:
-            candidate = candidate[: cut_point + 2]
-
-    # Close open structures
-    for _ in range(max(open_brackets, 0)):
-        candidate += "]"
-    for _ in range(max(open_braces, 0)):
-        candidate += "}"
-
-    try:
-        result = json.loads(candidate)
+    # A complete prefix may end at the input tail, before a comma (drop the
+    # unfinished field/item), or before an unclosed object/array (drop that
+    # unfinished structure). The latter rescues an item truncated halfway through
+    # `one_liner: "payload {abc` without treating its brace as JSON syntax.
+    cuts = ([] if in_string else [len(candidate)]) + list(reversed(commas))
+    cuts += [pos for _, pos in reversed(stack)]
+    seen: set[int] = set()
+    for cut in cuts:
+        if cut in seen:
+            continue
+        seen.add(cut)
+        repaired = _close_json(candidate[:cut])
+        if repaired is None:
+            continue
+        try:
+            result = json.loads(repaired)
+        except json.JSONDecodeError:
+            continue
         if isinstance(result, dict):
+            result["_partial"] = True
             return result
-    except json.JSONDecodeError:
-        pass
 
-    # Strategy B: regex extract report_markdown only
+    # Strategy B: regex extract report_markdown only.
     return _fallback_extract(text)
+
+
+def _json_state(text: str) -> tuple[list[tuple[str, int]], list[int], bool, bool]:
+    """Return ``(unclosed_stack, commas, in_string, invalid)`` for JSON text."""
+    stack: list[tuple[str, int]] = []
+    commas: list[int] = []
+    in_string = False
+    escape = False
+    invalid = False
+    pairs = {"}": "{", "]": "["}
+
+    for i, ch in enumerate(text):
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            stack.append((ch, i))
+        elif ch in "}]":
+            if not stack or stack[-1][0] != pairs[ch]:
+                invalid = True
+                break
+            stack.pop()
+        elif ch == ",":
+            commas.append(i)
+    return stack, commas, in_string, invalid
+
+
+def _close_json(prefix: str) -> str | None:
+    """Close a complete JSON prefix, or return None when its tail is partial."""
+    prefix = prefix.rstrip().rstrip(",").rstrip()
+    if not prefix or prefix.endswith(":"):
+        return None
+    stack, _, in_string, invalid = _json_state(prefix)
+    if in_string or invalid:
+        return None
+    closers = ("}" if opener == "{" else "]" for opener, _ in reversed(stack))
+    return prefix + "".join(closers)
 
 
 def _fallback_extract(text: str) -> dict | None:

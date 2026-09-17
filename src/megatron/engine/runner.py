@@ -245,10 +245,15 @@ class ModuleRunner:
             await self.session.commit()
 
             content, tokens_in, tokens_out, cost, tool_log = await self._invoke(
-                module, llm, prompt_str
+                module, llm, prompt_str, json_mode=effective_fc.get("output_mode") == "day_bundle"
             )
 
             result = self._parse_result(content)
+            if result.get("parse_error"):
+                result["llm_debug"] = {
+                    "content_chars": len(content),
+                    "content_tail": content[-1000:],
+                }
             if effective_fc.get("output_mode") == "day_bundle":
                 names = await self._source_names(filtered)
                 result = await self._build_bundle(
@@ -527,6 +532,8 @@ class ModuleRunner:
             publishable=publishable,
         )
         bundle["schema_errors"] = schema_errors
+        if llm_output.get("llm_debug"):
+            bundle["llm_debug"] = llm_output["llm_debug"]
         # The task picks the push template (like page_layout picks the day page):
         # `digest` = tiered push, `feed` = link-only for page-only sources. The
         # template body comes from the DB (editable in the admin UI), falling back
@@ -941,7 +948,7 @@ class ModuleRunner:
             return [int(r) for r in rows]
         return [int(r) for r in (module.webhook_channel_ids or [])]
 
-    async def _invoke(self, module, llm: LLMProvider, prompt_str: str):
+    async def _invoke(self, module, llm: LLMProvider, prompt_str: str, json_mode: bool = False):
         """Dispatch to the configured agent backend.
 
         Completely config-driven:
@@ -954,12 +961,18 @@ class ModuleRunner:
 
         backend = (module.agent_backend or "none").strip()
         if backend == "none" or backend == "":
-            resp = await llm.chat([{"role": "user", "content": prompt_str}])
+            resp = await llm.chat(
+                [{"role": "user", "content": prompt_str}],
+                response_format={"type": "json_object"} if json_mode else None,
+            )
             return resp.content, resp.prompt_tokens, resp.completion_tokens, resp.cost_usd, []
 
         if backend not in agent_registry:
             logger.warning("runner.unknown_backend", backend=backend, fallback="none")
-            resp = await llm.chat([{"role": "user", "content": prompt_str}])
+            resp = await llm.chat(
+                [{"role": "user", "content": prompt_str}],
+                response_format={"type": "json_object"} if json_mode else None,
+            )
             return resp.content, resp.prompt_tokens, resp.completion_tokens, resp.cost_usd, []
 
         tool_set = ToolSet.from_config(module.tools_config or [])
@@ -1028,6 +1041,11 @@ class ModuleRunner:
         try:
             parsed = parse_json_response(content)
             if isinstance(parsed, dict):
+                if parsed.get("_partial"):
+                    # `_repair_truncated_json` rescued a valid prefix. It is useful
+                    # for diagnosis, but cannot honestly be published as a complete
+                    # daily tiering: the tail items never reached the model output.
+                    parsed["parse_error"] = "LLM JSON truncated; recovered partial response"
                 if not parsed.get("briefing") and parsed.get("report_markdown"):
                     parsed["briefing"] = self._extract_briefing(parsed["report_markdown"])
                 return parsed
