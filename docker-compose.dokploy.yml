@@ -1,13 +1,18 @@
-# Dokploy Phase A: one application instance + one local SQLite volume.
+# Dokploy-only Compose file. In Dokploy set Compose Path exactly to:
+# ./docker-compose.dokploy.yml
+# Do not deploy docker-compose.yml there: it is the local/manual stack, and the
+# two stacks must never run at the same time (their schedulers would duplicate
+# pulls, LLM calls and webhook pushes).
 #
+# Dokploy Phase A: one application instance + one local SQLite volume.
 # Dokploy manages the Git build, Traefik/domain and lifecycle. Do not add ports,
 # container_name or restart here. It must run exactly one replica: the app owns an
 # APScheduler instance and SQLite WAL is not a shared, multi-writer database.
 #
-# First staging deploy: set MEGATRON_SCHEDULER_ENABLED=false in Dokploy. It lets
-# you validate a copied volume without duplicating the old instance's pulls,
-# analysis, DeepSeek calls or webhook pushes. Set it back to true only after the
-# final data sync and traffic cutover.
+# REQUIRED for the first staging deploy: set MEGATRON_SCHEDULER_ENABLED=false in
+# Dokploy. It lets you validate a copied volume without duplicating the old
+# instance's pulls, analysis, DeepSeek calls or webhook pushes. Set it back to
+# true only after the final data sync and traffic cutover.
 services:
   app:
     build:
@@ -26,6 +31,7 @@ services:
       MEGATRON_DEEPSEEK_API_KEY: ${MEGATRON_DEEPSEEK_API_KEY:-}
       MEGATRON_DINGTALK_URL: ${MEGATRON_DINGTALK_URL:-}
       MEGATRON_DINGTALK_SECRET: ${MEGATRON_DINGTALK_SECRET:-}
+      MEGATRON_SOUNDWAVE_REPO_URL: ${MEGATRON_SOUNDWAVE_REPO_URL:-}
       MEGATRON_MCP_LIVE_FETCH: ${MEGATRON_MCP_LIVE_FETCH:-backfill}
       MEGATRON_LOG_DIR: /app/data/logs
       MEGATRON_LOG_FORMAT: json

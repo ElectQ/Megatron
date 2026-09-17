@@ -1,3 +1,6 @@
+# Local/manual Docker Compose only. Dokploy MUST use
+# ./docker-compose.dokploy.yml instead. Do not run both files at the same time:
+# their schedulers would duplicate pulls, LLM calls and webhook pushes.
 services:
   web:
     build: .
