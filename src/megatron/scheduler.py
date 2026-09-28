@@ -206,7 +206,7 @@ async def _run_module_job(module_id: int, module_name: str) -> None:
                 error=str(e),
             )
 
-        if await _today_present(module_id):
+        if await _target_present(module_id):
             logger.info(
                 "scheduler.acquire.ready",
                 module=module_name,
@@ -324,21 +324,20 @@ async def _acquire_plan(module_id: int) -> tuple[bool, str] | None:
         if module is None or not module.enabled:
             return None
         time_mode = (module.filter_config or {}).get("time_mode", "today")
-        if time_mode not in (None, "today"):
+        if time_mode not in (None, "today", "previous_day"):
             return (False, module.source)
         sc = await get_source(session, module.source)
         polled = sc is not None and sc.enabled and sc.adapter in POLLED_ADAPTERS
         return (polled, module.source)
 
 
-async def _today_present(module_id: int) -> bool:
-    """True if today's (UTC) data for the module's source(s) is already ingested.
+async def _target_present(module_id: int) -> bool:
+    """True if the module's target day is already ingested.
 
-    Mirrors the runner's own 'today' selection exactly — same sources, same
-    ``collect_date == today_utc`` — so 'present' here means the analysis will
-    actually have rows to work on.
+    Scheduled GitHub analysis uses ``previous_day`` because today's upstream
+    bundle is partial until tomorrow morning; ordinary tasks keep today's date.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta, timezone
 
     from .core.engine_models import AnalysisModule
     from .core.models import ItemRecord
@@ -349,11 +348,16 @@ async def _today_present(module_id: int) -> bool:
             return False
         fc = module.filter_config or {}
         sources = fc.get("sources") or [module.source]
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        now = datetime.now(timezone.utc)
+        target = (
+            (now - timedelta(days=1)).strftime("%Y-%m-%d")
+            if fc.get("time_mode") == "previous_day"
+            else now.strftime("%Y-%m-%d")
+        )
         stmt = (
             select(func.count())
             .select_from(ItemRecord)
-            .where(ItemRecord.source.in_(sources), ItemRecord.collect_date == today)
+            .where(ItemRecord.source.in_(sources), ItemRecord.collect_date == target)
         )
         if module.source_ref:
             stmt = stmt.where(ItemRecord.source_ref == module.source_ref)

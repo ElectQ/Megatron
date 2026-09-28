@@ -21,7 +21,7 @@ _env = SandboxedEnvironment(
 )
 
 
-def _format_item(item: Item, content_limit: int = 500) -> dict:
+def _format_item(item: Item, content_limit: int = 500, enrichment: dict | None = None) -> dict:
     return {
         "id": item.id,
         "source": item.source,
@@ -40,6 +40,7 @@ def _format_item(item: Item, content_limit: int = 500) -> dict:
         "links": item.links,
         "is_retweet": item.is_retweet,
         "metrics": item.metrics,
+        **(enrichment or {}),
     }
 
 
@@ -47,6 +48,7 @@ def render_prompt(
     template_str: str,
     items: list[Item],
     extra_context: dict | None = None,
+    item_context: dict[str, dict] | None = None,
 ) -> str:
     """Render a Jinja2 prompt template with items + context.
 
@@ -57,7 +59,8 @@ def render_prompt(
         now: ISO timestamp
         ctx: extra_context dict
     """
-    rendered_items = [_format_item(it) for it in items]
+    item_context = item_context or {}
+    rendered_items = [_format_item(it, enrichment=item_context.get(it.id)) for it in items]
     ctx = {
         "items": rendered_items,
         "item_count": len(rendered_items),

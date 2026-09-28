@@ -54,6 +54,40 @@ def llm_item(n: str, tier: str, relevance: int = 2, source: str = "src_a") -> di
     }
 
 
+def test_a_github_fork_links_to_the_source_repo():
+    now = datetime.now(timezone.utc)
+    record = ItemRecord(
+        id=1,
+        item_id="fork-1",
+        source="github_followee_feed",
+        content="alice forked owner/tool → alice/tool",
+        url="https://github.com/alice/tool",
+        author="alice",
+        published_at=now,
+        collected_at=now,
+        collect_date="2026-07-12",
+        tags=["kind:fork"],
+    )
+    bundle = build_day_bundle(
+        date="2026-07-12",
+        run_id=1,
+        records=[record],
+        llm_output={
+            "items": [
+                {
+                    "external_id": "fork-1",
+                    "source_id": "github_followee_feed",
+                    "tier": "recommend",
+                    "one_liner": "owner/tool：工具仓库",
+                    "why_for_me": "值得试用",
+                    "topics": ["tool", "red_team"],
+                }
+            ]
+        },
+    )
+    assert bundle["items"][0]["url"] == "https://github.com/owner/tool"
+
+
 # ------------------------------------------------------------------- caps
 
 
@@ -67,6 +101,35 @@ def test_the_push_carries_must_see_and_recommend():
     _, push_ids = enforce_caps(items, {**DEFAULT_CAPS, "lead_min": 0, "must_see_min": 0})
 
     assert push_ids == ["1", "2", "3"], "速览 stays on the page"
+
+
+def test_github_multi_star_is_a_deterministic_must_see():
+    items = [
+        {
+            "id": 1,
+            "source_id": "github_followee_feed",
+            "tier": "skim",
+            "url": "https://github.com/o/r",
+            "original_url": "https://github.com/o/r",
+            "metrics": {"circle_count": 3},
+            "scores": {"relevance": 3},
+        },
+        {
+            "id": 2,
+            "source_id": "github_followee_feed",
+            "tier": "recommend",
+            "url": "https://github.com/o/r",
+            "original_url": "https://github.com/o/r",
+            "metrics": {"circle_count": 3},
+            "scores": {"relevance": 1},
+        },
+    ]
+    kept, push_ids = enforce_caps(
+        items, {**DEFAULT_CAPS, "lead_min": 0, "must_see_min": 0}
+    )
+
+    assert [i["tier"] for i in kept] == ["must_see_push", "skim"]
+    assert push_ids == ["1"], "one repo appears once even when several events represent it"
 
 
 def test_the_lead_is_a_floor_not_a_ceiling():
@@ -335,6 +398,19 @@ def test_the_feed_style_is_link_only_no_tiered_list():
     assert "[原文 ↗]" not in text, "no per-item links"
     assert "[📖 查看今日详情 →](https://m.test/day/src_a/2026-07-12?k=tok)" in text
     assert text.startswith("⚡ 推特安全流 · 2026-07-12")
+
+
+def test_the_github_style_shows_topics_and_repo_links():
+    bundle = _bundle({"must_see_push": 1, "recommend": 1})
+    bundle["digest_style"] = "github"
+    for item in bundle["items"]:
+        item["topics"] = ["red_team", "tool"]
+    text = render_digest(bundle)
+
+    assert "🔴 **必看**" in text and "🟡 **推荐**" in text
+    assert "`red_team` `tool`" in text
+    assert "[查看仓库 ↗](https://example.com/1)" in text
+    assert "[原文 ↗]" not in text
 
 
 def test_the_style_defaults_to_the_tiered_digest():

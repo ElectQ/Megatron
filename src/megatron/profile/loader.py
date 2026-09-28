@@ -129,7 +129,13 @@ async def seed_prompts(session: AsyncSession, specs: list[PromptSpec]) -> dict:
 
 async def seed_tasks(session: AsyncSession, specs: list[TaskSpec]) -> dict:
     """Create an AnalysisModule for each spec with no row yet, resolving names→ids."""
-    from ..core.engine_models import AnalysisModule, LLMProvider, PromptTemplate, WebhookChannel
+    from ..core.engine_models import (
+        AnalysisModule,
+        LLMProvider,
+        ModuleChannel,
+        PromptTemplate,
+        WebhookChannel,
+    )
 
     seeded, skipped, warned = [], [], []
     for spec in specs:
@@ -172,27 +178,50 @@ async def seed_tasks(session: AsyncSession, specs: list[TaskSpec]) -> dict:
                 .scalars()
                 .first()
             )
+            if ch is None and cname == "钉钉安全简报":
+                ch = (
+                    (
+                        await session.execute(
+                            select(WebhookChannel)
+                            .where(
+                                WebhookChannel.kind == "dingtalk",
+                                WebhookChannel.enabled.is_(True),
+                            )
+                            .order_by(WebhookChannel.id)
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
             if ch:
                 channel_ids.append(ch.id)
             else:
                 logger.info("tasks.channel_missing", task=spec.name, channel=cname)
 
-        session.add(
-            AnalysisModule(
-                name=spec.name,
-                description=spec.description,
-                source=spec.source,
-                source_ref="",
-                filter_config=spec.filter_config,
-                prompt_template_id=prompt.id,
-                provider_id=provider.id,
-                agent_backend="none",
-                tools_config=[],
-                webhook_channel_ids=channel_ids,
-                schedule_cron=spec.schedule_cron,
-                enabled=spec.enabled,
-            )
+        module = AnalysisModule(
+            name=spec.name,
+            description=spec.description,
+            source=spec.source,
+            source_ref="",
+            filter_config=spec.filter_config,
+            prompt_template_id=prompt.id,
+            provider_id=provider.id,
+            agent_backend="none",
+            tools_config=[],
+            webhook_channel_ids=channel_ids,
+            schedule_cron=spec.schedule_cron,
+            enabled=spec.enabled,
         )
+        session.add(module)
+        await session.flush()
+        for position, channel_id in enumerate(channel_ids):
+            session.add(
+                ModuleChannel(
+                    module_id=module.id,
+                    channel_id=channel_id,
+                    position=position,
+                )
+            )
         seeded.append(spec.name)
     if seeded:
         await session.commit()
@@ -245,7 +274,11 @@ async def seed_digests(session: AsyncSession, digests_dir: str | Path) -> dict:
         session.add(
             DigestTemplate(
                 style=style,
-                display_name={"digest": "分档推送", "feed": "仅链接推送"}.get(style, style),
+                display_name={
+                    "digest": "分档推送",
+                    "feed": "仅链接推送",
+                    "github": "GitHub 分档推送",
+                }.get(style, style),
                 body=path.read_text(),
                 is_active=True,
             )

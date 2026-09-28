@@ -20,7 +20,7 @@ ingest a half-published day.
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urljoin
 
@@ -63,7 +63,12 @@ class BundlePullSource(BaseSource):
         self.timeout = float(config.get("timeout", 30.0))
 
     async def fetch(self, since: datetime | None = None) -> list[Item]:
-        since_date = since.strftime("%Y-%m-%d") if since else ""
+        # Re-fetch the watermark day once. A collector may publish today's partial
+        # bundle first and complete it tomorrow; ingest dedupes old rows while the
+        # overlap picks up events added after the first pull.
+        since_date = (
+            (since - timedelta(days=1)).strftime("%Y-%m-%d") if since else ""
+        )
 
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
             index = await self._get_json(client, self.index_url)

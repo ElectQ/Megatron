@@ -51,6 +51,21 @@ def test_render_with_context():
     assert "Window: 24h" in rendered
 
 
+def test_render_with_per_item_enrichment():
+    tmpl = "{% for it in items %}{{ it.repo_url }} {{ it.readme_excerpt }}{% endfor %}"
+    rendered = render_prompt(
+        tmpl,
+        [_make_item()],
+        item_context={
+            "t1": {
+                "repo_url": "https://github.com/o/r",
+                "readme_excerpt": "real repository summary",
+            }
+        },
+    )
+    assert rendered == "https://github.com/o/r real repository summary"
+
+
 def test_preview_invalid_template_does_not_raise():
     bad = "{{ undefined_var_in_strict }}"
     rendered = preview_template(bad)
@@ -87,7 +102,9 @@ def test_github_radar_renders_without_any_context():
     rendered = render_prompt(_prompt_body("github_radar_v1"), [_make_item()])
     assert "GitHub 关注雷达" in rendered
     assert "circle_count" in rendered, "the convergence signal is explained"
-    assert "这个源不推送" in rendered
+    assert "必看/推荐推送" in rendered
+    assert "red_team" in rendered, "the fixed topic vocabulary is explicit"
+    assert "who:" not in rendered and "links:" not in rendered, "ranking omits private/redundant fields"
 
 
 def test_every_prompt_files_output_schema_resolves():

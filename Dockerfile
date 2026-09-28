@@ -15,7 +15,10 @@ RUN apt-get update && apt-get install -y \
 # 3.11+), taking the whole container down. Bump deliberately, and re-verify on
 # python:3.10 before merging.
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir uv \
+ENV PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=5 \
+    UV_HTTP_TIMEOUT=120
+RUN pip install --no-cache-dir --retries 5 --timeout 120 uv \
     && uv pip install --system "fastapi==0.137.1" "uvicorn[standard]==0.49.0" \
         "sqlalchemy[asyncio]==2.0.51" "aiosqlite==0.22.1" "alembic==1.18.4" \
         "pydantic==2.13.4" "pydantic-settings==2.14.1" "apscheduler==3.11.2" \

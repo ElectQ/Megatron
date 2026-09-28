@@ -118,13 +118,22 @@ async def test_day_listed_in_index_but_not_yet_published_is_skipped():
 
 
 @pytest.mark.asyncio
-async def test_watermark_skips_days_already_ingested():
+async def test_watermark_day_is_refetched_to_complete_a_partial_bundle():
     from datetime import datetime, timezone
 
     with patched_client(transport()):
         items = await source().fetch(
-            since=datetime(2026, 7, 12, tzinfo=timezone.utc)  # day after the bundle
+            since=datetime(2026, 7, 12, tzinfo=timezone.utc)  # normal caller asks after watermark
         )
+    assert len(items) == 3, "one-day overlap lets a partial day finish on the next poll"
+
+
+@pytest.mark.asyncio
+async def test_days_before_the_overlap_are_skipped():
+    from datetime import datetime, timezone
+
+    with patched_client(transport()):
+        items = await source().fetch(since=datetime(2026, 7, 13, tzinfo=timezone.utc))
     assert items == []
 
 

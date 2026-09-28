@@ -45,7 +45,7 @@ def _wire(monkeypatch, *, present_on):
 
     monkeypatch.setattr(sched, "_acquire_plan", fake_plan)
     monkeypatch.setattr(sched, "poll_source", fake_poll)
-    monkeypatch.setattr(sched, "_today_present", fake_present)
+    monkeypatch.setattr(sched, "_target_present", fake_present)
     monkeypatch.setattr(sched, "_do_module_run", fake_run)
     monkeypatch.setattr(sched, "_record_failed_day", fake_fail)
     return calls
@@ -190,37 +190,50 @@ async def _add_item(session, source, collect_date):
 
 
 @pytest.mark.asyncio
-async def test_today_present_reflects_ingested_rows():
+async def test_target_present_reflects_today_and_previous_day():
+    from datetime import timedelta
+
     from megatron.core.db import async_session_factory
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     async with async_session_factory() as s:
         await _seed_source(s, "src_tp", "bundle_pull")
-        mid = await _seed_module(s, "mod_tp", "src_tp", {"time_mode": "today"})
+        today_mid = await _seed_module(s, "mod_tp", "src_tp", {"time_mode": "today"})
+        previous_mid = await _seed_module(
+            s, "mod_prev", "src_tp", {"time_mode": "previous_day"}
+        )
 
-    assert await sched._today_present(mid) is False
+    assert await sched._target_present(today_mid) is False
+    assert await sched._target_present(previous_mid) is False
 
     async with async_session_factory() as s:
-        await _add_item(s, "src_tp", "2000-01-01")  # some other day
-    assert await sched._today_present(mid) is False
+        await _add_item(s, "src_tp", yesterday)
+    assert await sched._target_present(today_mid) is False
+    assert await sched._target_present(previous_mid) is True
 
     async with async_session_factory() as s:
-        await _add_item(s, "src_tp", today)  # today's data lands
-    assert await sched._today_present(mid) is True
+        await _add_item(s, "src_tp", today)
+    assert await sched._target_present(today_mid) is True
 
 
 @pytest.mark.asyncio
-async def test_acquire_plan_retries_only_for_polled_today_source():
+async def test_acquire_plan_retries_for_polled_target_day_sources():
     from megatron.core.db import async_session_factory
 
     async with async_session_factory() as s:
         await _seed_source(s, "src_poll", "bundle_pull")
         await _seed_source(s, "src_native", "native")
         polled_today = await _seed_module(s, "m_pt", "src_poll", {"time_mode": "today"})
+        polled_previous = await _seed_module(
+            s, "m_pp", "src_poll", {"time_mode": "previous_day"}
+        )
         polled_date = await _seed_module(s, "m_pd", "src_poll", {"time_mode": "date"})
         native_today = await _seed_module(s, "m_nt", "src_native", {"time_mode": "today"})
 
     assert await sched._acquire_plan(polled_today) == (True, "src_poll")
+    assert await sched._acquire_plan(polled_previous) == (True, "src_poll")
     assert await sched._acquire_plan(polled_date) == (False, "src_poll")
     assert await sched._acquire_plan(native_today) == (False, "src_native")
     assert await sched._acquire_plan(999999) is None

@@ -1,24 +1,25 @@
-# GitHub 关注流每日分级 —— 日刊页 + 一条「仅链接」推送。
+# GitHub 关注流每日分级 —— 昨日完整日包 + 必看/推荐推送 + 日刊页。
 name: github_followee_briefing
-description: 每日 GitHub 关注流分级（日刊页 + 链接推送）
+description: 每日 GitHub 关注流分级（必看/推荐推送 + 日刊页）
 source: github_followee_feed
 prompt: github_radar_v1
 provider: deepseek
 schedule_cron: "0 1 * * *"      # 01:00 UTC = 09:00 北京（晚于 22:40 UTC 拉取）
-channels: [钉钉安全简报]          # 推一条链接进钉钉；按名字绑定，缺渠道则不推送
+channels: [钉钉安全简报]          # 推送必看/推荐；按名字绑定，缺渠道则不推送
 filter_config:
-  time_mode: today
+  # Sentinel-gh 的「当天」包要到次日 05:00 后才完整；09:00 推昨天的完整日包。
+  time_mode: previous_day
   output_mode: day_bundle
   max_items: 0
   title: GitHub 关注流
-  # 推送文案用「仅链接」模板（config/digests/feed.md），不铺必看/推荐列表。
-  digest_style: feed
+  # GitHub 专用分档模板：仓库介绍 + 原仓库地址。
+  digest_style: github
   intent:
     primary: [本地/自托管 AI Agent, 红队/攻防工具, 可复现的攻击手法]
     secondary: [漏洞利用, 逆向/取证, 值得上手的开源安全项目]
   caps:
     lead_min: 0
-    must_see_min: 5
-    must_see_max: 10
-    recommend_max: 20
+    must_see_min: 0
+    must_see_max: 8
+    recommend_max: 15
     skim_max: 0

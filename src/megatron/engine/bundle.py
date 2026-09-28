@@ -97,9 +97,16 @@ def _political(item: dict, blocklist: tuple[str, ...]) -> str:
 def item_link(rec: ItemRecord, base_url: str = "") -> str:
     """The URL a reader is sent to for this item.
 
-    Single swap point: pointing this at a tracked redirect later changes every
-    rendered link at once.
+    A GitHub fork event points at the actor's fork copy, while the useful project
+    is the source repo named before the arrow. The GitHub parser already owns
+    that fragile recovery, so reuse it here and keep every pushed link canonical.
     """
+    if rec.source == "github_followee_feed":
+        from .github_feed import parse_github_event
+
+        event = parse_github_event(rec)
+        if event is not None:
+            return event.repo_url
     return rec.url
 
 
@@ -145,6 +152,33 @@ def _in(items: list[dict], *tiers: str) -> list[dict]:
     return [i for i in items if i.get("tier") in tiers]
 
 
+def _promote_github_convergence(items: list[dict]) -> None:
+    """Make the collector's strongest GitHub signal deterministic.
+
+    The model still judges what a repo is, but it cannot miss that several
+    independent accounts starred the same repo today. Only one annotation per
+    repo is delivered; duplicate event rows remain page-only.
+    """
+    groups: dict[str, list[dict]] = {}
+    for item in items:
+        if item.get("source_id") != "github_followee_feed":
+            continue
+        try:
+            count = int((item.get("metrics") or {}).get("circle_count") or 0)
+        except (TypeError, ValueError):
+            count = 0
+        if count < 2:
+            continue
+        groups.setdefault(item.get("original_url") or item.get("url") or "", []).append(item)
+
+    for group in groups.values():
+        winner = max(group, key=_rank)
+        winner["tier"] = "must_see_push"
+        for duplicate in group:
+            if duplicate is not winner and duplicate.get("tier") in DELIVERED:
+                duplicate["tier"] = "skim"
+
+
 def enforce_caps(items: list[dict], caps: dict) -> tuple[list[dict], list[str]]:
     """Fit the model's tiers to the caps. Returns (items, push_item_ids).
 
@@ -153,6 +187,7 @@ def enforce_caps(items: list[dict], caps: dict) -> tuple[list[dict], list[str]]:
     ids. Here it is the delivered set: 必看 + 推荐.
     """
     caps = {**DEFAULT_CAPS, **(caps or {})}
+    _promote_github_convergence(items)
     lead_min = int(caps["lead_min"])
     must_min = int(caps["must_see_min"])
     must_max = int(caps["must_see_max"])

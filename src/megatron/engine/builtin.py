@@ -18,7 +18,7 @@ DEFAULT_PROMPT_DISPLAY = "推特安全信息流简报"
 DAILY_INTEL_V1_NAME = "daily_intel_v1"
 DAILY_INTEL_V1_DISPLAY = "每日情报分级（门铃 / 日刊）"
 GITHUB_RADAR_V1_NAME = "github_radar_v1"
-GITHUB_RADAR_V1_DISPLAY = "GitHub 关注流分级（仅日刊页）"
+GITHUB_RADAR_V1_DISPLAY = "GitHub 关注流分级（必看/推荐推送）"
 
 
 DEFAULT_OUTPUT_SCHEMA = {

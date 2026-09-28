@@ -210,6 +210,10 @@ class ModuleRunner:
             effective_fc = dict(module.filter_config or {})
             if latest_date and effective_fc.get("time_mode") in (None, "today", "date"):
                 effective_fc = {**effective_fc, "time_mode": "date", "target_date": latest_date}
+            elif effective_fc.get("time_mode") == "previous_day":
+                effective_fc["target_date"] = (
+                    datetime.now(timezone.utc) - timedelta(days=1)
+                ).strftime("%Y-%m-%d")
 
             await self._check_arrivals(module, effective_fc)
 
@@ -722,10 +726,11 @@ class ModuleRunner:
         the module's own config.
 
         Modes (default 'today'):
-            today   — collect_date == today (UTC)
-            date    — collect_date == filter_config.target_date
-            range   — collect_date BETWEEN from AND to
-            rolling — published_at >= now - window_hours (legacy)
+            today        — collect_date == today (UTC)
+            previous_day — collect_date == yesterday (UTC)
+            date         — collect_date == filter_config.target_date
+            range        — collect_date BETWEEN from AND to
+            rolling      — published_at >= now - window_hours (legacy)
         """
         fc = fc if fc is not None else (module.filter_config or {})
         time_mode = fc.get("time_mode", "today")
@@ -747,6 +752,13 @@ class ModuleRunner:
             target = fc.get("target_date", today_utc)
             stmt = stmt.where(ItemRecord.collect_date == target)
             logger.info("runner.select.date", target=target)
+        elif time_mode == "previous_day":
+            target = fc.get("target_date") or (
+                datetime.now(timezone.utc) - timedelta(days=1)
+            ).strftime("%Y-%m-%d")
+            fc["target_date"] = target
+            stmt = stmt.where(ItemRecord.collect_date == target)
+            logger.info("runner.select.previous_day", target=target)
         elif time_mode == "range":
             date_from = fc.get("date_from", today_utc)
             date_to = fc.get("date_to", today_utc)
@@ -844,6 +856,11 @@ class ModuleRunner:
         if not tmpl:
             raise ValueError(f"PromptTemplate {module.prompt_template_id} not found")
         items = [_record_to_item(r) for r in records]
+        item_context = {}
+        if module.source == "github_followee_feed":
+            from .github_enrich import github_repo_context
+
+            item_context = await github_repo_context(records)
         snapshot = {
             "id": tmpl.id,
             "name": tmpl.name,
@@ -852,7 +869,7 @@ class ModuleRunner:
             "output_schema": tmpl.output_schema or {},
             "is_active": tmpl.is_active,
         }
-        return render_prompt(tmpl.template, items, extra), snapshot
+        return render_prompt(tmpl.template, items, extra, item_context), snapshot
 
     async def _prompt_snapshot(self, module) -> dict:
         from ..core.engine_models import PromptTemplate

@@ -14,6 +14,7 @@ from sqlalchemy import select
 from megatron.core.engine_models import (
     AnalysisModule,
     LLMProvider,
+    ModuleChannel,
     PromptTemplate,
     WebhookChannel,
 )
@@ -160,6 +161,33 @@ async def test_seed_tasks_resolves_prompt_provider_and_channels(session):
     assert mod.prompt_template_id is not None
     assert mod.provider_id is not None
     assert mod.webhook_channel_ids == [ch.id]
+    edge = (
+        await session.execute(select(ModuleChannel).where(ModuleChannel.module_id == mod.id))
+    ).scalar_one()
+    assert edge.channel_id == ch.id and edge.position == 0
+
+
+@pytest.mark.asyncio
+async def test_shipped_dingtalk_name_falls_back_to_the_enabled_dingtalk_channel(session):
+    await _provider(session)
+    await seed_prompts(session, [PromptSpec(name="pr_fallback", output_schema="", body="b")])
+    ch = WebhookChannel(name="旧名字", kind="dingtalk", config={}, enabled=True)
+    session.add(ch)
+    await session.commit()
+
+    spec = TaskSpec(
+        name="task_fallback",
+        source="src",
+        prompt="pr_fallback",
+        channels=["钉钉安全简报"],
+    )
+    await seed_tasks(session, [spec])
+    mod = (
+        await session.execute(
+            select(AnalysisModule).where(AnalysisModule.name == "task_fallback")
+        )
+    ).scalar_one()
+    assert mod.webhook_channel_ids == [ch.id]
 
 
 @pytest.mark.asyncio
@@ -176,11 +204,14 @@ async def test_seed_profile_end_to_end_from_the_shipped_files(session):
     result = await seed_profile(session, "config")
     assert not result["errors"]
     assert "daily_intel_v1" in result["prompts"]["seeded"]
-    # page-only github task binds no channels
     gh = (
         await session.execute(
             select(AnalysisModule).where(AnalysisModule.name == "github_followee_briefing")
         )
     ).scalar_one()
+    # This fixture has no named DingTalk channel, so binding is skipped, but the
+    # shipped task is now a tiered push once that channel exists in production.
     assert gh.webhook_channel_ids == []
-    assert gh.filter_config["caps"]["must_see_max"] == 10
+    assert gh.filter_config["digest_style"] == "github"
+    assert gh.filter_config["time_mode"] == "previous_day"
+    assert gh.filter_config["caps"]["must_see_max"] == 8

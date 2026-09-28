@@ -81,6 +81,7 @@ def _ctx_item(item: dict) -> dict:
     return {
         "title": _title(item),
         "why": _clip(item.get("why_for_me") or "", MAX_WHY),
+        "topics": [str(t) for t in (item.get("topics") or [])[:3]],
         "url": item.get("url") or item.get("original_url") or "",
     }
 

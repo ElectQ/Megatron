@@ -126,6 +126,53 @@ async def test_full_pipeline_with_mock_llm(sample_items):
 
 
 @pytest.mark.asyncio
+async def test_previous_day_selects_the_complete_day():
+    async with async_session_factory() as session:
+        from megatron.core.engine_models import AnalysisModule, LLMProvider, PromptTemplate
+
+        tmpl = PromptTemplate(name="prev-tmpl", version=1, template="x", output_schema={})
+        prov = LLMProvider(name="prev-prov", model="m", api_key="", enabled=True)
+        session.add_all([tmpl, prov])
+        await session.flush()
+        module = AnalysisModule(
+            name="prev-module",
+            source="github_followee_feed",
+            filter_config={"time_mode": "previous_day"},
+            prompt_template_id=tmpl.id,
+            provider_id=prov.id,
+            enabled=True,
+        )
+        session.add(module)
+        today = datetime.now(timezone.utc)
+        yesterday = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+        session.add_all(
+            [
+                ItemRecord(
+                    item_id="yesterday",
+                    source="github_followee_feed",
+                    collect_date=yesterday,
+                    published_at=today - timedelta(days=1),
+                    collected_at=today,
+                ),
+                ItemRecord(
+                    item_id="today",
+                    source="github_followee_feed",
+                    collect_date=today.strftime("%Y-%m-%d"),
+                    published_at=today,
+                    collected_at=today,
+                ),
+            ]
+        )
+        await session.commit()
+
+        fc = {"time_mode": "previous_day"}
+        rows = await ModuleRunner(session)._select_items(module, fc)
+
+    assert [r.item_id for r in rows] == ["yesterday"]
+    assert fc["target_date"] == yesterday
+
+
+@pytest.mark.asyncio
 async def test_create_run_rejects_active_run():
     from megatron.core.engine_models import AnalysisModule, LLMProvider, PromptTemplate
     from megatron.engine.runner import ActiveRunExists
