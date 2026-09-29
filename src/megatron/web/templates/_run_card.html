@@ -8,7 +8,7 @@
         <span class="text-sm font-medium">{{ r.module_name or 'Task #' ~ r.module_id }}</span>
         {{ ui.status_badge(r.status) }}
         {% if r.triggered_by and r.triggered_by != 'manual' %}
-        <span class="badge {% if r.triggered_by == 'test' %}badge-info{% else %}badge-ghost{% endif %} badge-xs">{{ '测试·仅钉钉' if r.triggered_by == 'test' else r.triggered_by }}</span>
+        <span class="badge {% if r.triggered_by == 'test' %}badge-info{% else %}badge-ghost{% endif %} badge-xs">{{ 'test · DingTalk only' if r.triggered_by == 'test' else r.triggered_by }}</span>
         {% endif %}
         <span class="text-xs text-secondary">{{ r.input_count }} inputs · {{ r.prompt_tokens + r.completion_tokens }} tokens (prompt {{ r.prompt_tokens }} / completion {{ r.completion_tokens }}) · ${{ "%.4f"|format(r.cost_usd) }} · {{ r.duration_sec }}s</span>
         {% if r.status == 'completed' and r.input_count == 0 %}
