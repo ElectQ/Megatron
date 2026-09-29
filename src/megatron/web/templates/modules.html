@@ -25,7 +25,6 @@
                     <th>{{ t('Source') }}</th>
                     <th>{{ t('Model') }}</th>
                     <th>{{ t('Prompt') }}</th>
-                    <th>{{ t('Agent') }}</th>
                     <th>{{ t('Delivery') }}</th>
                     <th>{{ t('Schedule') }}</th>
                     <th>{{ t('Status') }}</th>
@@ -50,10 +49,6 @@
                     <td class="text-xs">{{ m.source }}{% if m.source_ref %}<span class="text-muted">:{{ m.source_ref }}</span>{% endif %}</td>
                     <td class="text-xs">{{ prov.name if prov else '#' ~ m.provider_id }}</td>
                     <td class="text-xs">{{ pr.name if pr else '#' ~ m.prompt_template_id }}</td>
-                    <td class="text-xs">
-                        {{ m.agent_backend }}
-                        {% if m.tools_config %}<span class="badge badge-xs badge-ghost">{{ m.tools_config|length }}</span>{% endif %}
-                    </td>
                     <td class="text-xs tabular">
                         {% if m.webhook_channel_ids %}{{ m.webhook_channel_ids|length }}{% else %}<span class="text-muted">—</span>{% endif %}
                     </td>
@@ -207,8 +202,8 @@
                 </fieldset>
             </div>
 
-            <!-- Agent + tools -->
-            <fieldset class="rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
+            <!-- Agent + tools (hidden from the task form for now) -->
+            <fieldset class="hidden rounded p-4" style="background:var(--bg-body);border:1px solid var(--border);">
                 <legend class="field-label px-1"><span class="inline-flex items-center gap-1.5">{{ secicon('bolt') }}{{ t('Agent mode') }}</span></legend>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>

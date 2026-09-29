@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import Date, Integer, cast, case, func, select
+from sqlalchemy import Integer, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.db import get_session
@@ -91,34 +91,46 @@ async def overview(session: AsyncSession = Depends(get_session)):
 
 @router.get("/trend", dependencies=[Depends(admin_auth)])
 async def trend(days: int = 7, session: AsyncSession = Depends(get_session)):
-    """N-day trend of runs + tokens + cost (UTC, oldest first)."""
-    days = max(1, min(days, 30))
-    start = (datetime.now(timezone.utc) - timedelta(days=days - 1)).strftime("%Y-%m-%d")
+    """N-day trend of runs + tokens + cost (UTC, oldest first).
 
-    stmt = (
-        select(
-            cast(AnalysisRun.started_at, Date).label("d"),
-            func.count(AnalysisRun.id).label("runs"),
-            func.sum(AnalysisRun.prompt_tokens + AnalysisRun.completion_tokens).label("tokens"),
-            func.sum(AnalysisRun.total_cost_usd).label("cost"),
+    Aggregate dates in Python instead of casting a SQLite datetime to DATE.
+    SQLite returns the year for that cast, which made every real run miss the
+    ``YYYY-MM-DD`` lookup and left the chart empty.
+    """
+    days = max(1, min(days, 30))
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    rows = (
+        await session.execute(
+            select(
+                AnalysisRun.started_at,
+                AnalysisRun.prompt_tokens,
+                AnalysisRun.completion_tokens,
+                AnalysisRun.total_cost_usd,
+            ).where(AnalysisRun.started_at >= start)
         )
-        .where(cast(AnalysisRun.started_at, Date) >= start)
-        .group_by("d")
-        .order_by("d")
-    )
-    rows = (await session.execute(stmt)).all()
-    by_date = {str(r.d): r for r in rows}
+    ).all()
+    totals: dict[str, dict[str, float | int]] = {}
+    for started_at, prompt_tokens, completion_tokens, cost in rows:
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        date = started_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
+        row = totals.setdefault(date, {"runs": 0, "tokens": 0, "cost": 0.0})
+        row["runs"] += 1
+        row["tokens"] += int(prompt_tokens or 0) + int(completion_tokens or 0)
+        row["cost"] += float(cost or 0)
 
     out = []
     for i in range(days):
-        d = (datetime.now(timezone.utc) - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d")
-        r = by_date.get(d)
+        date = (start + timedelta(days=i)).strftime("%Y-%m-%d")
+        row = totals.get(date, {})
         out.append(
             {
-                "date": d,
-                "runs": int(r.runs) if r else 0,
-                "tokens": int(r.tokens) if r and r.tokens else 0,
-                "cost_usd": round(float(r.cost) if r and r.cost else 0.0, 6),
+                "date": date,
+                "runs": int(row.get("runs", 0)),
+                "tokens": int(row.get("tokens", 0)),
+                "cost_usd": round(float(row.get("cost", 0.0)), 6),
             }
         )
     return out
