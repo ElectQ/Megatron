@@ -393,7 +393,7 @@ async def _target_present(module_id: int) -> bool:
             stmt = stmt.where(ItemRecord.source_ref == module.source_ref)
         if (await session.execute(stmt)).scalar_one() > 0:
             return True
-        if not (fc.get("allow_empty_day") and fc.get("time_mode") == "previous_day"):
+        if not (fc.get("allow_empty_day") and fc.get("time_mode") in ("today", "previous_day")):
             return False
         state = await session.get(PullState, module.source)
         return bool(state and state.last_date >= target)

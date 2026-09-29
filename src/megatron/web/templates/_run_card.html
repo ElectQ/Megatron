@@ -43,6 +43,41 @@
         {% if r.result is mapping and r.result.get('items') %}
         <div class="text-xs text-muted mb-2">Structured items ({{ r.result.get('items')|length }})</div>
         <div class="overflow-x-auto">
+            {% if r.result.get('schema') == 'day_bundle_v1' %}
+            <table class="table table-xs">
+                <thead>
+                    <tr>
+                        <th>Tier</th>
+                        <th>Topics</th>
+                        <th>One-liner</th>
+                        <th>Why</th>
+                        <th>Action</th>
+                        <th>Author</th>
+                        <th>Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for it in r.result.get('items', [])|sort(attribute='tier') %}
+                <tr>
+                    <td class="whitespace-nowrap">
+                        {% set tier = it.tier or 'skim' %}
+                        {% if tier in ('must_see_push', 'must_see_page') %}<span class="status-dot error"></span><span class="text-xs">{{ tier }}</span>
+                        {% elif tier == 'recommend' %}<span class="status-dot warning"></span><span class="text-xs">recommend</span>
+                        {% else %}<span class="status-dot neutral"></span><span class="text-xs">skim</span>{% endif %}
+                    </td>
+                    <td class="text-xs">{{ (it.topics or [])|join(', ') }}</td>
+                    <td class="font-medium text-sm max-w-sm">{{ it.one_liner or '-' }}</td>
+                    <td class="max-w-sm text-sm text-secondary">{{ it.why_for_me or '-' }}</td>
+                    <td class="text-xs whitespace-nowrap">{{ it.actionability or '-' }}</td>
+                    <td class="font-mono text-xs">{{ it.author or '-' }}</td>
+                    <td>
+                        {% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener noreferrer" class="link text-xs">source</a>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
             <table class="table table-xs">
                 <thead>
                     <tr>
@@ -71,23 +106,18 @@
                         {% if fr == 'new' %}<span class="badge badge-success badge-xs">new</span>
                         {% else %}<span class="badge badge-ghost badge-xs">recurring</span>{% endif %}
                     </td>
-                    <td>
-                        <span class="font-mono text-xs">{{ it.category or 'unknown' }}</span>
-                    </td>
+                    <td><span class="font-mono text-xs">{{ it.category or 'unknown' }}</span></td>
                     <td class="font-medium text-sm">{{ it.title }}</td>
                     <td>{% if it.cve %}<span class="badge badge-xs badge-error">{{ it.cve }}</span>{% endif %}</td>
                     <td class="max-w-md text-sm text-secondary">{{ it.summary }}</td>
-                    <td>
-                        <span class="text-xs text-muted">{{ it.artifact or 'none' }}</span>
-                    </td>
+                    <td><span class="text-xs text-muted">{{ it.artifact or 'none' }}</span></td>
                     <td class="font-mono text-xs">{{ it.author or '-' }}</td>
-                    <td>
-                        {% if it.source_url %}<a href="{{ it.source_url }}" target="_blank" rel="noopener noreferrer" class="link text-xs">source</a>{% endif %}
-                    </td>
+                    <td>{% if it.source_url %}<a href="{{ it.source_url }}" target="_blank" rel="noopener noreferrer" class="link text-xs">source</a>{% endif %}</td>
                 </tr>
                 {% endfor %}
                 </tbody>
             </table>
+            {% endif %}
         </div>
         {% endif %}
 

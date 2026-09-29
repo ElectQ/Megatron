@@ -75,7 +75,7 @@ def test_existing_github_task_becomes_a_tagged_dingtalk_push(tmp_path):
     assert "fixed topic vocabulary" not in prompt  # prompt is Chinese product copy
     assert "red_team" in prompt and "多人 star" in prompt
     assert style == "github" and "查看仓库" in body
-    assert fc["time_mode"] == "previous_day"
+    assert fc["time_mode"] == "today"
     assert fc["digest_style"] == "github"
     assert fc["caps"]["must_see_max"] == 8
     assert json.loads(channels) == [1]

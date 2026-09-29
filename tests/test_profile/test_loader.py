@@ -213,5 +213,5 @@ async def test_seed_profile_end_to_end_from_the_shipped_files(session):
     # shipped task is now a tiered push once that channel exists in production.
     assert gh.webhook_channel_ids == []
     assert gh.filter_config["digest_style"] == "github"
-    assert gh.filter_config["time_mode"] == "previous_day"
+    assert gh.filter_config["time_mode"] == "today"
     assert gh.filter_config["caps"]["must_see_max"] == 8

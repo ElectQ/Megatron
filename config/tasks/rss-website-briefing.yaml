@@ -8,8 +8,8 @@ schedule_cron: "0 1 * * *"      # 01:00 UTC = 09:00 北京
 channels: [钉钉安全简报, 企业微信安全简报]  # 正式任务同时推送两端
 enabled: true
 filter_config:
-  # 上游日包在前一日 21:00 UTC 生成，分析前一天的完整包。
-  time_mode: previous_day
+  # 任务运行时会先拉取上游最新日包；09:00 分析当天已发布的数据。
+  time_mode: today
   # 没有新文章是正常结果：仍记录一次成功的空日，不重试、不告警为故障。
   allow_empty_day: true
   # 模型即使漏回一条，日刊也保留它，降为速览而不是静默丢失。
