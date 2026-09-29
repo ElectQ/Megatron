@@ -216,8 +216,16 @@ def enforce_caps(items: list[dict], caps: dict) -> tuple[list[dict], list[str]]:
             item["tier"] = "drop"
             logger.info("bundle.politics_dropped", item_id=item.get("id"), matched=hit)
 
+    # A content monitor may have only skim-worthy articles on a quiet day. Keep
+    # one real item in the delivered result instead of sending an empty push;
+    # this is opt-in because other tasks use skim as an intentional page-only tier.
+    if caps.get("fallback_promote") and not _in(items, *MUST_SEE, "recommend"):
+        fallback = best("skim")[:1]
+        if fallback:
+            promote(fallback[0], "recommend")
+
     # 1. Ceiling on 必看 as a whole. The lead has no separate ceiling — it lives
-    #    inside this one.
+    # inside this one.
     if must_max > 0:
         for loser in best(*MUST_SEE)[must_max:]:
             demote(loser)
@@ -267,6 +275,7 @@ def build_day_bundle(
     source_names: dict[str, str] | None = None,
     title: str = "",
     publishable: bool = False,
+    retain_all: bool = False,
 ) -> dict:
     caps = {**DEFAULT_CAPS, **(caps or {})}
     source_names = source_names or {}
@@ -293,7 +302,9 @@ def build_day_bundle(
         if tier not in TIERS:
             tier = "skim"
         if tier == "drop":
-            continue
+            if not retain_all:
+                continue
+            tier = "skim"
 
         items.append(
             {
@@ -324,6 +335,34 @@ def build_day_bundle(
                 "_push_rank": rank,
             }
         )
+
+    if retain_all:
+        matched = {(i["source_id"], i["external_id"]) for i in items}
+        for rec in records:
+            key = (rec.source, rec.item_id)
+            if key in matched:
+                continue
+            items.append(
+                {
+                    "id": rec.id,
+                    "source_id": rec.source,
+                    "external_id": rec.item_id,
+                    "tier": "skim",
+                    "one_liner": (rec.title or rec.content or "").strip()[:120],
+                    "why_for_me": "保留在 rss-website 日刊中，避免漏掉当天内容。",
+                    "actionability": "read",
+                    "scores": {},
+                    "topics": [],
+                    "public": None,
+                    "author": rec.author,
+                    "author_name": rec.author_name,
+                    "published_at": rec.published_at.isoformat() if rec.published_at else "",
+                    "url": item_link(rec, base_url),
+                    "original_url": rec.url,
+                    "content": rec.content,
+                    "metrics": rec.metrics or {},
+                }
+            )
 
     if unmatched:
         logger.warning("bundle.unmatched_items", run_id=run_id, count=unmatched)

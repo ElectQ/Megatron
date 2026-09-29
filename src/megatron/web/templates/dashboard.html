@@ -44,7 +44,7 @@
     </div>
 </div>
 
-<div class="mb-4 text-sm text-muted">{{ t("Today's execution and cost — resets at UTC 00:00.") }}</div>
+<div class="mb-4 text-sm text-muted">{{ t("Today's execution and cost — resets at UTC 00:00.") }} · Prompt / Completion token split is shown per task.</div>
 
 <!-- Today's metrics -->
 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
@@ -125,9 +125,14 @@
                     <tr>
                         <th>Task</th>
                         <th>Runs</th>
+                        <th>Today runs</th>
                         <th>Success</th>
                         <th>Tokens</th>
+                        <th>Today tokens</th>
+                        <th>Prompt</th>
+                        <th>Completion</th>
                         <th>Cost</th>
+                        <th>Today cost</th>
                         <th>Duration</th>
                         <th>Avg duration</th>
                         <th>Avg tokens</th>
@@ -135,7 +140,7 @@
                     </tr>
                 </thead>
                 <tbody id="per-module-rows">
-                    <tr><td colspan="9" class="text-center text-muted py-6">Loading...</td></tr>
+                    <tr><td colspan="14" class="text-center text-muted py-6">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -175,7 +180,7 @@
                             {% else %}<span class="badge badge-warning badge-sm">{{ r.status }}</span>{% endif %}
                         </td>
                         <td>{{ r.input_count }}</td>
-                        <td>{{ r.prompt_tokens + r.completion_tokens }}</td>
+                        <td>{{ r.prompt_tokens + r.completion_tokens }}<br><span class="text-xs text-muted">P {{ r.prompt_tokens }} / C {{ r.completion_tokens }}</span></td>
                         <td>${{ "%.4f"|format(r.cost_usd) }}</td>
                         <td>{{ r.duration_sec }}s</td>
                         <td class="text-xs text-secondary">{{ r.started_at[:19]|replace('T',' ') }}</td>
@@ -308,7 +313,7 @@ fetch('/api/admin/stats/per-module')
     .then(rows => {
         const tbody = document.getElementById('per-module-rows');
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-6">No run records</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="14" class="text-center text-muted py-6">No run records</td></tr>';
             return;
         }
         const esc = MG.escapeHtml;
@@ -317,9 +322,14 @@ fetch('/api/admin/stats/per-module')
             return `<tr>
                 <td><a href="/ui/tasks?module_id=${encodeURIComponent(r.module_id)}" class="link font-mono">${esc(r.module_name)}</a></td>
                 <td>${esc(r.runs)}</td>
+                <td>${esc(r.today_runs)}</td>
                 <td>${esc(r.success_rate)}%</td>
                 <td>${esc(r.tokens.toLocaleString())}</td>
+                <td>${esc(r.today_tokens.toLocaleString())}</td>
+                <td>${esc(r.prompt_tokens.toLocaleString())}</td>
+                <td>${esc(r.completion_tokens.toLocaleString())}</td>
                 <td>$${esc(r.cost_usd.toFixed(4))}</td>
+                <td>$${esc(r.today_cost_usd.toFixed(4))}</td>
                 <td>${esc(r.duration_sec.toFixed(1))}s</td>
                 <td>${esc(r.avg_duration_sec.toFixed(1))}s</td>
                 <td>${esc(r.avg_tokens.toLocaleString())}</td>
@@ -328,7 +338,7 @@ fetch('/api/admin/stats/per-module')
         }).join('');
     })
     .catch(() => {
-        document.getElementById('per-module-rows').innerHTML = '<tr><td colspan="9" class="text-center text-[var(--error)] py-6">Failed to load</td></tr>';
+        document.getElementById('per-module-rows').innerHTML = '<tr><td colspan="14" class="text-center text-[var(--error)] py-6">Failed to load</td></tr>';
     });
 </script>
 {% endblock %}

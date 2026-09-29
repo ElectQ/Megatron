@@ -69,11 +69,12 @@ MEGATRON_BASE_URL=https://megatron.qshunter.top
 MEGATRON_DEEPSEEK_API_KEY=
 MEGATRON_DINGTALK_URL=
 MEGATRON_DINGTALK_SECRET=
+MEGATRON_WECOM_URL=
 # Host publish port (container listens on 8000). 8010 keeps host :8000 free.
 PORT=8010
 EOF
         log "Admin password: ${ADMIN_PASS} (save this!)"
-        warn "Fill in MEGATRON_DEEPSEEK_API_KEY and DINGTALK_* in .env"
+        warn "Fill in MEGATRON_DEEPSEEK_API_KEY and webhook settings in .env"
         warn "起服务后在 UI「系统设置 → 域名」里填你的公网域名,推送链接才能在手机上打开。"
     else
         log ".env exists"

@@ -186,21 +186,24 @@ def _iso(dt: datetime | None) -> str:
 
 
 def build_annotations(bundle: dict | None) -> dict[str, dict]:
-    """Map repo full-name -> {one_liner, topics, tier} from the latest LLM run.
+    """Map repo full-name -> {one_liner, topics, tier, repo_stars} from the latest run.
 
     Optional enrichment: the page renders fine without it (bundle is None on a day
     the analysis has not run yet). Keyed by the same repo rule the aggregation
-    uses so the two line up.
+    uses so the two line up. `repo_stars` rides on the item the enrichment
+    attached it to — page copy only; the prompt never sees it.
     """
     out: dict[str, dict] = {}
     for item in (bundle or {}).get("items") or []:
         repo = _repo_from_url(item.get("url") or item.get("original_url") or "")
         if not repo or repo in out:
             continue
+        stars = item.get("repo_stars")
         out[repo] = {
             "one_liner": item.get("one_liner") or "",
             "topics": item.get("topics") or [],
             "tier": item.get("tier") or "",
+            "repo_stars": stars if isinstance(stars, int) and stars > 0 else None,
         }
     return out
 

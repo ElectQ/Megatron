@@ -54,15 +54,10 @@
   .repo-name{font-family:var(--mono);font-weight:650;letter-spacing:-.01em;word-break:break-all}
   .repo-name .owner{color:var(--faint);font-weight:400}
 
-  /* The convergence meter — the redacted stand-in for the private page's row of
-     stargazer avatars. Five pips is the ceiling; the numeral carries the truth. */
-  .meter{display:inline-flex;align-items:center;gap:.45rem;flex:0 0 auto}
-  .pips{display:inline-flex;gap:3px}
-  .pip{width:7px;height:7px;border-radius:50%;background:var(--sig)}
-  .pip.off{background:var(--line-strong)}
-  .meter .n{font-size:.78rem;font-weight:800;color:var(--sig);letter-spacing:-.01em;
-    font-variant-numeric:tabular-nums}
-  .meter .n small{font-weight:600;color:var(--faint);margin-left:.1rem}
+  /* The repo's own star count — a fact about the repo, never about who follows it. */
+  .starry{display:inline-flex;align-items:center;gap:.3rem;flex:0 0 auto;font-size:.78rem;
+    font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  .starry svg{width:13px;height:13px}
 
   article.lead{border:1px solid var(--line);border-left:3px solid var(--sig);border-radius:12px;
     background:var(--surface);box-shadow:var(--shadow);padding:1.35rem 1.5rem}
@@ -153,13 +148,10 @@
 
 {%- macro reponame(full) %}{% set p = full.split('/') %}<span class="repo-name"><span class="owner">{{ p[0] }}/</span>{{ p[1:] | join('/') }}</span>{% endmacro -%}
 
-{# Five pips, then the numeral — the numeral is the truth, the pips are the glance. #}
-{%- macro meter(n) %}
-<span class="meter" title="{{ n }} {{ t('accounts starred it the same day') }}">
-  <span class="pips">{% for i in range(5) %}<i class="pip {{ 'off' if i >= n else '' }}"></i>{% endfor %}</span>
-  <span class="n">×{{ n }}</span>
-</span>
-{% endmacro -%}
+{# The repo's own star count — nothing about who follows it. #}
+{%- macro starry(n) %}{% if n %}<span class="starry" title="{{ t('Stars on the repository itself') }}">
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z"/></svg>{{ n }}
+</span>{% endif %}{% endmacro -%}
 
 <header class="post-head rise">
   <span class="pill">{{ source_mark(view.source_id) }}{{ view.title }}</span>
@@ -175,10 +167,10 @@
 
 <div class="stats rise">
   <div class="stat"><div class="v">{{ view.stats.repo_count }}</div><div class="k">{{ t('repos') }}</div></div>
-  <div class="stat sig"><div class="v">{{ view.stats.converged_count }}</div><div class="k">{{ t('converged') }}</div></div>
+  <div class="stat sig"><div class="v">{{ view.stats.must_see_count }}</div><div class="k">{{ t('must-see') }}</div></div>
+  <div class="stat"><div class="v">{{ view.stats.recommend_count }}</div><div class="k">{{ t('recommended') }}</div></div>
   <div class="stat new"><div class="v">{{ view.stats.created_count }}</div><div class="k">{{ t('new repos') }}</div></div>
   <div class="stat"><div class="v">{{ view.stats.release_count }}</div><div class="k">{{ t('releases') }}</div></div>
-  <div class="stat"><div class="v">{{ view.stats.newcomer_count }}</div><div class="k">{{ t('new faces') }}</div></div>
 </div>
 
 <div class="layout">
@@ -186,28 +178,43 @@
 
   {% if view.lead %}
   <section>
-    <h2 class="sec">{{ t("Today's focus") }} <span class="count">{{ t('most converged') }}</span></h2>
+    <h2 class="sec">{{ t('Must-see today') }} <span class="count">{{ t("the day's top picks") }}</span></h2>
     <article class="lead">
       <div class="top">
         <a class="repo-name" href="{{ view.lead.repo_url }}" target="_blank" rel="noopener nofollow">{{ reponame(view.lead.repo) }}</a>
-        {{ meter(view.lead.count) }}
+        {{ starry(view.lead.stars) }}
       </div>
       {% if view.lead.one_liner %}<p class="val">{{ view.lead.one_liner }}</p>
-      {% else %}<p class="val thin">{{ view.lead.count }} {{ t('accounts starred it the same day') }}.</p>{% endif %}
+      {% else %}<p class="val thin">{{ t('No annotation from the model this round.') }}</p>{% endif %}
       {% if view.lead.topics %}<div class="topics">{% for tg in view.lead.topics %}<span class="tag">{{ tg }}</span>{% endfor %}</div>{% endif %}
     </article>
-  </section>
-  {% endif %}
-
-  {% if view.converged %}
-  <section>
-    <h2 class="sec">{{ t('Converged') }} <span class="count">{{ t('starred by two or more accounts the same day') }}</span></h2>
-    <div class="cards">
-      {% for r in view.converged %}
+    {% if view.must_see | length > 1 %}
+    <div class="cards" style="margin-top:.75rem">
+      {% for r in view.must_see[1:] %}
       <article class="repo">
         <div class="top">
           <a class="repo-name" href="{{ r.repo_url }}" target="_blank" rel="noopener nofollow">{{ reponame(r.repo) }}</a>
-          {{ meter(r.count) }}
+          {{ starry(r.stars) }}
+        </div>
+        {% if r.one_liner %}<p class="val">{{ r.one_liner }}</p>
+        {% else %}<p class="val thin">{{ t('No annotation from the model this round.') }}</p>{% endif %}
+        {% if r.topics %}<div class="topics">{% for tg in r.topics %}<span class="tag">{{ tg }}</span>{% endfor %}</div>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if view.recommended %}
+  <section>
+    <h2 class="sec">{{ t('Recommended') }} <span class="count">{{ t('worth a read') }}</span></h2>
+    <div class="cards">
+      {% for r in view.recommended %}
+      <article class="repo">
+        <div class="top">
+          <a class="repo-name" href="{{ r.repo_url }}" target="_blank" rel="noopener nofollow">{{ reponame(r.repo) }}</a>
+          {{ starry(r.stars) }}
         </div>
         {% if r.one_liner %}<p class="val">{{ r.one_liner }}</p>
         {% else %}<p class="val thin">{{ t('No annotation from the model this round.') }}</p>{% endif %}
@@ -236,13 +243,13 @@
   </section>
   {% endif %}
 
-  {% if view.singles %}
+  {% if view.others %}
   <section>
-    <h2 class="sec">{{ t('Other repos') }} <span class="count">{{ view.singles|length }} · {{ t('one account each') }}</span></h2>
+    <h2 class="sec">{{ t('Other repos') }} <span class="count">{{ view.others|length }}</span></h2>
     <div class="tiles">
-      {% for r in view.singles %}
+      {% for r in view.others %}
       <a class="tile" href="{{ r.repo_url }}" target="_blank" rel="noopener nofollow">
-        {{ reponame(r.repo) }}
+        {{ reponame(r.repo) }}{% if r.stars %}<span class="starry"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z"/></svg>{{ r.stars }}</span>{% endif %}
         {% if r.one_liner %}<p class="val">{{ r.one_liner }}</p>{% endif %}
       </a>
       {% endfor %}
@@ -285,7 +292,7 @@
   </section>
   {% endif %}
 
-  {% if not view.lead and not view.singles and not view.highlights and not view.newcomers %}
+  {% if not view.lead and not view.others and not view.recommended and not view.highlights and not view.newcomers %}
   <div class="empty"><div class="moon">🌙</div>{{ t('Nothing published for this day.') }}</div>
   {% endif %}
 
@@ -303,7 +310,7 @@
 
   <div class="note">
     <b>{{ t('How this page is made') }}</b>
-    <p>{{ t('Public GitHub activity — stars, forks, new repos, releases — aggregated by repo. Repos several accounts landed on the same day rank first. The model writes the one-liner.') }}</p>
+    <p>{{ t('Public GitHub activity — stars, forks, new repos, releases — aggregated by repo, then ranked by the LLM analysis of the day into must-see, recommended and the rest. The model writes the one-liner.') }}</p>
     <p><b>{{ t('The public version never shows who starred what.') }}</b> {{ t('Stargazer identities, the timeline and the by-person view exist only in the private digest.') }}</p>
   </div>
 </aside>

@@ -28,6 +28,7 @@ class DeliveryService:
         module,
         run,
         result: AnalysisResult,
+        only_kinds: tuple[str, ...] | None = None,
     ) -> list[dict]:
         channel_ids = await self._channel_ids(module)
         if not channel_ids:
@@ -36,6 +37,8 @@ class DeliveryService:
 
         stmt = select(WebhookChannel).where(WebhookChannel.id.in_(channel_ids))
         rows = (await self.session.execute(stmt)).scalars().all()
+        if only_kinds:
+            rows = [ch for ch in rows if ch.kind in only_kinds]
 
         outcomes: list[dict] = []
         for ch in rows:

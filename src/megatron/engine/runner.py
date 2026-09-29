@@ -238,26 +238,50 @@ class ModuleRunner:
                 after=len(filtered),
             )
 
-            prompt_str, prompt_snapshot = await self._render_prompt(
-                module, filtered, self._prompt_context(effective_fc)
-            )
-
             llm, provider_snapshot = await self._build_llm(module)
+            batch_size = int(effective_fc.get("analysis_batch_size") or 0)
+            if (
+                effective_fc.get("output_mode") == "day_bundle"
+                and batch_size > 0
+                and len(filtered) > batch_size
+            ):
+                analyzed = await self._analyze_batches(
+                    module,
+                    llm,
+                    filtered,
+                    self._prompt_context(effective_fc),
+                    batch_size,
+                    json_mode=effective_fc.get("output_mode") == "day_bundle",
+                )
+                result = analyzed["result"]
+                prompt_snapshot = analyzed["prompt_snapshot"]
+                prompt_hash_input = "\n--- batch ---\n".join(analyzed["prompts"])
+                tokens_in = analyzed["prompt_tokens"]
+                tokens_out = analyzed["completion_tokens"]
+                cost = analyzed["cost"]
+                tool_log = analyzed["tool_calls"]
+            else:
+                prompt_str, prompt_snapshot = await self._render_prompt(
+                    module, filtered, self._prompt_context(effective_fc)
+                )
+                prompt_hash_input = prompt_str
+                content, tokens_in, tokens_out, cost, tool_log = await self._invoke(
+                    module,
+                    llm,
+                    prompt_str,
+                    json_mode=effective_fc.get("output_mode") == "day_bundle",
+                )
+                result = self._parse_result(content)
+                if result.get("parse_error"):
+                    result["llm_debug"] = {
+                        "content_chars": len(content),
+                        "content_tail": content[-1000:],
+                    }
+
             run.prompt_snapshot = prompt_snapshot
             run.provider_snapshot = provider_snapshot
-            run.rendered_prompt_hash = hashlib.sha256(prompt_str.encode()).hexdigest()
+            run.rendered_prompt_hash = hashlib.sha256(prompt_hash_input.encode()).hexdigest()
             await self.session.commit()
-
-            content, tokens_in, tokens_out, cost, tool_log = await self._invoke(
-                module, llm, prompt_str, json_mode=effective_fc.get("output_mode") == "day_bundle"
-            )
-
-            result = self._parse_result(content)
-            if result.get("parse_error"):
-                result["llm_debug"] = {
-                    "content_chars": len(content),
-                    "content_tail": content[-1000:],
-                }
             if effective_fc.get("output_mode") == "day_bundle":
                 names = await self._source_names(filtered)
                 result = await self._build_bundle(
@@ -446,6 +470,11 @@ class ModuleRunner:
 
         date = fc.get("target_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
         wanted = set(fc.get("sources") or [module.source])
+        if fc.get("allow_empty_day"):
+            # A content monitor can legitimately have no new article. The pull
+            # layer has already verified the upstream bundle; absence is a quiet
+            # day, not a missing-source warning.
+            return
 
         arrivals = await today_arrivals(self.session, date)
         missing = [a for a in missing_sources(arrivals) if a.source_id in wanted]
@@ -534,6 +563,7 @@ class ModuleRunner:
             source_names=source_names,
             title=fc.get("title", ""),
             publishable=publishable,
+            retain_all=bool(fc.get("retain_all")),
         )
         bundle["schema_errors"] = schema_errors
         if llm_output.get("llm_debug"):
@@ -573,6 +603,202 @@ class ModuleRunner:
             schema_errors=len(schema_errors),
         )
         return bundle
+
+    async def _analyze_batches(
+        self, module, llm, records, extra, batch_size, json_mode: bool = False
+    ) -> dict:
+        """Analyze >batch_size items in several LLM calls, merging the results.
+
+        Why: daily_intel_v1 asks the model to echo every input back as JSON —
+        a 100+ item day makes the output array so long it hits the completion
+        limit and the tail of the day never gets tiered. Small batches keep each
+        answer short and complete; the global view is restored afterwards: caps
+        are enforced over the merge in _build_bundle, so the push is still the
+        day's best, not per-batch best.
+
+        A batch whose answer is truncated gets bisected and retried (down to
+        single items — an output ceiling exists independent of batch size). An
+        ordinary parse failure gets one retry. Items whose batch ultimately
+        failed come back ``tier: skim`` so the day page still lists them, and
+        the run carries an ``llm_batches`` warning.
+        """
+        from ..core.engine_models import PromptTemplate
+
+        tmpl = await self.session.get(PromptTemplate, module.prompt_template_id)
+        if not tmpl:
+            raise ValueError(f"PromptTemplate {module.prompt_template_id} not found")
+        prompt_snapshot = {
+            "id": tmpl.id,
+            "name": tmpl.name,
+            "version": tmpl.version,
+            "template": tmpl.template,
+            "output_schema": tmpl.output_schema or {},
+            "is_active": tmpl.is_active,
+        }
+
+        # Enrichment is fetched once for the whole run: batches re-render the
+        # prompt, and README reads must not repeat per batch.
+        item_context = None
+        if module.source == "github_followee_feed":
+            from .github_enrich import github_repo_context
+
+            item_context = await github_repo_context(records)
+
+        batches = [
+            records[i : i + batch_size] for i in range(0, len(records), batch_size)
+        ]
+        all_items: list[dict] = []
+        all_push_ids: list[str] = []
+        batch_fails: list[dict] = []
+        tokens_in = tokens_out = 0
+        cost = 0.0
+        retries = 0
+        prompts: list[str] = []
+        content_tail = ""
+
+        async def run_batch(batch) -> dict | None:
+            """One LLM call for one batch; None if it cannot be parsed at all."""
+            nonlocal tokens_in, tokens_out, cost, retries, content_tail
+            prompt, _ = await self._render_prompt(
+                module, batch, extra, item_context=item_context
+            )
+            prompts.append(prompt)
+            try:
+                content, pin, pout, pcost, _ = await self._invoke(
+                    module, llm, prompt, json_mode=json_mode
+                )
+            except Exception as e:
+                content, pin, pout, pcost = "", 0, 0, 0.0
+                logger.warning(
+                    "runner.batch_llm_error", module=module.name, error=str(e)[:150]
+                )
+                parsed = {"items": [], "parse_error": f"{type(e).__name__}: {str(e)[:150]}"}
+            else:
+                parsed = self._parse_result(content)
+            tokens_in += pin
+            tokens_out += pout
+            cost += pcost
+            if not parsed.get("parse_error"):
+                return parsed
+            # Salvaged markdown (partial JSON) or a first non-truncation failure:
+            # try once more; recursion then splits only genuinely truncated work.
+            content_tail = content[-1000:]
+            if "truncated" not in parsed.get("parse_error", ""):
+                retries += 1
+                logger.warning(
+                    "runner.batch_parse_retry",
+                    module=module.name,
+                    size=len(batch),
+                    error=parsed["parse_error"][:120],
+                )
+                prompt, _ = await self._render_prompt(
+                    module, batch, extra, item_context=item_context
+                )
+                prompts.append(prompt)
+                try:
+                    content, pin, pout, pcost, _ = await self._invoke(
+                        module, llm, prompt, json_mode=json_mode
+                    )
+                except Exception as e:
+                    content, pin, pout, pcost = "", 0, 0, 0.0
+                    logger.warning(
+                        "runner.batch_llm_error", module=module.name, error=str(e)[:150]
+                    )
+                    parsed = {
+                        "items": [],
+                        "parse_error": f"{type(e).__name__}: {str(e)[:150]}",
+                    }
+                else:
+                    parsed = self._parse_result(content)
+                tokens_in += pin
+                tokens_out += pout
+                cost += pcost
+                if not parsed.get("parse_error"):
+                    return parsed
+                content_tail = content[-1000:]
+            return None
+
+        async def analyze(batch, depth: int) -> None:
+            if not batch:
+                return
+            parsed = await run_batch(batch)
+            if parsed is not None:
+                for it in parsed.get("items") or []:
+                    if isinstance(it, dict):
+                        all_items.append(it)
+                all_push_ids.extend(parsed.get("push_item_ids") or [])
+                return
+            if len(batch) == 1:
+                # A single item that still failed: let it through unparsed so the
+                # day page shows it via the missing-LLM-item fallback, and the
+                # failed_ids check in _build_bundle flags the day honestly.
+                item = batch[0]
+                all_items.append(
+                    {
+                        "external_id": item.item_id,
+                        "source_id": item.source_ref,
+                        "tier": "skim",
+                        "one_liner": (item.content or "")[:80],
+                        "_unparsed": True,
+                    }
+                )
+                batch_fails.append(
+                    {"size": 1, "item_id": item.item_id, "error": "single-item parse failed"}
+                )
+                return
+            # Truncated (or twice-unparseable): split and try halves.
+            mid = len(batch) // 2
+            logger.warning(
+                "runner.batch_split",
+                module=module.name,
+                size=len(batch),
+                halves=(mid, len(batch) - mid),
+            )
+            batch_fails.append(
+                {
+                    "size": len(batch),
+                    "split_into": [mid, len(batch) - mid],
+                    "error": "truncated; bisected",
+                }
+            )
+            await analyze(batch[:mid], depth - 1)
+            await analyze(batch[mid:], depth - 1)
+
+        for batch in batches:
+            await analyze(batch, max(1, len(batch)))
+
+        result = {
+            "items": all_items,
+            "push_item_ids": all_push_ids,
+        }
+        if batch_fails:
+            self._warn(
+                "llm_batches",
+                f"{len(batch_fails)} 个批次输出异常，已自动二分/降级重试；"
+                f"{sum(1 for i in all_items if i.get('_unparsed'))} 条未能分级，已按速览处理。",
+                batches=batch_fails[:5],
+                batch_size=batch_size,
+            )
+            result["llm_debug"] = {"content_tail": content_tail}
+
+        logger.info(
+            "runner.batches_done",
+            module=module.name,
+            batches=len(batches),
+            batch_size=batch_size,
+            parsed=len(all_items),
+            fails=len(batch_fails),
+            retries=retries,
+        )
+        return {
+            "result": result,
+            "prompt_snapshot": prompt_snapshot,
+            "prompts": prompts,
+            "prompt_tokens": tokens_in,
+            "completion_tokens": tokens_out,
+            "cost": round(cost, 6),
+            "tool_calls": [],
+        }
 
     def _warn(self, code: str, message: str, **fields) -> None:
         """Record a run-level warning. Surfaced in run.result['warnings']."""
@@ -848,7 +1074,8 @@ class ModuleRunner:
         }
 
     async def _render_prompt(
-        self, module, records: list[ItemRecord], extra: dict | None = None
+        self, module, records: list[ItemRecord], extra: dict | None = None,
+        item_context: dict | None = None,
     ) -> tuple[str, dict]:
         from ..core.engine_models import PromptTemplate
 
@@ -856,11 +1083,12 @@ class ModuleRunner:
         if not tmpl:
             raise ValueError(f"PromptTemplate {module.prompt_template_id} not found")
         items = [_record_to_item(r) for r in records]
-        item_context = {}
-        if module.source == "github_followee_feed":
-            from .github_enrich import github_repo_context
+        if item_context is None:
+            item_context = {}
+            if module.source == "github_followee_feed":
+                from .github_enrich import github_repo_context
 
-            item_context = await github_repo_context(records)
+                item_context = await github_repo_context(records)
         snapshot = {
             "id": tmpl.id,
             "name": tmpl.name,
@@ -1043,7 +1271,8 @@ class ModuleRunner:
         ar = self._analysis_result(module, run, result)
         try:
             service = DeliveryService(self.session)
-            return await service.deliver(module, run, ar)
+            only_kinds = ("dingtalk",) if run.triggered_by == "test" else None
+            return await service.deliver(module, run, ar, only_kinds=only_kinds)
         except Exception as e:
             logger.error("runner.delivery_failed", run_id=run.id, error=str(e))
             return []

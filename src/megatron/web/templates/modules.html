@@ -63,10 +63,12 @@
                     <td>
                         {% if m.enabled %}<span class="badge badge-success badge-sm">{{ t('enabled') }}</span>{% else %}<span class="badge badge-ghost badge-sm">{{ t('disabled') }}</span>{% endif %}
                         {% if st and st.runs %}<div class="text-xs text-muted tabular mt-1">{{ st.success_rate }}% · {{ st.runs }} {{ t('runs') }}</div>{% endif %}
+                        {% if st and st.today_runs %}<div class="text-xs text-info tabular mt-1">今日 {{ st.today_tokens|default(0) }} tokens</div>{% endif %}
                     </td>
                     <td>
                         <div class="flex gap-1 justify-end">
                             <button class="btn btn-xs btn-primary" data-run-id="{{ m.id }}" data-run-name="{{ m.name }}" onclick="runModule(this)">{{ t('Run') }}</button>
+                            <button class="btn btn-xs btn-ghost" data-run-id="{{ m.id }}" data-run-name="{{ m.name }}" onclick="runModule(this, true)">测试</button>
                             <a class="btn btn-xs btn-ghost" href="/ui/tasks?edit={{ m.id }}">{{ t('Edit') }}</a>
                             <a class="btn btn-xs btn-ghost" href="/ui/runs?module_id={{ m.id }}">{{ t('History') }}</a>
                             <button class="btn btn-xs btn-ghost text-[var(--error)]" onclick="delModule({{ m.id }})">{{ t('Delete') }}</button>
@@ -364,14 +366,15 @@ document.getElementById('module-form').addEventListener('submit', async (e) => {
     }
 });
 
-async function runModule(btn) {
+async function runModule(btn, test = false) {
     const id = btn.dataset.runId;
     const name = btn.dataset.runName || ('#' + id);
-    if (!confirm('Run task "' + name + '" now?\nThis will call the LLM and may incur cost.')) return;
+    const mode = test ? '测试模式（仅钉钉）' : '正式模式（按任务配置发送）';
+    if (!confirm('Run task "' + name + '" now?\n' + mode + '\nThis will call the LLM and may incur cost.')) return;
     btn.disabled = true; btn.textContent = '...';
-    const r = await MG.apiFetch(`/api/admin/modules/${id}/run`, {method: 'POST'});
+    const r = await MG.apiFetch(`/api/admin/modules/${id}/run${test ? '?test=true' : ''}`, {method: 'POST'});
     const d = await r.json().catch(() => ({}));
-    btn.disabled = false; btn.textContent = 'Run';
+    btn.disabled = false; btn.textContent = test ? '测试' : 'Run';
     if (r.ok && (d.status === 'queued' || d.status === 'running' || d.status === 'completed')) {
         location.href = '/ui/runs?module_id=' + id;
     } else {

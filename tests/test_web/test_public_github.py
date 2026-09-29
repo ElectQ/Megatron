@@ -186,7 +186,7 @@ def _view(**kw):
     )
 
 
-# --- the projection: counts survive, identities are never built ----------------
+# --- the projection: tiers organize the board, identities are never built ------
 
 
 def test_no_login_appears_anywhere_in_the_view():
@@ -196,17 +196,43 @@ def test_no_login_appears_anywhere_in_the_view():
         assert login not in blob, f"{login} reached the public projection"
 
 
-def test_the_converged_repo_leads_and_its_count_folds_in_the_fork():
+def test_the_must_see_repo_leads_and_tiers_organize_the_board():
     view = _view()
     assert view["lead"]["repo"] == HOT
-    assert view["lead"]["count"] == 3, "two stars + one fork — a fork is convergence too"
+    assert [r["repo"] for r in view["must_see"]] == [HOT]
     assert view["lead"]["one_liner"] == "GPU 加速终端"
+    # No convergence numeral on the public card — that sizes the circle.
+    assert "count" not in view["lead"]
+    # The repo-own star count (from the analysis item) is the only number kept.
+    assert view["lead"]["stars"] is None
 
 
-def test_a_single_star_repo_is_not_dressed_up_as_converged():
+def test_a_untiered_repo_lands_in_others():
     view = _view()
-    assert [r["repo"] for r in view["singles"]] == [ONE]
-    assert view["singles"][0]["count"] == 1
+    assert [r["repo"] for r in view["others"]] == [ONE]
+
+
+def test_a_recommend_repo_lands_in_recommended():
+    bundle = _bundle()
+    bundle["items"].append(
+        {
+            "id": 3,
+            "source_id": GH,
+            "external_id": "e3",
+            "tier": "recommend",
+            "one_liner": "扫描器",
+            "topics": [],
+            "url": f"https://github.com/{ONE}",
+            "author": ALICE,
+            "content": f"{ALICE} starred {ONE}",
+            "public": None,
+        }
+    )
+    view = public_github_view(
+        _rows(), bundle, source_id=GH, date=DATE, title="t", policy=POLICY
+    )
+    assert [r["repo"] for r in view["recommended"]] == [ONE]
+    assert view["others"] == []
 
 
 def test_a_held_back_item_takes_its_whole_repo_off_the_page():
@@ -226,7 +252,7 @@ def test_publishing_that_same_item_puts_the_repo_back():
         title="t",
         policy=POLICY,
     )
-    assert HELD in [r["repo"] for r in view["singles"]]
+    assert HELD in [r["repo"] for r in view["others"]]
 
 
 def test_highlights_keep_the_release_tag_and_drop_the_releaser():
@@ -238,16 +264,17 @@ def test_highlights_keep_the_release_tag_and_drop_the_releaser():
 
 
 def test_stats_do_not_measure_the_circle():
-    """`actor_count`/`star_count` would size the reader's follow list. Not published."""
+    """Section sizes only — nothing here sizes the reader's follow list."""
     stats = _view()["stats"]
     assert set(stats) == {
         "repo_count",
-        "converged_count",
+        "must_see_count",
+        "recommend_count",
         "created_count",
         "release_count",
         "newcomer_count",
     }
-    assert stats["repo_count"] == 2 and stats["converged_count"] == 1
+    assert stats["repo_count"] == 2 and stats["must_see_count"] == 1
 
 
 def test_topics_are_counted_for_the_rail():
@@ -272,7 +299,7 @@ def test_a_source_can_switch_the_newcomer_lane_off():
 def test_a_personal_source_publishes_nothing_through_this_view():
     """The hard gate still belongs to public_view; held_back_repos honours it."""
     view = public_github_view(_rows(), _bundle(), source_id=GH, date=DATE, title="t", policy=EMPTY)
-    assert view["lead"] is None and view["singles"] == []
+    assert view["lead"] is None and view["others"] == []
 
 
 # --- end to end ---------------------------------------------------------------
@@ -350,8 +377,15 @@ def test_the_public_page_is_the_repo_board(client, a_published_github_day):
     r = client.get(f"/zh/{GH}/{DATE}")
     assert r.status_code == 200
     assert "ghostty" in r.text, "the repo is published"
-    assert "×3" in r.text, "and so is how many accounts converged on it"
-    assert "今日聚焦" in r.text, "the board's own layout, not the tiered digest"
+    assert "今日必看" in r.text, "the board is organized by the model's tiers"
+
+
+def test_no_star_fork_counts_on_the_public_page(client, a_published_github_day):
+    """No ×N convergence numerals, no 「N 人 star」 phrasing — the circle's size
+    is not content. A repo's own star count may appear, the fixture has none."""
+    r = client.get(f"/zh/{GH}/{DATE}")
+    assert "×" not in r.text
+    assert "人 star" not in r.text and "人 fork" not in r.text and "人参与" not in r.text
 
 
 def test_not_one_login_reaches_the_public_response(client, a_published_github_day):

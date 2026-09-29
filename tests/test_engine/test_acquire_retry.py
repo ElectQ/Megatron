@@ -28,7 +28,7 @@ def _wire(monkeypatch, *, present_on):
     calls = {"poll": 0, "run": 0, "fail": 0}
 
     async def fake_plan(_module_id):
-        return (True, "src1")
+        return (True, "src1", False)
 
     async def fake_poll(_source_id):
         calls["poll"] += 1
@@ -95,7 +95,7 @@ async def test_non_polled_module_runs_once_without_retry(monkeypatch):
     calls = {"poll": 0, "run": 0, "fail": 0}
 
     async def plan_no_retry(_module_id):
-        return (False, "src1")
+        return (False, "src1", False)
 
     async def fake_poll(_source_id):
         calls["poll"] += 1
@@ -232,14 +232,44 @@ async def test_acquire_plan_retries_for_polled_target_day_sources():
         polled_date = await _seed_module(s, "m_pd", "src_poll", {"time_mode": "date"})
         native_today = await _seed_module(s, "m_nt", "src_native", {"time_mode": "today"})
 
-    assert await sched._acquire_plan(polled_today) == (True, "src_poll")
-    assert await sched._acquire_plan(polled_previous) == (True, "src_poll")
-    assert await sched._acquire_plan(polled_date) == (False, "src_poll")
-    assert await sched._acquire_plan(native_today) == (False, "src_native")
+    assert await sched._acquire_plan(polled_today) == (True, "src_poll", False)
+    assert await sched._acquire_plan(polled_previous) == (True, "src_poll", False)
+    assert await sched._acquire_plan(polled_date) == (False, "src_poll", False)
+    assert await sched._acquire_plan(native_today) == (False, "src_native", False)
     assert await sched._acquire_plan(999999) is None
 
 
 # --- Manual Run pulls before analysing -------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_content_monitor_runs_once_when_day_is_empty(monkeypatch):
+    calls = {"poll": 0, "run": 0, "fail": 0}
+
+    async def plan(_module_id):
+        return (True, "rss-website", True)
+
+    async def poll(_source_id):
+        calls["poll"] += 1
+        return (0, 0)
+
+    async def run(_module_id, _name):
+        calls["run"] += 1
+
+    async def present(_module_id):
+        return True
+
+    async def fail(_module_id, _name):
+        calls["fail"] += 1
+
+    monkeypatch.setattr(sched, "_acquire_plan", plan)
+    monkeypatch.setattr(sched, "poll_source", poll)
+    monkeypatch.setattr(sched, "_do_module_run", run)
+    monkeypatch.setattr(sched, "_target_present", present)
+    monkeypatch.setattr(sched, "_record_failed_day", fail)
+
+    await sched._run_module_job(1, "rss-website-briefing")
+    assert calls == {"poll": 1, "run": 1, "fail": 0}
 
 
 @pytest.mark.asyncio

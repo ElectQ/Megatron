@@ -1,0 +1,25 @@
+# 网站监控 —— 由 Sentinel-Site 采集公开安全网站和博客的新内容。
+# Sentinel-Site 与 Soundwave / Sentinel-gh 使用相同的 bundle_pull 契约，
+# Megatron 只负责定时拉取、分析、推送和公开页面渲染。
+source_id: rss-website
+display_name: rss-website
+kind: rss-website
+adapter: bundle_pull
+audience: [public]
+enabled: true
+page_layout: digest
+
+# Sentinel-Site 每日 21:00 UTC 运行；留出提交和 CDN 同步时间后再拉取。
+schedule:
+  cron: "40 22 * * *"
+
+schedule_expect:
+  timezone: Asia/Shanghai
+  collect_by: "06:00"
+  sla_minutes: 120
+
+config:
+  index_url: https://raw.githubusercontent.com/ElectQ/Sentinel-Site/main/bundles/index.json
+  verify_sha256: true
+  max_days: 7
+  external_repo: ElectQ/Sentinel-Site

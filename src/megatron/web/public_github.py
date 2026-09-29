@@ -7,15 +7,14 @@ graph drawn from a different angle, and the follow graph is the thing this strea
 must not leak (see `public_view`'s module docstring).
 
 So the public page is not that page with names blanked out — it is a different
-page built from the same day. It keeps the one signal that survives redaction
-intact, which happens to be the most valuable one:
+page built from the same day. Its sections are the model's tiers — must-see,
+recommended, then the rest — so the reader gets the day's judgement, not just a
+list. The one signal that survives redaction — *how many independent accounts
+converged on a repo today* — is still what ranks the board internally, but it is
+no longer printed: a ×N counter reads as "N of my friends starred this", which
+discloses the circle's size. Repo-own facts (the repo's own star count, from the
+enrichment fetch when available) are fine and shown instead.
 
-    *how many independent accounts converged on this repo today*
-
-A count is not an identity. "Four accounts starred it" is exactly what makes the
-stream worth reading, and it names nobody. The repo, the model's one-liner and
-the topics come along; the stargazer list, the actor timeline and the by-person
-grouping are not redacted here — they are never built.
 
 Two things are deliberately *not* in `stats`, though the private page shows both:
 `actor_count` and `star_count`. Neither names anyone, but both measure the
@@ -63,20 +62,18 @@ def held_back_repos(bundle: dict | None, policy: Policy = EMPTY) -> set[str]:
 def _repo_card(r: dict) -> dict:
     """One aggregated repo, stripped to what a stranger may see.
 
-    Note what is read and what is dropped: `count` (how many accounts converged)
-    survives, `stargazers`/`forkers` (who they were) do not — they are not copied
-    into the returned dict at all, so no later template change can leak them.
+    `count` ranks the board but is never copied into the public card: a
+    "×4 starred today" numeral is the circle's activity in disguise. The
+    repo-own `stars` (from the enrichment fetch, when the day had one) is a
+    fact about the repo, not about who follows it, and is the only number kept.
     """
     ann = r.get("ann") or {}
     return {
         "repo": r["repo"],
         "repo_url": r["repo_url"],
-        # Forks count as convergence too: someone caring enough to fork is a
-        # stronger signal than a star, and the private page's `count` (stars only)
-        # would render a fork-only repo as "×0".
-        "count": len(r.get("stargazers") or []) + len(r.get("forkers") or []),
         "one_liner": ann.get("one_liner") or "",
         "topics": ann.get("topics") or [],
+        "stars": ann.get("repo_stars"),
     }
 
 
@@ -139,12 +136,19 @@ def public_github_view(
     hidden = held_back_repos(bundle, policy)
 
     cards = [_repo_card(r) for r in [*agg["trending"], *agg["singles"]] if r["repo"] not in hidden]
-    # Re-rank on the public count (which folds in forks), not the private one.
-    cards.sort(key=lambda c: c["count"], reverse=True)
+    # Ranking still uses the internal convergence order (agg sorts by it) — just
+    # never printed. The sections are the model's verdict, like the push:
+    # 必看 / 推荐 / the rest.
+    tiers = {
+        r["repo"]: (r.get("ann") or {}).get("tier") or ""
+        for r in [*agg["trending"], *agg["singles"]]
+    }
+    must_see = [c for c in cards if tiers.get(c["repo"]) in ("must_see_push", "must_see_page")]
+    recommended = [c for c in cards if tiers.get(c["repo"]) == "recommend"]
+    tiered = {c["repo"] for c in must_see} | {c["repo"] for c in recommended}
+    others = [c for c in cards if c["repo"] not in tiered]
 
-    converged = [c for c in cards if c["count"] >= 2]
-    singles = [c for c in cards if c["count"] < 2]
-    lead = converged[0] if converged else None
+    lead = must_see[0] if must_see else None
 
     highlights = [_highlight(h) for h in agg["highlights"] if h["repo"] not in hidden]
     newcomers = agg["newcomers"] if show_newcomers else []
@@ -154,14 +158,16 @@ def public_github_view(
         "date": date,
         "title": title,
         "lead": lead,
-        "converged": converged[1:] if lead else [],
-        "singles": singles,
+        "must_see": must_see,
+        "recommended": recommended,
+        "others": others,
         "highlights": highlights,
         "newcomers": newcomers,
         "topics": _topics(cards, highlights),
         "stats": {
             "repo_count": len(cards),
-            "converged_count": len(converged),
+            "must_see_count": len(must_see),
+            "recommend_count": len(recommended),
             "created_count": sum(1 for h in highlights if h["action"] != "release"),
             "release_count": sum(1 for h in highlights if h["action"] == "release"),
             "newcomer_count": len(newcomers),
@@ -171,7 +177,9 @@ def public_github_view(
 
 def has_public_github(view: dict) -> bool:
     """Is there anything on this page at all?"""
-    return bool(view["lead"] or view["singles"] or view["highlights"] or view["newcomers"])
+    return bool(
+        view["lead"] or view["others"] or view["highlights"] or view["newcomers"] or view["recommended"]
+    )
 
 
 __all__ = ["has_public_github", "held_back_repos", "public_github_view"]

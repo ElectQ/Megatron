@@ -178,29 +178,35 @@ async def _ensure_llm_provider(session) -> None:
 
 
 async def _ensure_webhook_channel(session) -> None:
-    """Create DingTalk channel if URL is provided."""
+    """Create configured DingTalk and WeCom channels if URLs are provided."""
     from .engine_models import WebhookChannel
     from .security import encrypt_config
 
-    webhook_url = os.getenv("MEGATRON_DINGTALK_URL")
-    if not webhook_url:
-        return
+    channels = []
+    dingtalk_url = os.getenv("MEGATRON_DINGTALK_URL")
+    if dingtalk_url:
+        config = {"webhook_url": dingtalk_url}
+        secret = os.getenv("MEGATRON_DINGTALK_SECRET")
+        if secret:
+            config["secret"] = secret
+        channels.append(("钉钉安全简报", "dingtalk", config))
 
-    result = await session.execute(select(WebhookChannel).where(WebhookChannel.kind == "dingtalk"))
-    if result.scalar_one_or_none():
-        return
+    wecom_url = os.getenv("MEGATRON_WECOM_URL")
+    if wecom_url:
+        channels.append(("企业微信安全简报", "wecom", {"webhook_url": wecom_url}))
 
-    config = {"webhook_url": webhook_url}
-    secret = os.getenv("MEGATRON_DINGTALK_SECRET")
-    if secret:
-        config["secret"] = secret
-
-    channel = WebhookChannel(
-        name="钉钉安全简报",
-        kind="dingtalk",
-        config=encrypt_config(config),
-        enabled=True,
-    )
-    session.add(channel)
-    await session.commit()
-    logger.info("bootstrap.webhook_channel_created")
+    for name, kind, config in channels:
+        result = await session.execute(select(WebhookChannel).where(WebhookChannel.kind == kind))
+        if result.scalar_one_or_none():
+            continue
+        session.add(
+            WebhookChannel(
+                name=name,
+                kind=kind,
+                config=encrypt_config(config),
+                enabled=True,
+            )
+        )
+    if channels:
+        await session.commit()
+        logger.info("bootstrap.webhook_channels_created", count=len(channels))

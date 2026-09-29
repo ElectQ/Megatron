@@ -178,13 +178,17 @@ async def seed_tasks(session: AsyncSession, specs: list[TaskSpec]) -> dict:
                 .scalars()
                 .first()
             )
-            if ch is None and cname == "钉钉安全简报":
+            fallback_kind = {
+                "钉钉安全简报": "dingtalk",
+                "企业微信安全简报": "wecom",
+            }.get(cname)
+            if ch is None and fallback_kind:
                 ch = (
                     (
                         await session.execute(
                             select(WebhookChannel)
                             .where(
-                                WebhookChannel.kind == "dingtalk",
+                                WebhookChannel.kind == fallback_kind,
                                 WebhookChannel.enabled.is_(True),
                             )
                             .order_by(WebhookChannel.id)

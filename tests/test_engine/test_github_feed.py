@@ -307,7 +307,14 @@ def test_build_annotations_keys_by_repo_full_name():
         ]
     }
     ann = build_annotations(bundle)
-    assert ann == {"owner/repo": {"one_liner": "x", "topics": ["t"], "tier": "recommend"}}
+    assert ann == {
+        "owner/repo": {
+            "one_liner": "x",
+            "topics": ["t"],
+            "tier": "recommend",
+            "repo_stars": None,
+        }
+    }
 
 
 def test_build_annotations_tolerates_no_bundle():

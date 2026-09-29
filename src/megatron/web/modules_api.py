@@ -249,13 +249,16 @@ async def delete_module(module_id: int, session: AsyncSession = Depends(get_sess
 async def run_module(
     module_id: int,
     background_tasks: BackgroundTasks,
+    test: bool = False,
     session: AsyncSession = Depends(get_session),
 ):
     from ..engine.runner import ActiveRunExists, ModuleRunner
 
     runner = ModuleRunner(session)
     try:
-        summary = await runner.create_run(module_id, triggered_by="manual")
+        summary = await runner.create_run(
+            module_id, triggered_by="test" if test else "manual"
+        )
         background_tasks.add_task(_execute_run_background, summary["run_id"], module_id)
         return summary
     except ActiveRunExists as e:

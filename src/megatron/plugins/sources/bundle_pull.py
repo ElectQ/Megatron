@@ -61,6 +61,7 @@ class BundlePullSource(BaseSource):
         self.max_days = int(config.get("max_days", 7))
         self.verify_sha256 = bool(config.get("verify_sha256", True))
         self.timeout = float(config.get("timeout", 30.0))
+        self.latest_date = ""
 
     async def fetch(self, since: datetime | None = None) -> list[Item]:
         # Re-fetch the watermark day once. A collector may publish today's partial
@@ -70,6 +71,7 @@ class BundlePullSource(BaseSource):
             (since - timedelta(days=1)).strftime("%Y-%m-%d") if since else ""
         )
 
+        self.latest_date = ""
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
             index = await self._get_json(client, self.index_url)
 
@@ -133,6 +135,8 @@ class BundlePullSource(BaseSource):
             raise BundleFetchError(f"bundle {date} is not a valid envelope: {e}") from e
 
         collect_date = env.collect_date or date
+        if collect_date > self.latest_date:
+            self.latest_date = collect_date
         return envelope_to_items(
             env,
             source_id=self.source_label or env.source_id or self.name,

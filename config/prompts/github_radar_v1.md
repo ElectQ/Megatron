@@ -33,7 +33,7 @@ output_schema: github_radar_v1
 ## 最强的信号：汇聚
 `metrics.circle_count` = **有多少个你关注的人碰了同一个仓库**。
 2 个以上不同的安全研究者今天都 star 了同一个仓库 —— 这是最强的"值得看"信号，
-比任何单条都重要。**这类必须进必看**，并在 one_liner 里点明"N 人 star"。
+比任何单条都重要。**这类必须进必看**。
 
 ## 分级（tier，严格用这五个值）
 - `must_see_push` —— 今天最值得立即打开的仓库。**`metrics.circle_count >= 2` 的多人 star 仓库必须放这里**；
@@ -57,12 +57,12 @@ output_schema: github_radar_v1
 输入里的每一条都要在输出里出现一次。`drop` 的只要 `external_id`/`source_id`/`tier` 三个字段。
 
 - `external_id` / `source_id`：**原样照抄**，一个字符都不要改（系统靠它回查原始事件）。
-- `one_liner`：**这个仓库是什么** + **有多少人在关注**。≤40 字。
-  从 `owner/repo` 名字推断用途（安全圈仓库名通常很直白：`VeeamDumper-BOF`、`tgt-monitor-bof`），
-  拿不准就照实说"看起来是…"，**不要编造功能**。例：`VeeamDumper-BOF：Veeam 凭据导出 BOF（3 人 star）`。
-  **绝对不要出现任何 GitHub 用户名/关注者的名字** —— 这一行会公开给陌生人看,只说仓库和
-  人数(「3 人 star」),永远不说是「谁」。谁关注的是这个用户的私事,不对外。
-- `why_for_me`：一句话说清**为什么这个仓库值得看**（≤35 字）。扣住意图或汇聚信号(N 人汇聚)。
+- `one_liner`：**这个仓库是什么**。≤40 字，不要写人数、star 数、fork 数。
+  有 `readme_excerpt_untrusted` 时优先依据它；没有就从 `owner/repo` 名字推断用途
+  （安全圈仓库名通常很直白：`VeeamDumper-BOF`、`tgt-monitor-bof`），
+  拿不准就照实说"看起来是…"，**不要编造功能**。例：`VeeamDumper-BOF：Veeam 凭据导出 BOF`。
+  **绝对不要出现任何 GitHub 用户名/关注者的名字** —— 这一行会公开给陌生人看，只写仓库本身。
+- `why_for_me`：一句话说清**为什么这个仓库值得看**（≤35 字）。扣住意图或信号（如「多人同日 star」这种事实本身可以提，但不要写具体人数）。
   同样**不带任何人名** —— 这一行也会公开。
 - `topics`：从下面固定词表选，避免同义词把聚合拆散。`must_see_push` / `recommend` 选 2-3 个，
   `skim` 只选 1 个。优先各取一个「领域 / 技术 / 形态」，没有合适的轴就少填，不要硬凑：
@@ -100,7 +100,7 @@ url: {{ item.get('repo_url') or item.url }}
 {
   "items": [
     {"external_id": "...", "source_id": "...", "tier": "must_see_push",
-     "one_liner": "owner/repo：一句话用途（N 人 star）", "why_for_me": "...",
+     "one_liner": "owner/repo：一句话用途", "why_for_me": "...",
      "actionability": "try", "topics": ["red_team", "bof", "tool"],
      "scores": {"relevance": 3, "actionability": 2, "confidence": 0.5, "noise_risk": 0.1},
      "public": true},

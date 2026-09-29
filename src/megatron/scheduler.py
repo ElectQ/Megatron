@@ -89,11 +89,23 @@ async def poll_source(source_id: str) -> tuple[int, int]:
         plugin = source_registry.create(kind, source_label=sc.name, **cfg)
         try:
             items = await plugin.fetch(since=since)
+            latest_date = getattr(plugin, "latest_date", "")
         finally:
             await plugin.close()
 
         if not items:
-            logger.info("scheduler.pull.no_items", source=source_id, since=watermark)
+            # A content monitor may publish a valid empty day. Advance its
+            # watermark from the verified bundle date so the same empty days are
+            # not fetched forever, while a missing/invalid day leaves it behind.
+            if latest_date:
+                await advance_watermark(session, sc.name, latest_date)
+                await session.commit()
+            logger.info(
+                "scheduler.pull.no_items",
+                source=source_id,
+                since=watermark,
+                latest_date=latest_date,
+            )
             return 0, 0
 
         service = IngestService(session)
@@ -176,11 +188,10 @@ async def reload_pull_jobs() -> int:
 async def _run_module_job(module_id: int, module_name: str) -> None:
     """APScheduler entrypoint for a scheduled module.
 
-    For a polled 'today' source, first *acquire* the day's bundle: re-pull and,
-    if today's data has not landed yet, wait an hour and retry, up to
-    ACQUIRE_MAX_ATTEMPTS times. The first attempt that sees the data analyses +
-    pushes; if it never arrives, the day is marked failed. Non-polled or
-    non-'today' modules run immediately, exactly as before.
+    For a polled source, first *acquire* the day's bundle. Content monitors can
+    opt into ``allow_empty_day``: they pull once and analyse an empty day as a
+    valid result. Other polled modules retry hourly so a missing collector is
+    not mistaken for a quiet day.
     """
     import asyncio
 
@@ -188,10 +199,28 @@ async def _run_module_job(module_id: int, module_name: str) -> None:
     if plan is None:
         logger.warning("scheduler.module.gone", module=module_name, module_id=module_id)
         return
-    retry, source_id = plan
+    retry, source_id, allow_empty_day = plan
 
     if not retry:
         await _do_module_run(module_id, module_name)
+        return
+
+    if allow_empty_day:
+        try:
+            await poll_source(source_id)
+        except Exception as e:
+            logger.error(
+                "scheduler.content_pull.failed",
+                module=module_name,
+                source=source_id,
+                error=str(e),
+            )
+            await _record_failed_day(module_id, module_name)
+            return
+        if await _target_present(module_id):
+            await _do_module_run(module_id, module_name)
+        else:
+            await _record_failed_day(module_id, module_name)
         return
 
     for attempt in range(1, ACQUIRE_MAX_ATTEMPTS + 1):
@@ -308,12 +337,11 @@ async def pull_module_source(module_id: int) -> str:
     return source_id
 
 
-async def _acquire_plan(module_id: int) -> tuple[bool, str] | None:
-    """Whether this module should acquire-with-retry, and its source id.
+async def _acquire_plan(module_id: int) -> tuple[bool, str, bool] | None:
+    """Return whether to retry, the source id, and whether empty is valid.
 
-    Retry only makes sense when the module reads a *polled* source (we can
-    re-pull it) in the default 'today' window. Returns ``(retry, source_id)``,
-    or ``None`` if the module is gone/disabled.
+    Content monitors set ``allow_empty_day`` because no new article is a valid
+    result. Other polled tasks retain acquire-with-retry semantics.
     """
     from .core.engine_models import AnalysisModule
     from .ingest.registry import get_source
@@ -323,12 +351,14 @@ async def _acquire_plan(module_id: int) -> tuple[bool, str] | None:
         module = await session.get(AnalysisModule, module_id)
         if module is None or not module.enabled:
             return None
-        time_mode = (module.filter_config or {}).get("time_mode", "today")
+        fc = module.filter_config or {}
+        time_mode = fc.get("time_mode", "today")
+        allow_empty_day = bool(fc.get("allow_empty_day"))
         if time_mode not in (None, "today", "previous_day"):
-            return (False, module.source)
+            return (False, module.source, allow_empty_day)
         sc = await get_source(session, module.source)
         polled = sc is not None and sc.enabled and sc.adapter in POLLED_ADAPTERS
-        return (polled, module.source)
+        return (polled, module.source, allow_empty_day)
 
 
 async def _target_present(module_id: int) -> bool:
@@ -340,7 +370,7 @@ async def _target_present(module_id: int) -> bool:
     from datetime import datetime, timedelta, timezone
 
     from .core.engine_models import AnalysisModule
-    from .core.models import ItemRecord
+    from .core.models import ItemRecord, PullState
 
     async with async_session_factory() as session:
         module = await session.get(AnalysisModule, module_id)
@@ -361,7 +391,12 @@ async def _target_present(module_id: int) -> bool:
         )
         if module.source_ref:
             stmt = stmt.where(ItemRecord.source_ref == module.source_ref)
-        return (await session.execute(stmt)).scalar_one() > 0
+        if (await session.execute(stmt)).scalar_one() > 0:
+            return True
+        if not (fc.get("allow_empty_day") and fc.get("time_mode") == "previous_day"):
+            return False
+        state = await session.get(PullState, module.source)
+        return bool(state and state.last_date >= target)
 
 
 async def _record_failed_day(module_id: int, module_name: str) -> None:

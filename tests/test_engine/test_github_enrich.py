@@ -58,6 +58,11 @@ async def test_unique_repo_is_fetched_once_and_excerpt_is_not_repeated(monkeypat
         return "真实 README 摘要"
 
     monkeypatch.setattr("megatron.engine.github_enrich._fetch_readme", fake_fetch)
+
+    async def fake_stars(_client, repo):
+        return 1200
+
+    monkeypatch.setattr("megatron.engine.github_enrich._fetch_stars", fake_stars)
     rows = [record("a", "owner/tool", circle=3), record("b", "owner/tool", circle=3)]
 
     context = await github_repo_context(rows)
@@ -66,9 +71,11 @@ async def test_unique_repo_is_fetched_once_and_excerpt_is_not_repeated(monkeypat
     assert context["a"] == {
         "repo_url": "https://github.com/owner/tool",
         "readme_excerpt": "真实 README 摘要",
+        "repo_stars": 1200,
     }
     assert context["b"]["repo_url"] == "https://github.com/owner/tool"
     assert context["b"]["readme_excerpt"] == ""
+    assert "repo_stars" not in context["b"]
 
 
 @pytest.mark.asyncio
@@ -79,6 +86,11 @@ async def test_fork_uses_the_source_repository_and_fetch_failure_is_safe(monkeyp
         return ""
 
     monkeypatch.setattr("megatron.engine.github_enrich._fetch_readme", no_readme)
+
+    async def no_stars(_client, repo):
+        return None
+
+    monkeypatch.setattr("megatron.engine.github_enrich._fetch_stars", no_stars)
     context = await github_repo_context(
         [record("fork", "bohops/UltimateWDACBypassList", action="fork")]
     )
@@ -86,6 +98,7 @@ async def test_fork_uses_the_source_repository_and_fetch_failure_is_safe(monkeyp
     assert context["fork"] == {
         "repo_url": "https://github.com/bohops/UltimateWDACBypassList",
         "readme_excerpt": "",
+        "repo_stars": None,
     }
 
 

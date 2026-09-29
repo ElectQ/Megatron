@@ -116,6 +116,42 @@ async def test_an_empty_completion_is_not_pushed_as_a_quiet_day(bundle_module):
 
 
 @pytest.mark.asyncio
+async def test_test_delivery_only_sends_dingtalk(bundle_module):
+    from sqlalchemy import select
+
+    from megatron.core.engine_models import AnalysisRun, WebhookChannel
+    from megatron.engine.delivery import DeliveryService
+
+    async with async_session_factory() as session:
+        dt = WebhookChannel(name="test-dt", kind="dingtalk", config={}, enabled=True)
+        wc = WebhookChannel(name="test-wecom", kind="wecom", config={}, enabled=True)
+        session.add_all([dt, wc])
+        await session.flush()
+        module = (
+            await session.execute(select(AnalysisModule).where(AnalysisModule.id == bundle_module))
+        ).scalar_one()
+        module.webhook_channel_ids = [dt.id, wc.id]
+        await session.commit()
+        summary = await _run(bundle_module, "", session)
+        run = await session.get(AnalysisRun, summary["run_id"])
+        captured = []
+
+        async def fake_send(_self, ch, result, run_id):
+            captured.append(ch.kind)
+            return {"ok": True, "status_code": 200, "error": ""}
+
+        with patch.object(DeliveryService, "_send_one", fake_send):
+            await DeliveryService(session).deliver(
+                module,
+                run,
+                ModuleRunner(session)._analysis_result(module, run, run.result),
+                only_kinds=("dingtalk",),
+            )
+
+    assert captured == ["dingtalk"]
+
+
+@pytest.mark.asyncio
 async def test_the_channels_are_told_the_answer_was_unusable(bundle_module):
     """`parse_error` reaches AnalysisResult, so each plugin sends its error notice
     instead of a blank digest. Without it every channel's error branch was dead."""

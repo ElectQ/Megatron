@@ -1,0 +1,33 @@
+# rss-website 每日分析 —— 全量内容入日刊，必看/推荐进入推送。
+name: rss-website-briefing
+description: rss-website 每日内容分级（必看/推荐推送 + 日刊页）
+source: rss-website
+prompt: daily_intel_v1
+provider: deepseek
+schedule_cron: "0 1 * * *"      # 01:00 UTC = 09:00 北京
+channels: [钉钉安全简报, 企业微信安全简报]  # 正式任务同时推送两端
+enabled: true
+filter_config:
+  # 上游日包在前一日 21:00 UTC 生成，分析前一天的完整包。
+  time_mode: previous_day
+  # 没有新文章是正常结果：仍记录一次成功的空日，不重试、不告警为故障。
+  allow_empty_day: true
+  # 模型即使漏回一条，日刊也保留它，降为速览而不是静默丢失。
+  retain_all: true
+  output_mode: day_bundle
+  # 长文章按批分析，避免一次 JSON 回填过多条目。
+  analysis_batch_size: 10
+  max_items: 0
+  filters: []
+  title: rss-website
+  intent:
+    primary: [安全研究, 漏洞与攻击手法, 安全工具与工程实践]
+    secondary: [AI 安全, 云与基础设施, 逆向与取证, 产品安全动态]
+  # 不强行把普通文章伪装成必看；实际内容仍全部保留在日刊的推荐/速览中。
+  caps:
+    lead_min: 0
+    must_see_min: 0
+    must_see_max: 8
+    recommend_max: 15
+    skim_max: 0
+    fallback_promote: true

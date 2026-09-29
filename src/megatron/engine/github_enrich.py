@@ -101,6 +101,32 @@ async def _fetch_readme(client: httpx.AsyncClient, repo: str, limit: int) -> str
         return ""
 
 
+_stars_cache: dict[str, int | None] = {}
+
+
+async def _fetch_stars(client: httpx.AsyncClient, repo: str) -> int | None:
+    """The repo's own stargazer count, for the public page. Best-effort.
+
+    One small REST call per unique repo per day; cached in-process so re-runs
+    (a retried batch, a second day mentioning the repo) don't re-hit the API.
+    Anonymous rate limit is 60/h — a rate-limit reply just leaves stars unknown,
+    exactly like any other failure. Never goes into the prompt.
+    """
+    if repo in _stars_cache:
+        return _stars_cache[repo]
+    try:
+        response = await client.get(f"https://api.github.com/repos/{repo}")
+        if response.status_code != 200:
+            _stars_cache[repo] = None
+            return None
+        stars = int(response.json().get("stargazers_count") or 0)
+        _stars_cache[repo] = stars or None
+        return _stars_cache[repo]
+    except Exception:
+        _stars_cache[repo] = None
+        return None
+
+
 async def github_repo_context(records: list[ItemRecord]) -> dict[str, dict[str, str]]:
     """Return external_id -> canonical repo URL + optional README excerpt.
 
@@ -126,7 +152,7 @@ async def github_repo_context(records: list[ItemRecord]) -> dict[str, dict[str, 
         return {}
 
     semaphore = asyncio.Semaphore(_CONCURRENCY)
-    headers = {"User-Agent": "Megatron-GitHub-Radar/1.0"}
+    headers = {"User-Agent": "Megatron-GitHub-Radar/1.0", "Accept": "application/vnd.github+json"}
     timeout = httpx.Timeout(8.0, connect=5.0)
     limits = httpx.Limits(max_connections=_CONCURRENCY, max_keepalive_connections=_CONCURRENCY)
 
@@ -137,22 +163,29 @@ async def github_repo_context(records: list[ItemRecord]) -> dict[str, dict[str, 
         follow_redirects=True,
     ) as client:
 
-        async def fetch(url: str) -> tuple[str, str]:
+        async def fetch(url: str) -> tuple[str, str, int | None]:
+            """README excerpt + the repo's own star count (None when unknown)."""
             rows = grouped[url]
             limit = _STRONG_CHARS if any(_strong(r) for r in rows) else _NORMAL_CHARS
             async with semaphore:
-                return url, await _fetch_readme(client, repos[url], limit)
+                excerpt = await _fetch_readme(client, repos[url], limit)
+                stars = await _fetch_stars(client, repos[url])
+            return url, excerpt, stars
 
-        fetched = dict(await asyncio.gather(*(fetch(url) for url in grouped)))
+        fetched: dict[str, tuple[str, int | None]] = {}
+        for url, excerpt, stars in await asyncio.gather(*(fetch(url) for url in grouped)):
+            fetched[url] = (excerpt, stars)
 
-    context: dict[str, dict[str, str]] = {}
+    context: dict[str, dict] = {}
     for url, rows in grouped.items():
-        excerpt = fetched.get(url, "")
+        excerpt, stars = fetched.get(url, ("", None))
         for index, record in enumerate(rows):
             context[record.item_id] = {
                 "repo_url": url,
                 "readme_excerpt": excerpt if index == 0 else "",
             }
+            if index == 0:
+                context[record.item_id]["repo_stars"] = stars
 
     logger.info(
         "github.enrich.done",

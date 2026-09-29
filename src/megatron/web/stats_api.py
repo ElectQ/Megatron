@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import Date, Integer, cast, func, select
+from sqlalchemy import Date, Integer, cast, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.db import get_session
@@ -126,7 +126,8 @@ async def trend(days: int = 7, session: AsyncSession = Depends(get_session)):
 
 @router.get("/per-module", dependencies=[Depends(admin_auth)])
 async def per_module(session: AsyncSession = Depends(get_session)):
-    """Per-module execution statistics."""
+    """Per-module totals plus today's token usage."""
+    today = _today_start()
     rows = (
         await session.execute(
             select(
@@ -134,6 +135,8 @@ async def per_module(session: AsyncSession = Depends(get_session)):
                 func.count(AnalysisRun.id).label("runs"),
                 func.sum((AnalysisRun.status == "completed").cast(Integer)).label("success"),
                 func.sum(AnalysisRun.prompt_tokens + AnalysisRun.completion_tokens).label("tokens"),
+                func.sum(AnalysisRun.prompt_tokens).label("prompt_tokens"),
+                func.sum(AnalysisRun.completion_tokens).label("completion_tokens"),
                 func.sum(AnalysisRun.total_cost_usd).label("cost"),
                 func.sum(AnalysisRun.duration_sec).label("duration"),
                 func.max(AnalysisRun.started_at).label("last_run"),
@@ -141,6 +144,18 @@ async def per_module(session: AsyncSession = Depends(get_session)):
                 func.avg(AnalysisRun.prompt_tokens + AnalysisRun.completion_tokens).label(
                     "avg_tokens"
                 ),
+                func.sum(
+                    case((AnalysisRun.started_at >= today, 1), else_=0)
+                ).label("today_runs"),
+                func.sum(
+                    case((AnalysisRun.started_at >= today, AnalysisRun.prompt_tokens), else_=0)
+                ).label("today_prompt_tokens"),
+                func.sum(
+                    case((AnalysisRun.started_at >= today, AnalysisRun.completion_tokens), else_=0)
+                ).label("today_completion_tokens"),
+                func.sum(
+                    case((AnalysisRun.started_at >= today, AnalysisRun.total_cost_usd), else_=0)
+                ).label("today_cost"),
             ).group_by(AnalysisRun.module_id)
         )
     ).all()
@@ -165,10 +180,17 @@ async def per_module(session: AsyncSession = Depends(get_session)):
             "success": int(r.success or 0),
             "success_rate": round((r.success or 0) / r.runs * 100, 1) if r.runs else 0,
             "tokens": int(r.tokens or 0),
+            "prompt_tokens": int(r.prompt_tokens or 0),
+            "completion_tokens": int(r.completion_tokens or 0),
             "cost_usd": round(float(r.cost or 0), 6),
             "duration_sec": round(float(r.duration or 0), 2),
             "avg_duration_sec": round(float(r.avg_duration or 0), 2),
             "avg_tokens": int(r.avg_tokens or 0),
+            "today_runs": int(r.today_runs or 0),
+            "today_prompt_tokens": int(r.today_prompt_tokens or 0),
+            "today_completion_tokens": int(r.today_completion_tokens or 0),
+            "today_tokens": int((r.today_prompt_tokens or 0) + (r.today_completion_tokens or 0)),
+            "today_cost_usd": round(float(r.today_cost or 0), 6),
             "last_run": r.last_run.isoformat() if r.last_run else None,
         }
         for r in rows
