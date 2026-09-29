@@ -254,7 +254,7 @@ fetch('/api/admin/stats/trend?days=7')
                         data: data.map(d => d.tokens),
                         borderColor: 'rgba(184, 178, 168, 0.9)',
                         backgroundColor: 'rgba(184, 178, 168, 0.1)',
-                        yAxisID: 'y2',
+                        yAxisID: 'yTokens',
                         tension: 0.3,
                     },
                     {
@@ -263,7 +263,7 @@ fetch('/api/admin/stats/trend?days=7')
                         data: data.map(d => d.cost_usd * 1000),
                         borderColor: 'rgba(53, 196, 122, 0.9)',
                         backgroundColor: 'rgba(53, 196, 122, 0.1)',
-                        yAxisID: 'y2',
+                        yAxisID: 'yCost',
                         tension: 0.3,
                     }
                 ]
@@ -292,12 +292,21 @@ fetch('/api/admin/stats/trend?days=7')
                         ticks: { color: '#8b857a', precision: 0 },
                         grid: { color: 'rgba(139, 133, 122, 0.12)' },
                     },
-                    y2: {
+                    yTokens: {
                         type: 'linear',
                         position: 'right',
                         beginAtZero: true,
-                        title: { display: true, text: 'Tokens / Cost (m$)', color: '#8b857a' },
+                        title: { display: true, text: 'Tokens', color: '#8b857a' },
                         ticks: { color: '#8b857a' },
+                        grid: { drawOnChartArea: false },
+                    },
+                    yCost: {
+                        type: 'linear',
+                        position: 'right',
+                        beginAtZero: true,
+                        offset: true,
+                        title: { display: true, text: 'Cost (m$)', color: 'rgba(53, 196, 122, 0.9)' },
+                        ticks: { color: 'rgba(53, 196, 122, 0.9)' },
                         grid: { drawOnChartArea: false },
                     }
                 }
