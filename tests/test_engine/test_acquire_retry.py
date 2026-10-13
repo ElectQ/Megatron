@@ -22,13 +22,13 @@ def _no_sleep(monkeypatch):
     monkeypatch.setattr(asyncio, "sleep", _instant)
 
 
-def _wire(monkeypatch, *, present_on):
+def _wire(monkeypatch, *, present_on, allow_empty_day=False):
     """Stub the loop's collaborators. `present_on` is the attempt number at which
     today's data appears (None = never). Returns a calls dict to assert on."""
     calls = {"poll": 0, "run": 0, "fail": 0}
 
     async def fake_plan(_module_id):
-        return (True, "src1", False)
+        return (True, "src1", allow_empty_day)
 
     async def fake_poll(_source_id):
         calls["poll"] += 1
@@ -73,6 +73,13 @@ async def test_marks_day_failed_after_five_empty_attempts(monkeypatch):
     assert calls["poll"] == sched.ACQUIRE_MAX_ATTEMPTS
     assert calls["run"] == 0
     assert calls["fail"] == 1
+
+
+@pytest.mark.asyncio
+async def test_content_monitor_retries_until_empty_day_is_published(monkeypatch):
+    calls = _wire(monkeypatch, present_on=3, allow_empty_day=True)
+    await sched._run_module_job(1, "rss-website-briefing")
+    assert calls == {"poll": 3, "run": 1, "fail": 0}
 
 
 @pytest.mark.asyncio
@@ -216,6 +223,26 @@ async def test_target_present_reflects_today_and_previous_day():
     async with async_session_factory() as s:
         await _add_item(s, "src_tp", today)
     assert await sched._target_present(today_mid) is True
+
+
+@pytest.mark.asyncio
+async def test_target_present_accepts_a_published_empty_day():
+    from megatron.core.db import async_session_factory
+    from megatron.core.models import PullState
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    async with async_session_factory() as s:
+        await _seed_source(s, "src_empty", "bundle_pull")
+        mid = await _seed_module(
+            s,
+            "mod_empty",
+            "src_empty",
+            {"time_mode": "today", "allow_empty_day": True},
+        )
+        s.add(PullState(source="src_empty", last_date=today))
+        await s.commit()
+
+    assert await sched._target_present(mid) is True
 
 
 @pytest.mark.asyncio

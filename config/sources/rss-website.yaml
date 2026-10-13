@@ -9,7 +9,8 @@ audience: [public]
 enabled: true
 page_layout: digest
 
-# Sentinel-Site 每日 21:00 UTC 运行；留出提交和 CDN 同步时间后再拉取。
+# Sentinel-Site 每日 21:00 UTC 运行；GitHub Actions 可能延迟数小时。
+# 这里先做一次预拉取，09:00 的分析任务仍会自行拉取并按小时重试。
 schedule:
   cron: "40 22 * * *"
 

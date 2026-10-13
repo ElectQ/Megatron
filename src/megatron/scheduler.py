@@ -189,9 +189,9 @@ async def _run_module_job(module_id: int, module_name: str) -> None:
     """APScheduler entrypoint for a scheduled module.
 
     For a polled source, first *acquire* the day's bundle. Content monitors can
-    opt into ``allow_empty_day``: they pull once and analyse an empty day as a
-    valid result. Other polled modules retry hourly so a missing collector is
-    not mistaken for a quiet day.
+    opt into ``allow_empty_day``: once the upstream has published today's bundle,
+    an empty bundle is a valid result. A bundle that has not arrived yet still
+    retries hourly, so a late collector is not mistaken for a quiet day.
     """
     import asyncio
 
@@ -199,28 +199,10 @@ async def _run_module_job(module_id: int, module_name: str) -> None:
     if plan is None:
         logger.warning("scheduler.module.gone", module=module_name, module_id=module_id)
         return
-    retry, source_id, allow_empty_day = plan
+    retry, source_id, _allow_empty_day = plan
 
     if not retry:
         await _do_module_run(module_id, module_name)
-        return
-
-    if allow_empty_day:
-        try:
-            await poll_source(source_id)
-        except Exception as e:
-            logger.error(
-                "scheduler.content_pull.failed",
-                module=module_name,
-                source=source_id,
-                error=str(e),
-            )
-            await _record_failed_day(module_id, module_name)
-            return
-        if await _target_present(module_id):
-            await _do_module_run(module_id, module_name)
-        else:
-            await _record_failed_day(module_id, module_name)
         return
 
     for attempt in range(1, ACQUIRE_MAX_ATTEMPTS + 1):
@@ -340,8 +322,8 @@ async def pull_module_source(module_id: int) -> str:
 async def _acquire_plan(module_id: int) -> tuple[bool, str, bool] | None:
     """Return whether to retry, the source id, and whether empty is valid.
 
-    Content monitors set ``allow_empty_day`` because no new article is a valid
-    result. Other polled tasks retain acquire-with-retry semantics.
+    Content monitors set ``allow_empty_day`` because a published bundle with no
+    new article is a valid result. It does not make a missing bundle valid.
     """
     from .core.engine_models import AnalysisModule
     from .ingest.registry import get_source
