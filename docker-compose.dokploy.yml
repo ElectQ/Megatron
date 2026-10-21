@@ -5,9 +5,14 @@
 # pulls, LLM calls and webhook pushes).
 #
 # Dokploy Phase A: one application instance + one local SQLite volume.
-# Dokploy manages the Git build, Traefik/domain and lifecycle. Do not add ports,
-# container_name or restart here. It must run exactly one replica: the app owns an
+# Dokploy manages the Git build, Traefik/domain and lifecycle. Do not add ports or
+# container_name here. It must run exactly one replica: the app owns an
 # APScheduler instance and SQLite WAL is not a shared, multi-writer database.
+#
+# restart: unless-stopped is REQUIRED. Without it the container stays in the
+# "exited" state after a host reboot, and Dokploy's daily docker cleanup
+# (docker system prune --all --force) then deletes the stopped container, its
+# image and its network - the 2026-10-17 outage. Data volume is not touched.
 #
 # REQUIRED for the first staging deploy: set MEGATRON_SCHEDULER_ENABLED=false in
 # Dokploy. It lets you validate a copied volume without duplicating the old
@@ -40,6 +45,9 @@ services:
       MEGATRON_FORWARDED_ALLOW_IPS: ${MEGATRON_FORWARDED_ALLOW_IPS:-*}
     volumes:
       - megatron_data:/app/data
+    # Come back automatically after reboots/crashes; stays down only if stopped
+    # on purpose (docker stop / Dokploy stop).
+    restart: unless-stopped
 
 volumes:
   megatron_data:
