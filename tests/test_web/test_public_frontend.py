@@ -140,6 +140,57 @@ def test_the_public_post_shows_public_and_hides_private(client, a_public_day):
     assert PUBLIC_LINE in r.text, "the public item is shown"
     assert PRIVATE_LINE not in r.text, "the private item must never appear"
     assert PRIVATE_TAKE not in r.text, "nor may the model's take on the private item"
+    assert f"/zh/item/{SRC}/e1" in r.text
+    assert 'target="_blank"' in r.text and "https://x.com/a/1" in r.text
+
+
+def test_public_search_and_item_detail_use_stable_item_url(client, a_public_day):
+    search = client.get(f"/zh/search?q={PUBLIC_LINE}")
+    assert search.status_code == 200
+    assert PUBLIC_LINE in search.text
+    assert f"/zh/item/{SRC}/e1" in search.text
+    assert PRIVATE_LINE not in search.text
+
+    detail = client.get(f"/zh/item/{SRC}/e1")
+    assert detail.status_code == 200
+    assert PUBLIC_LINE in detail.text
+    assert PUBLIC_TAKE in detail.text
+    assert "public tweet body" in detail.text
+    assert "https://x.com/a/1" in detail.text
+
+
+def test_public_search_and_item_detail_hide_private_items(client, a_public_day):
+    search = client.get(f"/zh/search?q={PRIVATE_LINE}")
+    assert search.status_code == 200
+    assert PRIVATE_TAKE not in search.text
+    assert "private body" not in search.text
+    assert client.get(f"/zh/item/{SRC}/e2").status_code == 404
+
+
+@pytest_asyncio.fixture
+async def a_withdrawn_public_item(a_public_day):
+    from megatron.core.engine_models import PublicationOverride
+
+    async with async_session_factory() as session:
+        session.add(
+            PublicationOverride(source_id=SRC, date=DATE, item_id="1", published=False)
+        )
+        await session.commit()
+
+
+def test_public_search_and_detail_respect_withdrawn_override(client, a_withdrawn_public_item):
+    search = client.get(f"/zh/search?q={PUBLIC_LINE}")
+    assert search.status_code == 200
+    assert "public tweet body" not in search.text
+    assert client.get(f"/zh/item/{SRC}/e1").status_code == 404
+
+
+def test_public_search_supports_both_languages_and_empty_state(client, a_public_day):
+    assert client.get(f"/en/search?q={PUBLIC_LINE}").status_code == 200
+    empty = client.get("/zh/search?q=does-not-exist")
+    assert empty.status_code == 200
+    assert "No public results found." not in empty.text
+    assert "没有找到公开结果。" in empty.text
 
 
 def test_the_post_carries_the_models_take_but_not_its_scores(client, a_public_day):

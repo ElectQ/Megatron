@@ -31,7 +31,7 @@
                         <th>Tags</th>
                         <th>Engagement</th>
                         <th>Published</th>
-                        <th>Link</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -55,8 +55,9 @@
                         {{ it.metrics.like_count }} likes · {{ it.metrics.retweet_count }} RT · {{ it.metrics.reply_count }} replies
                     </td>
                     <td class="text-xs text-secondary">{{ it.published_at[:10] }}</td>
-                    <td>
-                        {% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener noreferrer" class="link text-xs">open</a>{% endif %}
+                    <td class="whitespace-nowrap">
+                        <a href="/ui/data/collected/{{ it.id }}?keyword={{ filters.keyword|urlencode }}&author={{ filters.author|urlencode }}&collect_date={{ filters.collect_date|urlencode }}" class="link text-xs">{{ t('View') }}</a>
+                        {% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener noreferrer" class="link text-xs ml-2">{{ t('Original') }} ↗</a>{% endif %}
                     </td>
                 </tr>
                 {% endfor %}

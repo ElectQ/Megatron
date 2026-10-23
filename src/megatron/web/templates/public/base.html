@@ -72,6 +72,15 @@
   .nav a.on{color:var(--accent-ink);font-weight:700}
   .nav .sep{width:1px;height:1.1rem;background:var(--line-strong);margin:0 .25rem}
   .nav a.admin{border:1px solid var(--line-strong);color:var(--faint)}
+  .search-toggle{display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;
+    border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:7px}
+  .search-toggle:hover{color:var(--ink);background:var(--surface-2)}
+  .search-toggle svg{width:1rem;height:1rem}
+  .search-box{display:none;position:absolute;right:0;top:calc(100% + .5rem);z-index:2;width:min(22rem,calc(100vw - 3rem));
+    padding:.35rem;background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;box-shadow:var(--shadow)}
+  .search-box input{width:100%;border:0;outline:0;background:transparent;color:var(--ink);padding:.55rem .7rem;font:inherit;font-size:.875rem}
+  .search-wrap{position:relative}
+  .search-wrap:focus-within .search-box,.search-box:hover{display:block}
   .rule{height:1px;background:var(--line);margin-bottom:2.25rem}
 
   /* ---- shared chips ---- */
@@ -101,6 +110,14 @@
     <nav class="nav">
       {% for code, name in langs.items() %}<a href="/{{ code }}{{ here_suffix or '' }}" class="{{ 'on' if code == lang else '' }}">{{ name }}</a>{% endfor %}
       <span class="sep"></span>
+      <span class="search-wrap">
+        <button class="search-toggle" type="button" aria-label="{{ t('Search') }}" onclick="this.nextElementSibling.style.display='block';this.nextElementSibling.querySelector('input').focus()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        </button>
+        <form class="search-box" action="/{{ lang }}/search" method="get" onsubmit="this.querySelector('input').value=this.querySelector('input').value.trim()">
+          <input name="q" type="search" value="{{ request.query_params.get('q', '') }}" placeholder="{{ t('Search security intelligence…') }}" autocomplete="off">
+        </form>
+      </span>
       <a class="admin" href="/ui/login">{{ t('Admin') }}</a>
     </nav>
   </header>

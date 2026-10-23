@@ -158,12 +158,13 @@ def public_items(bundle: dict, policy: Policy = EMPTY) -> list[dict]:
         return []
     if policy.overrides.day_hidden(source_id, date):
         return []
-    redact = policy.source_redacts(source_id)
-    return [
-        _public_item(i, redact)
-        for i in (bundle.get("items") or [])
-        if is_public(i, source_id, date, policy)
-    ]
+    out = []
+    for item in bundle.get("items") or []:
+        item_source = str(item.get("source_id") or source_id)
+        if not is_public(item, item_source, date, policy):
+            continue
+        out.append(_public_item(item, policy.source_redacts(item_source)))
+    return out
 
 
 def has_public(bundle: dict, policy: Policy = EMPTY) -> bool:

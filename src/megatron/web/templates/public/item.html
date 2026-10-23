@@ -1,0 +1,44 @@
+{% extends "public/base.html" %}
+{% from "public/marks.html" import source_mark, source_label %}
+{% block title %}{{ item.one_liner or (item.content | truncate(80)) }} · Megatron LLM Hub{% endblock %}
+{% block head %}
+<style>
+  .back{display:inline-flex;align-items:center;gap:.35rem;margin-bottom:1.6rem;color:var(--muted);font-size:.8125rem;font-weight:600}
+  .back:hover{color:var(--accent-ink)}
+  .item-head{max-width:var(--measure);margin-bottom:2.25rem}
+  .item-head .pill{margin-bottom:1rem}
+  .item-head h1{font-size:clamp(1.8rem,4.5vw,2.7rem);line-height:1.16;margin:0 0 1rem;letter-spacing:-.03em}
+  .byline{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;color:var(--faint);font-size:.85rem}
+  .dot{width:3px;height:3px;border-radius:50%;background:var(--line-strong)}
+  .item-body{max-width:var(--measure)}
+  .take{padding:1rem 1.1rem;margin-bottom:1.5rem;border-left:3px solid var(--accent);background:var(--accent-wash);color:var(--ink)}
+  .raw{white-space:pre-wrap;word-break:break-word;color:var(--muted);font-size:1rem;line-height:1.8}
+  .tags{display:flex;gap:.4rem;flex-wrap:wrap;margin:1.5rem 0}
+  .tag{padding:.14rem .5rem;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);font-weight:600;font-size:.78rem}
+  .actions{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:2rem;padding-top:1.25rem;border-top:1px solid var(--line)}
+  .action{display:inline-flex;align-items:center;gap:.35rem;padding:.55rem .8rem;border-radius:8px;border:1px solid var(--line-strong);font-size:.82rem;font-weight:700;color:var(--muted)}
+  .action:hover{color:var(--ink);background:var(--surface-2)}
+  .action.primary{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+</style>
+{% endblock %}
+{% block content %}
+<a class="back" href="/{{ lang }}/search"><span>←</span>{{ t('Back to search') }}</a>
+<header class="item-head rise">
+  <span class="pill">{{ source_mark(source_id) }}{{ source_label(source_id) }}</span>
+  <h1>{{ item.one_liner or (item.content | truncate(140)) }}</h1>
+  <div class="byline">
+    <b>{{ date }}</b><span class="dot"></span>
+    {% if item.author %}<span>@{{ item.author }}</span><span class="dot"></span>{% endif %}
+    {{ t(tier_label.get(item.tier, item.tier or 'Published')) }}
+  </div>
+</header>
+<div class="item-body">
+  {% if item.why_for_me %}<div class="take">{{ item.why_for_me }}</div>{% endif %}
+  {% if item.topics %}<div class="tags">{% for tag in item.topics %}<span class="tag">{{ tag }}</span>{% endfor %}</div>{% endif %}
+  {% if item.content %}<div class="raw">{{ item.content }}</div>{% endif %}
+  <div class="actions">
+    {% if item.url %}<a class="action primary" href="{{ item.url }}" target="_blank" rel="noopener nofollow">{{ t('Read original') }} ↗</a>{% endif %}
+    <a class="action" href="/{{ lang }}/{{ source_id }}/{{ date }}">{{ t('View daily digest') }}</a>
+  </div>
+</div>
+{% endblock %}

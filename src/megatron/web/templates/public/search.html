@@ -1,0 +1,50 @@
+{% extends "public/base.html" %}
+{% from "public/marks.html" import source_mark, source_label %}
+{% block title %}{{ t('Search') }} · Megatron LLM Hub{% endblock %}
+{% block head %}
+<style>
+  .search-head{max-width:var(--measure);margin-bottom:2rem}
+  .search-head h1{font-size:clamp(1.8rem,4vw,2.4rem);line-height:1.15;margin:0 0 1rem;letter-spacing:-.03em}
+  .search-form{display:flex;gap:.5rem;max-width:var(--measure)}
+  .search-form input{min-width:0;flex:1;padding:.7rem .85rem;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}
+  .search-form button{border:0;border-radius:8px;padding:.7rem 1rem;background:var(--ink);color:var(--bg);font:inherit;font-weight:700;cursor:pointer}
+  .result-meta{color:var(--muted);font-size:.85rem;margin:1.5rem 0 .4rem}
+  .result{display:block;padding:1.15rem 0;border-bottom:1px solid var(--line);max-width:var(--measure)}
+  .result:hover .result-title{color:var(--accent-ink)}
+  .result-top,.result-foot{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;color:var(--faint);font-size:.78rem}
+  .result-title{margin:.45rem 0 .25rem;font-size:1.12rem;line-height:1.4;font-weight:750;transition:color .15s}
+  .result-text{margin:0;color:var(--muted);font-size:.9rem;line-height:1.6;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;white-space:pre-wrap}
+  .tag{padding:.14rem .5rem;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);font-weight:600}
+  .empty{max-width:var(--measure);padding:3rem 0;color:var(--muted)}
+</style>
+{% endblock %}
+{% block content %}
+<header class="search-head rise">
+  <h1>{{ t('Search security intelligence') }}</h1>
+  <form class="search-form" action="/{{ lang }}/search" method="get">
+    <input name="q" type="search" value="{{ query }}" placeholder="{{ t('Search CVE, vulnerability, tool…') }}" autofocus>
+    <button type="submit">{{ t('Search') }}</button>
+  </form>
+</header>
+
+{% if query %}
+  <div class="result-meta">{{ results|length }} {{ t('results') }} · “{{ query }}”</div>
+  {% for item in results %}
+  <a class="result" href="/{{ lang }}/item/{{ item.source_id }}/{{ item.external_id }}">
+    <div class="result-top"><span class="pill">{{ source_mark(item.source_id) }}{{ source_label(item.source_id) }}</span><span>{{ item.date }}</span></div>
+    <h2 class="result-title">{{ item.one_liner or (item.content | truncate(120)) }}</h2>
+    {% if item.why_for_me %}<p class="result-text">{{ item.why_for_me }}</p>
+    {% elif item.content %}<p class="result-text">{{ item.content }}</p>{% endif %}
+    <div class="result-foot">
+      {% for tag in item.topics or [] %}<span class="tag">{{ tag }}</span>{% endfor %}
+      {% if item.author %}<span>@{{ item.author }}</span>{% endif %}
+      <span>{{ t('Read item') }} →</span>
+    </div>
+  </a>
+  {% else %}
+  <div class="empty">{{ t('No public results found.') }}</div>
+  {% endfor %}
+{% else %}
+  <div class="empty">{{ t('Search published items by keyword.') }}</div>
+{% endif %}
+{% endblock %}

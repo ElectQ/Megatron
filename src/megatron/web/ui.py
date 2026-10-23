@@ -230,6 +230,33 @@ async def data_collected_page(
     )
 
 
+@router.get("/data/collected/{item_id}", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
+async def collected_item_page(
+    request: Request,
+    item_id: int,
+    keyword: str = "",
+    author: str = "",
+    collect_date: str = "",
+):
+    item = await _api_get(request, f"/api/items/{item_id}")
+    if not isinstance(item, dict) or "id" not in item:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Item not found")
+    import urllib.parse
+
+    back = urllib.parse.urlencode(
+        {k: v for k, v in {"keyword": keyword, "author": author, "collect_date": collect_date}.items() if v}
+    )
+    return _render(
+        request,
+        "item_detail.html",
+        "data_collected",
+        item=item,
+        back_query=back,
+    )
+
+
 @router.get("/items", response_class=HTMLResponse, dependencies=[Depends(admin_auth)])
 async def items_redirect():
     return RedirectResponse("/ui/data/collected", status_code=302)

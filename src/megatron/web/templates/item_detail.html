@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ t('Collected Item') }} · Megatron{% endblock %}
+{% block content %}
+<div class="mb-6 flex items-center justify-between gap-3 flex-wrap">
+    <div>
+        <h2 class="text-2xl font-semibold tracking-tight">{{ t('Collected Item') }}</h2>
+        <p class="text-sm text-muted mt-1">{{ t('Raw item details from the configured source.') }}</p>
+    </div>
+    <a href="/ui/data/collected{% if back_query %}?{{ back_query }}{% endif %}" class="btn btn-ghost btn-sm">← {{ t('Back to collected') }}</a>
+</div>
+
+<div class="grid gap-4 lg:grid-cols-3">
+    <div class="card lg:col-span-2">
+        <div class="card-body">
+            <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+                <h3 class="card-title">{{ item.title or item.content[:80] }}</h3>
+                {% if item.url %}<a href="{{ item.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">{{ t('Open original') }} ↗</a>{% endif %}
+            </div>
+            <div class="text-sm whitespace-pre-wrap break-words leading-7">{{ item.content }}</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body text-sm space-y-3">
+            <h3 class="card-title">{{ t('Metadata') }}</h3>
+            <div><span class="text-muted">{{ t('Source') }}</span><br><code>{{ item.source }}</code></div>
+            <div><span class="text-muted">Source ref</span><br><code>{{ item.source_ref }}</code></div>
+            <div><span class="text-muted">External ID</span><br><code>{{ item.item_id }}</code></div>
+            <div><span class="text-muted">{{ t('Author') }}</span><br>@{{ item.author }}{% if item.author_name %} · {{ item.author_name }}{% endif %}</div>
+            <div><span class="text-muted">{{ t('Published') }}</span><br>{{ item.published_at }}</div>
+            <div><span class="text-muted">{{ t('Collected') }}</span><br>{{ item.collected_at }}</div>
+            <div><span class="text-muted">{{ t('Collect date') }}</span><br>{{ item.collect_date }}</div>
+            <div><span class="text-muted">{{ t('Language') }}</span><br>{{ item.language or '—' }}</div>
+            <div><span class="text-muted">{{ t('Analysis state') }}</span><br><span class="badge badge-ghost">{{ item.analysis_state }}</span></div>
+            <div><span class="text-muted">{{ t('Importance score') }}</span><br>{{ item.importance_score }}</div>
+            <div><span class="text-muted">{{ t('Flags') }}</span><br>retweet={{ item.is_retweet }} · quote={{ item.is_quote }}</div>
+            {% if item.tags %}<div><span class="text-muted">{{ t('Tags') }}</span><br>{% for tag in item.tags %}<span class="badge badge-ghost mr-1">{{ tag }}</span>{% endfor %}</div>{% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="grid gap-4 lg:grid-cols-3 mt-4">
+    {% for name, value in [('Links', item.links), ('Media', item.media), ('Metrics', item.metrics)] %}
+    <div class="card">
+        <div class="card-body">
+            <h3 class="card-title mb-3">{{ t(name) }}</h3>
+            <pre class="text-xs whitespace-pre-wrap break-words overflow-x-auto">{{ value | tojson(indent=2) }}</pre>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card mt-4">
+    <div class="card-body">
+        <h3 class="card-title mb-3">{{ t('Raw data') }}</h3>
+        <pre class="text-xs whitespace-pre-wrap break-words overflow-x-auto">{{ item.raw | tojson(indent=2) }}</pre>
+    </div>
+</div>
+{% endblock %}

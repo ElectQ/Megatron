@@ -58,8 +58,10 @@
   article.item .head{display:flex;gap:.65rem;align-items:baseline}
   article.item .head .dot{margin-top:.5rem;width:.5rem;height:.5rem;border-radius:50%;
     flex:0 0 auto;background:var(--c,var(--t-more))}
+  article.item .item-link{display:block;color:inherit}
+  article.item .item-link:hover .one-liner{color:var(--accent-ink)}
   article.item .one-liner{font-weight:750;font-size:1.12rem;line-height:1.4;margin:0;
-    letter-spacing:-.015em;color:var(--ink)}
+    letter-spacing:-.015em;color:var(--ink);transition:color .15s}
   /* The model's take. Sits above the raw post because it is the reason to read on;
      the original is the citation, not the story. */
   article.item .why{margin:.5rem 0 0;padding-left:1.15rem;font-size:.98rem;line-height:1.6;
@@ -110,7 +112,7 @@
     <article class="item">
       <div class="head">
         <span class="dot"></span>
-        <p class="one-liner">{{ it.one_liner or (it.content | truncate(90)) }}</p>
+        <a class="item-link" href="/{{ lang }}/item/{{ it.source_id }}/{{ it.external_id }}"><p class="one-liner">{{ it.one_liner or (it.content | truncate(90)) }}</p></a>
       </div>
       {% if it.why_for_me %}<p class="why">{{ it.why_for_me }}</p>{% endif %}
       {% if it.content and it.one_liner %}<p class="detail">{{ it.content }}</p>{% endif %}

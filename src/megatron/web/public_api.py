@@ -20,7 +20,7 @@ from ..ingest.registry import get_source
 from .day_api import _latest_bundle
 from .i18n import SUPPORTED_LANGS, make_translator
 from .public_github import public_github_view
-from .public_view import has_public, load_policy, public_days, public_view
+from .public_view import has_public, latest_bundles, load_policy, public_days, public_items, public_view
 
 router = APIRouter(tags=["public"])
 templates = Jinja2Templates(directory="src/megatron/web/templates")
@@ -87,6 +87,76 @@ async def public_home(lang: str, request: Request, session: AsyncSession = Depen
     _lang_or_404(lang)
     days = await public_days(session)
     return _render(request, lang, "public/home.html", days=days)
+
+
+@router.get("/{lang}/search", response_class=HTMLResponse)
+async def public_search(
+    lang: str,
+    request: Request,
+    q: str = "",
+    session: AsyncSession = Depends(get_session),
+):
+    _lang_or_404(lang)
+    query = " ".join(q.split())[:100]
+    results: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    if query:
+        needle = query.casefold()
+        policy = await load_policy(session)
+        for bundle in await latest_bundles(session):
+            date = str(bundle.get("date") or "")
+            for item in public_items(bundle, policy):
+                source_id = str(item.get("source_id") or bundle.get("source_id") or "")
+                external_id = str(item.get("external_id") or "")
+                key = (source_id, external_id)
+                haystack = " ".join(
+                    [
+                        str(item.get("one_liner") or ""),
+                        str(item.get("why_for_me") or ""),
+                        str(item.get("content") or ""),
+                        str(item.get("author") or ""),
+                        " ".join(str(t) for t in (item.get("topics") or [])),
+                    ]
+                ).casefold()
+                if external_id and key not in seen and needle in haystack:
+                    seen.add(key)
+                    results.append(
+                        {
+                            **item,
+                            "date": date,
+                            "title": bundle.get("title") or source_id,
+                        }
+                    )
+    suffix = f"/search?q={query}" if query else "/search"
+    return _render(request, lang, "public/search.html", here_suffix=suffix, query=query, results=results)
+
+
+@router.get("/{lang}/item/{source_id}/{external_id}", response_class=HTMLResponse)
+async def public_item(
+    lang: str,
+    source_id: str,
+    external_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    _lang_or_404(lang)
+    policy = await load_policy(session)
+    for bundle in await latest_bundles(session):
+        for item in public_items(bundle, policy):
+            if (str(item.get("source_id") or bundle.get("source_id") or "") == source_id
+                    and str(item.get("external_id") or "") == external_id):
+                date = str(bundle.get("date") or "")
+                return _render(
+                    request,
+                    lang,
+                    "public/item.html",
+                    here_suffix=f"/item/{source_id}/{external_id}",
+                    item=item,
+                    source_id=source_id,
+                    date=date,
+                    title=bundle.get("title") or source_id,
+                )
+    raise HTTPException(status_code=404, detail="Not found")
 
 
 @router.get("/{lang}/{source_id}/{date}", response_class=HTMLResponse)
