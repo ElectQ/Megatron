@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from megatron.core.db import async_session_factory
 from megatron.engine.bundle import BUNDLE_SCHEMA
@@ -183,6 +184,33 @@ def test_public_search_and_detail_respect_withdrawn_override(client, a_withdrawn
     assert search.status_code == 200
     assert "public tweet body" not in search.text
     assert client.get(f"/zh/item/{SRC}/e1").status_code == 404
+
+
+@pytest_asyncio.fixture
+async def a_public_item_with_slashes(a_public_day):
+    from megatron.core.engine_models import AnalysisRun
+
+    external_id = "network:deepseek-ai/deepseek-recipe:2026-10-25?tab=readme#top"
+    async with async_session_factory() as session:
+        run = (await session.execute(select(AnalysisRun))).scalar_one()
+        result = dict(run.result)
+        result["items"] = [{**result["items"][0], "external_id": external_id}]
+        run.result = result
+        await session.commit()
+    return external_id
+
+
+def test_public_item_accepts_reserved_characters_in_external_ids(client, a_public_item_with_slashes):
+    encoded = "network%3Adeepseek-ai%2Fdeepseek-recipe%3A2026-10-25%3Ftab%3Dreadme%23top"
+    response = client.get(f"/zh/item/{SRC}/{encoded}")
+    assert response.status_code == 200
+    assert PUBLIC_LINE in response.text
+
+    search = client.get(f"/zh/search?q={PUBLIC_LINE}")
+    assert f"/zh/item/{SRC}/{encoded}" in search.text
+
+    post = client.get(f"/zh/{SRC}/{DATE}")
+    assert f"/zh/item/{SRC}/{encoded}" in post.text
 
 
 def test_public_search_supports_both_languages_and_empty_state(client, a_public_day):

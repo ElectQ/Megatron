@@ -8,6 +8,8 @@ pages (/day/...?k=) and the admin (/ui/...) are untouched.
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -42,6 +44,10 @@ TIER_COLOR = {
     "recommend": "var(--t-rec)",
     "skim": "var(--t-more)",
 }
+
+
+def public_item_url(lang: str, source_id: str, external_id: str) -> str:
+    return f"/{lang}/item/{quote(source_id, safe='')}/{quote(external_id, safe='')}"
 
 
 def _render(request: Request, lang: str, name: str, here_suffix: str = "", **ctx) -> HTMLResponse:
@@ -127,11 +133,13 @@ async def public_search(
                             "title": bundle.get("title") or source_id,
                         }
                     )
+    for result in results:
+        result["detail_url"] = public_item_url(lang, result["source_id"], result["external_id"])
     suffix = f"/search?q={query}" if query else "/search"
     return _render(request, lang, "public/search.html", here_suffix=suffix, query=query, results=results)
 
 
-@router.get("/{lang}/item/{source_id}/{external_id}", response_class=HTMLResponse)
+@router.get("/{lang}/item/{source_id}/{external_id:path}", response_class=HTMLResponse)
 async def public_item(
     lang: str,
     source_id: str,
@@ -150,7 +158,7 @@ async def public_item(
                     request,
                     lang,
                     "public/item.html",
-                    here_suffix=f"/item/{source_id}/{external_id}",
+                    here_suffix=public_item_url(lang, source_id, external_id),
                     item=item,
                     source_id=source_id,
                     date=date,
@@ -188,6 +196,12 @@ async def public_post(
         return await _github_post(request, lang, session, source, source_id, date, policy)
 
     view = public_view(bundle, policy)
+    for item in view["items"]:
+        item["detail_url"] = public_item_url(
+            lang,
+            str(item.get("source_id") or source_id),
+            str(item.get("external_id") or ""),
+        )
     return _render(request, lang, "public/post.html", here_suffix=f"/{source_id}/{date}", view=view)
 
 

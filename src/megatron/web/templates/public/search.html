@@ -30,7 +30,7 @@
 {% if query %}
   <div class="result-meta">{{ results|length }} {{ t('results') }} · “{{ query }}”</div>
   {% for item in results %}
-  <a class="result" href="/{{ lang }}/item/{{ item.source_id }}/{{ item.external_id }}">
+  <a class="result" href="{{ item.detail_url }}">
     <div class="result-top"><span class="pill">{{ source_mark(item.source_id) }}{{ source_label(item.source_id) }}</span><span>{{ item.date }}</span></div>
     <h2 class="result-title">{{ item.one_liner or (item.content | truncate(120)) }}</h2>
     {% if item.why_for_me %}<p class="result-text">{{ item.why_for_me }}</p>

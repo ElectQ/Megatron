@@ -112,7 +112,7 @@
     <article class="item">
       <div class="head">
         <span class="dot"></span>
-        <a class="item-link" href="/{{ lang }}/item/{{ it.source_id }}/{{ it.external_id }}"><p class="one-liner">{{ it.one_liner or (it.content | truncate(90)) }}</p></a>
+        <a class="item-link" href="{{ it.detail_url }}"><p class="one-liner">{{ it.one_liner or (it.content | truncate(90)) }}</p></a>
       </div>
       {% if it.why_for_me %}<p class="why">{{ it.why_for_me }}</p>{% endif %}
       {% if it.content and it.one_liner %}<p class="detail">{{ it.content }}</p>{% endif %}
